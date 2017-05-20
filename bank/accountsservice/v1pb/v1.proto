@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package kobun4.bank.accounts.v1;
+
+option go_package = "v1pb";
+
+message CreateRequest {
+}
+
+message CreateResponse {
+    bytes account_handle = 1;
+    bytes account_key = 2;
+}
+
+message DeleteRequest {
+    bytes account_handle = 1;
+    bytes account_key = 2;
+}
+
+message DeleteResponse {
+}
+
+service Accounts {
+    rpc Create(CreateRequest) returns (CreateResponse) { }
+    rpc Delete(DeleteRequest) returns (DeleteResponse) { }
+}

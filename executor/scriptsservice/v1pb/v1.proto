@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package kobun4.executor.scripts.v1;
+
+option go_package = "v1pb";
+
+message ScriptEnvelope {
+    bytes billing_account_handle = 1;
+    bytes billing_account_key = 2;
+    bytes script = 3;
+}
+
+message ExecuteRequest {
+    bytes source_account_handle = 1;
+    bytes source_account_key = 2;
+
+    bytes script_account_handle = 3;
+
+    string name = 4;
+    map<string, string> context = 5;
+}
+
+message ExecuteResponse {
+    bool ok = 1;
+    bytes stdout = 2;
+    bytes stderr = 3;
+    int64 executing_account_cost = 4;
+    int64 billing_account_cost = 5;
+    bool unified_billing = 6;
+}
+
+service Scripts {
+    rpc Execute(ExecuteRequest) returns (ExecuteResponse) { }
+}

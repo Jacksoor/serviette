@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package kobun4.bank.assets.v1;
+
+option go_package = "v1";
+
+message Info {
+    string type = 1;
+    string name = 2;
+    int64 expiry_time_unix = 3;
+}
+
+message BuyRequest {
+    bytes account_handle = 1;
+    bytes account_key = 2;
+    string type = 3;
+    string name = 4;
+    int64 periods = 5;
+    bytes content = 6;
+}
+
+message BuyResponse {
+}
+
+message GetInfoRequest {
+    bytes account_handle = 1;
+    string type = 2;
+    string name = 3;
+}
+
+message GetInfoResponse {
+    Info info = 1;
+}
+
+message GetContentRequest {
+    bytes account_handle = 1;
+    string type = 2;
+    string name = 3;
+}
+
+message GetContentResponse {
+    bytes content = 1;
+}
+
+message DeleteRequest {
+    bytes account_handle = 1;
+    bytes account_key = 2;
+    string type = 3;
+    string name = 4;
+}
+
+message DeleteResponse {
+}
+
+message ListRequest {
+    bytes account_handle = 1;
+}
+
+message ListResponse {
+    repeated Info info = 1;
+}
+
+message RenewRequest {
+    bytes account_handle = 1;
+    bytes account_key = 2;
+    string type = 3;
+    string name = 4;
+    int64 periods = 5;
+}
+
+message RenewResponse {
+}
+
+message TypeDefinition {
+    string name = 1;
+    int64 price = 2;
+    int64 duration_seconds = 3;
+}
+
+message GetTypesRequest {
+}
+
+message GetTypesResponse {
+    repeated TypeDefinition definition = 1;
+}
+
+message SetTypesRequest {
+    repeated TypeDefinition definition = 1;
+}
+
+message SetTypesResponse {
+}
+
+service Assets {
+    rpc Buy(BuyRequest) returns (BuyResponse) { }
+    rpc GetInfo(GetInfoRequest) returns (GetInfoResponse) { }
+    rpc GetContent(GetContentRequest) returns (GetContentResponse) { }
+    rpc List(ListRequest) returns (ListResponse) { }
+    rpc Renew(RenewRequest) returns (RenewResponse) { }
+    rpc Delete(DeleteRequest) returns (DeleteResponse) { }
+    rpc GetTypes(GetTypesRequest) returns (GetTypesResponse) { }
+    rpc SetTypes(SetTypesRequest) returns (SetTypesResponse) { }
+}

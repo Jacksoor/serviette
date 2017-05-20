@@ -1,6 +1,6 @@
-import functools
 import json
 import socket
+import sys
 
 
 class RPCError(Exception):
@@ -24,6 +24,7 @@ class Client(object):
         self._id = 0
         self._f = socket.fromfd(3, socket.AF_UNIX, socket.SOCK_STREAM).makefile(
             'rwb', buffering=0)
+        self.context = json.load(sys.stdin)
 
     def call(self, method, **kwargs):
         req_id = self._id
