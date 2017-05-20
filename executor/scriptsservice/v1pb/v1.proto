@@ -11,8 +11,8 @@ message ScriptEnvelope {
 }
 
 message ExecuteRequest {
-    bytes source_account_handle = 1;
-    bytes source_account_key = 2;
+    bytes executing_account_handle = 1;
+    bytes executing_account_key = 2;
 
     bytes script_account_handle = 3;
 
@@ -24,9 +24,10 @@ message ExecuteResponse {
     bool ok = 1;
     bytes stdout = 2;
     bytes stderr = 3;
-    int64 executing_account_cost = 4;
-    int64 billing_account_cost = 5;
-    bool unified_billing = 6;
+    int64 executing_account_transfers = 4;
+    int64 billing_account_transfers = 5;
+    int64 usage_cost = 6;
+    bool unified_billing = 7;
 }
 
 service Scripts {

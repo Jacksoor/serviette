@@ -70,3 +70,21 @@ new_go_repository(
     importpath = "github.com/mattn/go-sqlite3",
     build_tags = ["darwin", "linux"],
 )
+
+new_go_repository(
+    name = "com_github_bwmarrin_discordgo",
+    commit = "0993a94b4e1c3291bed2047f583f34792269355c",
+    importpath = "github.com/bwmarrin/discordgo",
+)
+
+new_go_repository(
+    name = "com_github_gorilla_websocket",
+    commit = "a91eba7f97777409bc2c443f5534d41dd20c5720",
+    importpath = "github.com/gorilla/websocket",
+)
+
+new_go_repository(
+    name = "com_github_hako_durafmt",
+    commit = "83a6d8dc879e5db09185e352561da4326f443de6",
+    importpath = "github.com/hako/durafmt",
+)

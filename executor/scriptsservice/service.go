@@ -43,18 +43,6 @@ func New(moneyClient moneypb.MoneyClient, assetsClient assetspb.AssetsClient, pr
 }
 
 func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
-	getBalanceResp, err := s.moneyClient.GetBalance(ctx, &moneypb.GetBalanceRequest{
-		AccountHandle: [][]byte{req.SourceAccountHandle},
-	})
-	if err == nil {
-		return nil, err
-	}
-
-	balance := getBalanceResp.Balance[0]
-	if balance <= 0 {
-		return nil, grpc.Errorf(codes.FailedPrecondition, "insufficient funds")
-	}
-
 	contentResp, err := s.assetsClient.GetContent(ctx, &assetspb.GetContentRequest{
 		AccountHandle: req.ScriptAccountHandle,
 		Type:          "script",
@@ -93,19 +81,34 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	var billingAccountHandle []byte
 	var billingAccountKey []byte
 	if unifiedBilling {
-		billingAccountHandle = req.SourceAccountHandle
-		billingAccountKey = req.SourceAccountKey
+		billingAccountHandle = req.ExecutingAccountHandle
+		billingAccountKey = req.ExecutingAccountKey
 	} else {
 		billingAccountHandle = envelope.BillingAccountHandle
 		billingAccountKey = envelope.BillingAccountKey
 	}
 
-	moneyService := moneyservice.New(s.moneyClient, req.SourceAccountHandle, req.SourceAccountKey, billingAccountHandle, billingAccountKey)
+	getBalanceResp, err := s.moneyClient.GetBalance(ctx, &moneypb.GetBalanceRequest{
+		AccountHandle: [][]byte{billingAccountHandle},
+	})
+	if err == nil {
+		return nil, err
+	}
+
+	balance := getBalanceResp.Balance[0]
+	if balance <= 0 {
+		return nil, grpc.Errorf(codes.FailedPrecondition, "insufficient funds")
+	}
 
 	scriptContext, err := json.Marshal(req.Context)
 
 	worker := s.supervisor.Spawn(tmpfile.Name(), []string{}, scriptContext)
-	worker.RegisterService("Money", moneyService)
+
+	billingMoneyService := moneyservice.New(s.moneyClient, billingAccountHandle, billingAccountKey)
+	worker.RegisterService("BillingMoney", billingMoneyService)
+
+	executingMoneyService := moneyservice.New(s.moneyClient, req.ExecutingAccountHandle, req.ExecutingAccountKey)
+	worker.RegisterService("ExecutingMoney", executingMoneyService)
 
 	maxUsage := s.pricer.MaxUsage(balance)
 
@@ -128,15 +131,15 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, err
 	}
 
-	transfers := moneyService.Transfers()
-	executingAccountCost := transfers.ExecutingAccount
-
 	return &pb.ExecuteResponse{
-		Ok:                   err == nil,
-		Stdout:               r.Stdout,
-		Stderr:               r.Stderr,
-		ExecutingAccountCost: executingAccountCost,
-		BillingAccountCost:   transfers.BillingAccount + usageCost,
-		UnifiedBilling:       unifiedBilling,
+		Ok:     err == nil,
+		Stdout: r.Stdout,
+		Stderr: r.Stderr,
+
+		ExecutingAccountTransfers: executingMoneyService.Transfers(),
+		BillingAccountTransfers:   billingMoneyService.Transfers(),
+		UsageCost:                 usageCost,
+
+		UnifiedBilling: unifiedBilling,
 	}, nil
 }
