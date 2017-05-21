@@ -4,10 +4,10 @@ package kobun4.executor.scripts.v1;
 
 option go_package = "v1pb";
 
-message ScriptEnvelope {
-    bytes billing_account_handle = 1;
-    bytes billing_account_key = 2;
-    bytes script = 3;
+message Context {
+    string bridge_name = 1;
+    string mention = 2;
+    map<string, string> extra = 3;
 }
 
 message ExecuteRequest {
@@ -17,7 +17,7 @@ message ExecuteRequest {
     bytes script_account_handle = 3;
 
     string name = 4;
-    map<string, string> context = 5;
+    Context context = 5;
 }
 
 message ExecuteResponse {

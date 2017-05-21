@@ -3,19 +3,18 @@ package accounts
 import (
 	"crypto/rand"
 	"database/sql"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"golang.org/x/net/context"
 	"strings"
 	"time"
 
-	assetspb "github.com/porpoises/kobun4/bank/assetsservice/v1pb"
+	namespb "github.com/porpoises/kobun4/bank/namesservice/v1pb"
 )
 
 var (
-	ErrNotFound        error = errors.New("not found")
-	ErrNoSuchAssetType       = errors.New("no such asset type")
+	ErrNotFound       error = errors.New("not found")
+	ErrNoSuchNameType       = errors.New("no such name type")
 )
 
 type Store struct {
@@ -33,13 +32,11 @@ func (s *Store) BeginTx(ctx context.Context) (*sql.Tx, error) {
 }
 
 func (s *Store) Load(ctx context.Context, tx *sql.Tx, handle []byte) (*Account, error) {
-	id := int64(binary.BigEndian.Uint64(handle))
-
 	var key []byte
 	if err := tx.QueryRowContext(ctx, `
 		select key from accounts
-		where id = ?
-	`, id).Scan(&key); err != nil {
+		where handle = ?
+	`, handle).Scan(&key); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
@@ -47,42 +44,41 @@ func (s *Store) Load(ctx context.Context, tx *sql.Tx, handle []byte) (*Account, 
 	}
 
 	return &Account{
-		id:  id,
-		key: key,
+		handle: handle,
+		key:    key,
 	}, nil
 }
 
 func (s *Store) Create(ctx context.Context, tx *sql.Tx) (*Account, error) {
-	key := make([]byte, 64/8)
+	handle := make([]byte, 128/8)
+	if _, err := rand.Read(handle); err != nil {
+		return nil, err
+	}
+
+	key := make([]byte, 128/8)
 	if _, err := rand.Read(key); err != nil {
 		return nil, err
 	}
 
-	r, err := tx.ExecContext(ctx, `
-		insert into accounts (key)
-		values (?)
-	`, key)
-	if err != nil {
-		return nil, err
-	}
-
-	id, err := r.LastInsertId()
-	if err != nil {
+	if _, err := tx.ExecContext(ctx, `
+		insert into accounts (handle, key)
+		values (?, ?)
+	`, handle, key); err != nil {
 		return nil, err
 	}
 
 	return &Account{
-		id:  id,
-		key: key,
+		handle: handle,
+		key:    key,
 	}, nil
 }
 
-func (s *Store) AssetType(ctx context.Context, tx *sql.Tx, name string) (*assetspb.TypeDefinition, error) {
-	def := &assetspb.TypeDefinition{
+func (s *Store) NameType(ctx context.Context, tx *sql.Tx, name string) (*namespb.TypeDefinition, error) {
+	def := &namespb.TypeDefinition{
 		Name: name,
 	}
 	if err := tx.QueryRowContext(ctx, `
-		select price, duration_seconds from asset_types
+		select price, duration_seconds from name_types
 		where name = ?
 	`, name).Scan(&def.Price, &def.DurationSeconds); err != nil {
 		if err == sql.ErrNoRows {
@@ -94,19 +90,19 @@ func (s *Store) AssetType(ctx context.Context, tx *sql.Tx, name string) (*assets
 	return def, nil
 }
 
-func (s *Store) AssetTypes(ctx context.Context, tx *sql.Tx) ([]*assetspb.TypeDefinition, error) {
+func (s *Store) NameTypes(ctx context.Context, tx *sql.Tx) ([]*namespb.TypeDefinition, error) {
 	rows, err := tx.QueryContext(ctx, `
-		select name, price, duration_seconds from asset_types
+		select name, price, duration_seconds from name_types
 	`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	defs := make([]*assetspb.TypeDefinition, 0)
+	defs := make([]*namespb.TypeDefinition, 0)
 
 	for rows.Next() {
-		def := &assetspb.TypeDefinition{}
+		def := &namespb.TypeDefinition{}
 		if err := rows.Scan(&def.Name, &def.Price, &def.DurationSeconds); err != nil {
 			return nil, err
 		}
@@ -120,7 +116,7 @@ func (s *Store) AssetTypes(ctx context.Context, tx *sql.Tx) ([]*assetspb.TypeDef
 	return defs, nil
 }
 
-func (s *Store) SetAssetTypes(ctx context.Context, tx *sql.Tx, defs []*assetspb.TypeDefinition) error {
+func (s *Store) SetNameTypes(ctx context.Context, tx *sql.Tx, defs []*namespb.TypeDefinition) error {
 	known := make([]interface{}, len(defs))
 	for i, def := range defs {
 		known[i] = def.Name
@@ -131,7 +127,7 @@ func (s *Store) SetAssetTypes(ctx context.Context, tx *sql.Tx, defs []*assetspb.
 		placeholders = placeholders[:len(placeholders)-1]
 
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`
-			delete from asset_types
+			delete from name_types
 			where name not in (%s)
 		`, placeholders), known...); err != nil {
 			return err
@@ -139,7 +135,7 @@ func (s *Store) SetAssetTypes(ctx context.Context, tx *sql.Tx, defs []*assetspb.
 
 		for _, def := range defs {
 			if _, err := tx.ExecContext(ctx, `
-				update asset_types
+				update name_types
 				set price = ?, duration_seconds = ?
 				where name = ?
 			`, def.Price, def.DurationSeconds, def.Name); err != nil {
@@ -147,7 +143,7 @@ func (s *Store) SetAssetTypes(ctx context.Context, tx *sql.Tx, defs []*assetspb.
 			}
 
 			if _, err := tx.ExecContext(ctx, `
-				insert or ignore into asset_types (name, price, duration_seconds)
+				insert or ignore into name_types (name, price, duration_seconds)
 				values (?, ?, ?)
 			`, def.Name, def.Price, def.DurationSeconds); err != nil {
 				return err
@@ -155,7 +151,7 @@ func (s *Store) SetAssetTypes(ctx context.Context, tx *sql.Tx, defs []*assetspb.
 		}
 	} else {
 		if _, err := tx.ExecContext(ctx, `
-			delete from asset_types
+			delete from name_types
 		`); err != nil {
 			return err
 		}
@@ -164,11 +160,134 @@ func (s *Store) SetAssetTypes(ctx context.Context, tx *sql.Tx, defs []*assetspb.
 	return nil
 }
 
-func expireAssets(ctx context.Context, tx *sql.Tx) error {
+func (s *Store) Name(ctx context.Context, tx *sql.Tx, typ string, name string) (*Name, error) {
+	if err := expireNames(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	var id int64
+
+	if err := tx.QueryRowContext(ctx, `
+        select names.id from names
+        inner join name_types on names.name_type_id = name_types.id
+        where name_types.name = ? and names.name = ?
+    `, typ, name).Scan(&id); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &Name{
+		id: id,
+	}, nil
+}
+
+func (s *Store) Names(ctx context.Context, tx *sql.Tx) ([]*Name, error) {
+	if err := expireNames(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.QueryContext(ctx, `
+        select id from names
+    `)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	names := make([]*Name, 0)
+
+	for rows.Next() {
+		name := &Name{}
+		if err := rows.Scan(&name.id); err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return names, nil
+}
+
+func (s *Store) NamesByType(ctx context.Context, tx *sql.Tx, typ string) ([]*Name, error) {
+	if err := expireNames(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.QueryContext(ctx, `
+        select names.id from names
+        inner join name_types on names.name_type_id = name_types.id
+        name_types.name = ?
+    `, typ)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	names := make([]*Name, 0)
+
+	for rows.Next() {
+		name := &Name{}
+		if err := rows.Scan(&name.id); err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return names, nil
+}
+
+func (s *Store) AddName(ctx context.Context, tx *sql.Tx, typ string, name string, ownerAccountHandle []byte, periods int64, content []byte) (*Name, error) {
+	if err := expireNames(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+
+	var typeID int64
+	var durationSeconds int64
+
+	if err := tx.QueryRowContext(ctx, `
+        select id, duration_seconds from name_types
+        where name = ?
+    `, typ).Scan(&typeID, &durationSeconds); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNoSuchNameType
+		}
+		return nil, err
+	}
+
+	r, err := tx.ExecContext(ctx, `
+        insert into names (name_type_id, name, owner_account_handle, expiry_time_unix, content)
+        values (?, ?, ?, ?, ?)
+    `, typeID, name, ownerAccountHandle, now.Add(time.Duration(durationSeconds)*time.Second*time.Duration(periods)).Unix(), content)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := r.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Name{
+		id: id,
+	}, nil
+}
+
+func expireNames(ctx context.Context, tx *sql.Tx) error {
 	now := time.Now()
 
 	_, err := tx.ExecContext(ctx, `
-		delete from assets
+		delete from names
 		where expiry_time_unix <= ?
 	`, now.Unix())
 

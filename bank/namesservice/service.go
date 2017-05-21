@@ -1,4 +1,4 @@
-package assetsservice
+package namesservice
 
 import (
 	"golang.org/x/net/context"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/porpoises/kobun4/bank/accounts"
 
-	pb "github.com/porpoises/kobun4/bank/assetsservice/v1pb"
+	pb "github.com/porpoises/kobun4/bank/namesservice/v1pb"
 )
 
 type Service struct {
@@ -49,13 +49,13 @@ func (s *Service) Buy(ctx context.Context, req *pb.BuyRequest) (*pb.BuyResponse,
 		return nil, grpc.Errorf(codes.Internal, "failed to get balance")
 	}
 
-	def, err := s.accounts.AssetType(ctx, tx, req.Type)
+	def, err := s.accounts.NameType(ctx, tx, req.Type)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "asset type not found")
+			return nil, grpc.Errorf(codes.NotFound, "name type not found")
 		}
-		glog.Errorf("Failed to load asset type: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load asset type")
+		glog.Errorf("Failed to load name type: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load name type")
 	}
 
 	cost := int64(def.Price * req.Periods)
@@ -68,12 +68,12 @@ func (s *Service) Buy(ctx context.Context, req *pb.BuyRequest) (*pb.BuyResponse,
 		return nil, grpc.Errorf(codes.Internal, "failed to charge price")
 	}
 
-	if _, err := account.AddAsset(ctx, tx, req.Type, req.Name, req.Periods, req.Content); err != nil {
-		if err == accounts.ErrNoSuchAssetType {
-			return nil, grpc.Errorf(codes.InvalidArgument, "no such asset type")
+	if _, err := s.accounts.AddName(ctx, tx, req.Type, req.Name, account.Handle(), req.Periods, req.Content); err != nil {
+		if err == accounts.ErrNoSuchNameType {
+			return nil, grpc.Errorf(codes.InvalidArgument, "no such name type")
 		}
-		glog.Errorf("Failed to create asset: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to create asset")
+		glog.Errorf("Failed to create name: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to create name")
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -92,25 +92,16 @@ func (s *Service) GetInfo(ctx context.Context, req *pb.GetInfoRequest) (*pb.GetI
 	}
 	defer tx.Rollback()
 
-	account, err := s.accounts.Load(ctx, tx, req.AccountHandle)
+	name, err := s.accounts.Name(ctx, tx, req.Type, req.Name)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "account not found")
+			return nil, grpc.Errorf(codes.NotFound, "name not found")
 		}
-		glog.Errorf("Failed to load account: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load account")
+		glog.Errorf("Failed to load name: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load name")
 	}
 
-	asset, err := account.Asset(ctx, tx, req.Type, req.Name)
-	if err != nil {
-		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "asset not found")
-		}
-		glog.Errorf("Failed to load asset: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load asset")
-	}
-
-	info, err := asset.Info(ctx, tx)
+	info, err := name.Info(ctx, tx)
 	if err != nil {
 		glog.Errorf("Failed to get info: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to get info")
@@ -129,25 +120,16 @@ func (s *Service) GetContent(ctx context.Context, req *pb.GetContentRequest) (*p
 	}
 	defer tx.Rollback()
 
-	account, err := s.accounts.Load(ctx, tx, req.AccountHandle)
+	name, err := s.accounts.Name(ctx, tx, req.Type, req.Name)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "account not found")
+			return nil, grpc.Errorf(codes.NotFound, "name not found")
 		}
-		glog.Errorf("Failed to load account: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load account")
+		glog.Errorf("Failed to load name: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load name")
 	}
 
-	asset, err := account.Asset(ctx, tx, req.Type, req.Name)
-	if err != nil {
-		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "asset not found")
-		}
-		glog.Errorf("Failed to load asset: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load asset")
-	}
-
-	content, err := asset.Content(ctx, tx)
+	content, err := name.Content(ctx, tx)
 	if err != nil {
 		glog.Errorf("Failed to get content: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to get content")
@@ -166,31 +148,22 @@ func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 	}
 	defer tx.Rollback()
 
-	account, err := s.accounts.Load(ctx, tx, req.AccountHandle)
-	if err != nil {
-		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "account not found")
-		}
-		glog.Errorf("Failed to load account: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load account")
-	}
-
 	infos := make([]*pb.Info, 0)
 
-	assets, err := account.Assets(ctx, tx)
+	names, err := s.accounts.Names(ctx, tx)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "asset not found")
+			return nil, grpc.Errorf(codes.NotFound, "name not found")
 		}
-		glog.Errorf("Failed to load assets: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load assets")
+		glog.Errorf("Failed to load names: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load names")
 	}
 
-	for i, asset := range assets {
-		info, err := asset.Info(ctx, tx)
+	for i, name := range names {
+		info, err := name.Info(ctx, tx)
 		if err != nil {
-			glog.Errorf("Failed to get asset info: %v", err)
-			return nil, grpc.Errorf(codes.Internal, "failed to get asset info")
+			glog.Errorf("Failed to get name info: %v", err)
+			return nil, grpc.Errorf(codes.Internal, "failed to get name info")
 		}
 
 		infos[i] = info
@@ -228,13 +201,13 @@ func (s *Service) Renew(ctx context.Context, req *pb.RenewRequest) (*pb.RenewRes
 		return nil, grpc.Errorf(codes.Internal, "failed to get balance")
 	}
 
-	def, err := s.accounts.AssetType(ctx, tx, req.Type)
+	def, err := s.accounts.NameType(ctx, tx, req.Type)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "asset type not found")
+			return nil, grpc.Errorf(codes.NotFound, "name type not found")
 		}
-		glog.Errorf("Failed to load asset type: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load asset type")
+		glog.Errorf("Failed to load name type: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load name type")
 	}
 
 	cost := int64(def.Price * req.Periods)
@@ -247,18 +220,18 @@ func (s *Service) Renew(ctx context.Context, req *pb.RenewRequest) (*pb.RenewRes
 		return nil, grpc.Errorf(codes.Internal, "failed to charge price")
 	}
 
-	asset, err := account.Asset(ctx, tx, req.Type, req.Name)
+	name, err := s.accounts.Name(ctx, tx, req.Type, req.Name)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "asset not found")
+			return nil, grpc.Errorf(codes.NotFound, "name not found")
 		}
-		glog.Errorf("Failed to load asset: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load asset")
+		glog.Errorf("Failed to load name: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load name")
 	}
 
-	if err := asset.Renew(ctx, tx, req.Periods); err != nil {
-		glog.Errorf("Failed to renew asset: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to renew asset")
+	if err := name.Renew(ctx, tx, req.Periods); err != nil {
+		glog.Errorf("Failed to renew name: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to renew name")
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -290,18 +263,28 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 		return nil, grpc.Errorf(codes.PermissionDenied, "bad key")
 	}
 
-	asset, err := account.Asset(ctx, tx, req.Type, req.Name)
+	name, err := s.accounts.Name(ctx, tx, req.Type, req.Name)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "asset not found")
+			return nil, grpc.Errorf(codes.NotFound, "name not found")
 		}
-		glog.Errorf("Failed to load asset: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load asset")
+		glog.Errorf("Failed to load name: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load name")
 	}
 
-	if err := asset.Delete(ctx, tx); err != nil {
-		glog.Errorf("Failed to delete asset: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to delete asset")
+	info, err := name.Info(ctx, tx)
+	if err != nil {
+		glog.Errorf("Failed to get info: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to get info")
+	}
+
+	if string(info.OwnerAccountHandle) != string(account.Handle()) {
+		return nil, grpc.Errorf(codes.PermissionDenied, "not owned by requestor")
+	}
+
+	if err := name.Delete(ctx, tx); err != nil {
+		glog.Errorf("Failed to delete name: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to delete name")
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -320,7 +303,7 @@ func (s *Service) GetTypes(ctx context.Context, req *pb.GetTypesRequest) (*pb.Ge
 	}
 	defer tx.Rollback()
 
-	defs, err := s.accounts.AssetTypes(ctx, tx)
+	defs, err := s.accounts.NameTypes(ctx, tx)
 	if err != nil {
 		glog.Errorf("Failed to get types: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to get types")
@@ -344,7 +327,7 @@ func (s *Service) SetTypes(ctx context.Context, req *pb.SetTypesRequest) (*pb.Se
 	}
 	defer tx.Rollback()
 
-	if err := s.accounts.SetAssetTypes(ctx, tx, req.Definition); err != nil {
+	if err := s.accounts.SetNameTypes(ctx, tx, req.Definition); err != nil {
 		glog.Errorf("Failed to set types: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to set types")
 	}

@@ -95,6 +95,13 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 	childFile.Close()
 
 	if err := cmd.Wait(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return &WorkerResult{
+				Stdout:       stdout.Bytes(),
+				Stderr:       stderr.Bytes(),
+				ProcessState: exitErr.ProcessState,
+			}, err
+		}
 		return nil, err
 	}
 

@@ -8,7 +8,6 @@ go_library(
     ],
     visibility = ["//visibility:private"],
     deps = [
-        "//bank/assetsservice/v1pb:go_default_library",
         "//bank/moneyservice/v1pb:go_default_library",
         "//executor/pricing:go_default_library",
         "//executor/scriptsservice:go_default_library",

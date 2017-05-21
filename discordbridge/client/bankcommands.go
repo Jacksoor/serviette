@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/hex"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -14,8 +15,8 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/hako/durafmt"
 
-	assetspb "github.com/porpoises/kobun4/bank/assetsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
+	namespb "github.com/porpoises/kobun4/bank/namesservice/v1pb"
 )
 
 var bankCommands map[string]command = map[string]command{
@@ -114,7 +115,7 @@ func bankAccounts(ctx context.Context, c *Client, s *discordgo.Session, m *disco
 	prettyBalances := make([]string, len(resp.Balance))
 
 	for i, balance := range resp.Balance {
-		prettyBalances[i] = fmt.Sprintf("**%s:** %d %s", accountNames[i], balance, c.opts.CurrencyName)
+		prettyBalances[i] = fmt.Sprintf("**%s (account handle: %s):** %d %s", accountNames[i], hex.EncodeToString(accountHandles[i]), balance, c.opts.CurrencyName)
 	}
 
 	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>'s account balances:\n\n%s", targetID, strings.Join(prettyBalances, "\n")))
@@ -164,7 +165,7 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	})
 	if err != nil {
 		if grpc.Code(err) == codes.FailedPrecondition {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>, you don't have enough funds in your checking account to make that payment.", m.Author.ID))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, you don't have enough funds in your checking account to make that payment.", m.Author.ID))
 			return nil
 		}
 		return err
@@ -176,16 +177,16 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 
 func bankPrice(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
 	if rest == "" {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, I didn't understand that. Please use `$price asset` to get the price of an asset.", m.Author.ID))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, I didn't understand that. Please use `$price name` to get the price of a name.", m.Author.ID))
 		return nil
 	}
 
-	resp, err := c.assetsClient.GetTypes(ctx, &assetspb.GetTypesRequest{})
+	resp, err := c.namesClient.GetTypes(ctx, &namespb.GetTypesRequest{})
 	if err != nil {
 		return err
 	}
 
-	var aliasDef *assetspb.TypeDefinition
+	var aliasDef *namespb.TypeDefinition
 	for _, def := range resp.Definition {
 		if def.Name == rest {
 			aliasDef = def
@@ -193,9 +194,9 @@ func bankPrice(ctx context.Context, c *Client, s *discordgo.Session, m *discordg
 	}
 
 	if aliasDef != nil {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>, the current price of the **%s** asset (lease period: %s) is %d %s.", m.Author.ID, rest, durafmt.Parse(time.Duration(aliasDef.DurationSeconds)*time.Second).String(), aliasDef.Price, c.opts.CurrencyName))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>, the current price of **%s** names (lease period: %s) is %d %s.", m.Author.ID, rest, durafmt.Parse(time.Duration(aliasDef.DurationSeconds)*time.Second).String(), aliasDef.Price, c.opts.CurrencyName))
 	} else {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>, I don't have prices for the **%s** asset right now.", m.Author.ID, rest))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, I don't have prices for **%s** names right now.", m.Author.ID, rest))
 	}
 	return nil
 }

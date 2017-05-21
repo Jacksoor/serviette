@@ -18,8 +18,8 @@ import (
 	"github.com/porpoises/kobun4/discordbridge/store"
 
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
-	assetspb "github.com/porpoises/kobun4/bank/assetsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
+	namespb "github.com/porpoises/kobun4/bank/namesservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
@@ -67,7 +67,7 @@ func main() {
 		BankCommandPrefix:   *bankCommandPrefix,
 		ScriptCommandPrefix: *scriptCommandPrefix,
 		CurrencyName:        *currencyName,
-	}, store, accountspb.NewAccountsClient(bankConn), assetspb.NewAssetsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
+	}, store, accountspb.NewAccountsClient(bankConn), namespb.NewNamesClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}

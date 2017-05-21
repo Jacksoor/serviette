@@ -23,10 +23,10 @@ import (
 
 	"github.com/porpoises/kobun4/bank/accountsservice"
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
-	"github.com/porpoises/kobun4/bank/assetsservice"
-	assetspb "github.com/porpoises/kobun4/bank/assetsservice/v1pb"
 	"github.com/porpoises/kobun4/bank/moneyservice"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
+	"github.com/porpoises/kobun4/bank/namesservice"
+	namespb "github.com/porpoises/kobun4/bank/namesservice/v1pb"
 )
 
 var (
@@ -61,7 +61,7 @@ func main() {
 
 	s := grpc.NewServer()
 	accountspb.RegisterAccountsServer(s, accountsservice.New(accountsStore))
-	assetspb.RegisterAssetsServer(s, assetsservice.New(accountsStore))
+	namespb.RegisterNamesServer(s, namesservice.New(accountsStore))
 	moneypb.RegisterMoneyServer(s, moneyservice.New(accountsStore))
 
 	reflection.Register(s)

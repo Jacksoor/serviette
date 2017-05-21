@@ -21,7 +21,6 @@ import (
 	"github.com/porpoises/kobun4/executor/pricing"
 	"github.com/porpoises/kobun4/executor/worker"
 
-	assetspb "github.com/porpoises/kobun4/bank/assetsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
 
 	"github.com/porpoises/kobun4/executor/scriptsservice"
@@ -33,6 +32,7 @@ var (
 	debugSocketPath = flag.String("debug_socket_path", "/tmp/kobun4-executor.debug.socket", "Bind path for socket")
 	bankTarget      = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
 	nsjailPath      = flag.String("nsjail_path", "nsjail", "Path to nsjail")
+	scriptRootPath  = flag.String("script_root_path", "scripts", "Path to script root")
 )
 
 func main() {
@@ -80,7 +80,7 @@ func main() {
 	})
 
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(moneypb.NewMoneyClient(bankConn), assetspb.NewAssetsClient(bankConn), pricer, supervisor))
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(*scriptRootPath, moneypb.NewMoneyClient(bankConn), pricer, supervisor))
 	reflection.Register(s)
 
 	signalChan := make(chan os.Signal, 1)

@@ -1,20 +1,18 @@
 package scriptsservice
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
+	"path/filepath"
 	"syscall"
 
 	"golang.org/x/net/context"
 
 	"github.com/golang/glog"
-	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
-	assetspb "github.com/porpoises/kobun4/bank/assetsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
 
 	"github.com/porpoises/kobun4/executor/pricing"
@@ -25,73 +23,44 @@ import (
 )
 
 type Service struct {
-	moneyClient  moneypb.MoneyClient
-	assetsClient assetspb.AssetsClient
-
-	pricer     pricing.Pricer
-	supervisor *worker.Supervisor
+	moneyClient moneypb.MoneyClient
+	pricer      pricing.Pricer
+	supervisor  *worker.Supervisor
+	scriptRoot  string
 }
 
-func New(moneyClient moneypb.MoneyClient, assetsClient assetspb.AssetsClient, pricer pricing.Pricer, supervisor *worker.Supervisor) *Service {
+func New(scriptRoot string, moneyClient moneypb.MoneyClient, pricer pricing.Pricer, supervisor *worker.Supervisor) *Service {
 	return &Service{
-		moneyClient:  moneyClient,
-		assetsClient: assetsClient,
-
-		pricer:     pricer,
-		supervisor: supervisor,
+		scriptRoot:  scriptRoot,
+		moneyClient: moneyClient,
+		pricer:      pricer,
+		supervisor:  supervisor,
 	}
 }
 
 func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
-	contentResp, err := s.assetsClient.GetContent(ctx, &assetspb.GetContentRequest{
-		AccountHandle: req.ScriptAccountHandle,
-		Type:          "script",
-		Name:          req.Name,
-	})
-	if err == nil {
-		return nil, err
-	}
-
-	tmpfile, err := ioutil.TempFile("", "work")
-	if err == nil {
-		glog.Errorf("Failed to create temporary file: %v", err)
+	accountRoot := filepath.Join(s.scriptRoot, hex.EncodeToString(req.ScriptAccountHandle))
+	scriptPath := filepath.Join(accountRoot, req.Name)
+	scriptName, err := filepath.Rel(accountRoot, scriptPath)
+	if err != nil {
+		glog.Errorf("Failed to get relative path: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
-	defer os.Remove(tmpfile.Name())
-
-	envelope := &pb.ScriptEnvelope{}
-
-	if err := proto.Unmarshal(contentResp.Content, envelope); err != nil {
-		glog.Errorf("Failed to unmarshal envelope: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	if scriptName != req.Name {
+		return nil, grpc.Errorf(codes.NotFound, "script not found")
 	}
 
-	if _, err := tmpfile.Write(envelope.Script); err != nil {
-		glog.Errorf("Failed to write script: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to run script")
-	}
-
-	if err := os.Chmod(tmpfile.Name(), 0700); err != nil {
-		glog.Errorf("Failed to chmod scsript: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to run script")
-	}
-
-	unifiedBilling := envelope.BillingAccountHandle == nil
+	unifiedBilling := false
 
 	var billingAccountHandle []byte
 	var billingAccountKey []byte
-	if unifiedBilling {
-		billingAccountHandle = req.ExecutingAccountHandle
-		billingAccountKey = req.ExecutingAccountKey
-	} else {
-		billingAccountHandle = envelope.BillingAccountHandle
-		billingAccountKey = envelope.BillingAccountKey
-	}
+	billingAccountHandle = req.ExecutingAccountHandle
+	billingAccountKey = req.ExecutingAccountKey
 
 	getBalanceResp, err := s.moneyClient.GetBalance(ctx, &moneypb.GetBalanceRequest{
 		AccountHandle: [][]byte{billingAccountHandle},
 	})
-	if err == nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -102,7 +71,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	scriptContext, err := json.Marshal(req.Context)
 
-	worker := s.supervisor.Spawn(tmpfile.Name(), []string{}, scriptContext)
+	worker := s.supervisor.Spawn(scriptPath, []string{}, scriptContext)
 
 	billingMoneyService := moneyservice.New(s.moneyClient, billingAccountHandle, billingAccountKey)
 	worker.RegisterService("BillingMoney", billingMoneyService)
@@ -116,6 +85,9 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		"--rlimit_cpu", fmt.Sprintf("%d", maxUsage.CPUTime),
 		"--cgroup_mem_max", fmt.Sprintf("%d", maxUsage.Memory),
 	})
+	if r == nil {
+		return nil, err
+	}
 
 	rusage := r.ProcessState.SysUsage().(*syscall.Rusage)
 

@@ -4,12 +4,12 @@ go_library(
     name = "go_default_library",
     srcs = [
         "account.go",
-        "asset.go",
+        "name.go",
         "store.go",
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//bank/assetsservice/v1pb:go_default_library",
+        "//bank/namesservice/v1pb:go_default_library",
         "@org_golang_x_net//context:go_default_library",
     ],
 )
