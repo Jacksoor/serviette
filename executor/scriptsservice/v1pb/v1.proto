@@ -4,6 +4,12 @@ package kobun4.executor.scripts.v1;
 
 option go_package = "v1pb";
 
+enum BillingMethod {
+    BILL_EXECUTING_ACCOUNT = 0;
+    BILL_OWNING_ACCOUNT = 1;
+    BILL_NOBODY = 2;
+}
+
 message Context {
     string bridge_name = 1;
     string mention = 2;
@@ -15,7 +21,7 @@ message CreateRequest {
     bytes account_key = 2;
     string name = 3;
     bytes content = 4;
-    bool bill_owner = 5;
+    BillingMethod billing_method = 5;
 }
 
 message CreateResponse {
@@ -60,7 +66,7 @@ message ExecuteResponse {
     bytes stderr = 3;
     int64 usage_cost = 4;
     repeated Withdrawal withdrawal = 5;
-    bool bill_owner = 6;
+    BillingMethod billing_method = 6;
 }
 
 service Scripts {

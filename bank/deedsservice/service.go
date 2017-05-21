@@ -1,4 +1,4 @@
-package namesservice
+package deedsservice
 
 import (
 	"golang.org/x/net/context"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/porpoises/kobun4/bank/accounts"
 
-	pb "github.com/porpoises/kobun4/bank/namesservice/v1pb"
+	pb "github.com/porpoises/kobun4/bank/deedsservice/v1pb"
 )
 
 type Service struct {
@@ -49,13 +49,13 @@ func (s *Service) Buy(ctx context.Context, req *pb.BuyRequest) (*pb.BuyResponse,
 		return nil, grpc.Errorf(codes.Internal, "failed to get balance")
 	}
 
-	def, err := s.accounts.NameType(ctx, tx, req.Type)
+	def, err := s.accounts.DeedType(ctx, tx, req.Type)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "name type not found")
+			return nil, grpc.Errorf(codes.NotFound, "deed type not found")
 		}
-		glog.Errorf("Failed to load name type: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load name type")
+		glog.Errorf("Failed to load deed type: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load deed type")
 	}
 
 	cost := int64(def.Price * req.Periods)
@@ -68,12 +68,12 @@ func (s *Service) Buy(ctx context.Context, req *pb.BuyRequest) (*pb.BuyResponse,
 		return nil, grpc.Errorf(codes.Internal, "failed to charge price")
 	}
 
-	if _, err := s.accounts.AddName(ctx, tx, req.Type, req.Name, account.Handle(), req.Periods, req.Content); err != nil {
-		if err == accounts.ErrNoSuchNameType {
-			return nil, grpc.Errorf(codes.InvalidArgument, "no such name type")
+	if _, err := s.accounts.AddDeed(ctx, tx, req.Type, req.Name, account.Handle(), req.Periods, req.Content); err != nil {
+		if err == accounts.ErrNoSuchDeedType {
+			return nil, grpc.Errorf(codes.InvalidArgument, "no such deed type")
 		}
-		glog.Errorf("Failed to create name: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to create name")
+		glog.Errorf("Failed to create deed: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to create deed")
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -92,16 +92,16 @@ func (s *Service) GetInfo(ctx context.Context, req *pb.GetInfoRequest) (*pb.GetI
 	}
 	defer tx.Rollback()
 
-	name, err := s.accounts.Name(ctx, tx, req.Type, req.Name)
+	deed, err := s.accounts.Deed(ctx, tx, req.Type, req.Name)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "name not found")
+			return nil, grpc.Errorf(codes.NotFound, "deed not found")
 		}
-		glog.Errorf("Failed to load name: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load name")
+		glog.Errorf("Failed to load deed: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load deed")
 	}
 
-	info, err := name.Info(ctx, tx)
+	info, err := deed.Info(ctx, tx)
 	if err != nil {
 		glog.Errorf("Failed to get info: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to get info")
@@ -120,16 +120,16 @@ func (s *Service) GetContent(ctx context.Context, req *pb.GetContentRequest) (*p
 	}
 	defer tx.Rollback()
 
-	name, err := s.accounts.Name(ctx, tx, req.Type, req.Name)
+	deed, err := s.accounts.Deed(ctx, tx, req.Type, req.Name)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "name not found")
+			return nil, grpc.Errorf(codes.NotFound, "deed not found")
 		}
-		glog.Errorf("Failed to load name: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load name")
+		glog.Errorf("Failed to load deed: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load deed")
 	}
 
-	content, err := name.Content(ctx, tx)
+	content, err := deed.Content(ctx, tx)
 	if err != nil {
 		glog.Errorf("Failed to get content: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to get content")
@@ -161,16 +161,16 @@ func (s *Service) Update(ctx context.Context, req *pb.UpdateRequest) (*pb.Update
 		return nil, grpc.Errorf(codes.PermissionDenied, "bad key")
 	}
 
-	name, err := s.accounts.Name(ctx, tx, req.Type, req.Name)
+	deed, err := s.accounts.Deed(ctx, tx, req.Type, req.Name)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "name not found")
+			return nil, grpc.Errorf(codes.NotFound, "deed not found")
 		}
-		glog.Errorf("Failed to load name: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load name")
+		glog.Errorf("Failed to load deed: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load deed")
 	}
 
-	info, err := name.Info(ctx, tx)
+	info, err := deed.Info(ctx, tx)
 	if err != nil {
 		glog.Errorf("Failed to get info: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to get info")
@@ -180,9 +180,9 @@ func (s *Service) Update(ctx context.Context, req *pb.UpdateRequest) (*pb.Update
 		return nil, grpc.Errorf(codes.PermissionDenied, "not owned by requestor")
 	}
 
-	if err := name.Update(ctx, tx, req.Content); err != nil {
-		glog.Errorf("Failed to update name: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to update name")
+	if err := deed.Update(ctx, tx, req.Content); err != nil {
+		glog.Errorf("Failed to update deed: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to update deed")
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -203,20 +203,20 @@ func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 
 	infos := make([]*pb.Info, 0)
 
-	names, err := s.accounts.Names(ctx, tx)
+	deeds, err := s.accounts.Deeds(ctx, tx)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "name not found")
+			return nil, grpc.Errorf(codes.NotFound, "deed not found")
 		}
-		glog.Errorf("Failed to load names: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load names")
+		glog.Errorf("Failed to load deeds: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load deeds")
 	}
 
-	for i, name := range names {
-		info, err := name.Info(ctx, tx)
+	for i, deed := range deeds {
+		info, err := deed.Info(ctx, tx)
 		if err != nil {
-			glog.Errorf("Failed to get name info: %v", err)
-			return nil, grpc.Errorf(codes.Internal, "failed to get name info")
+			glog.Errorf("Failed to get deed info: %v", err)
+			return nil, grpc.Errorf(codes.Internal, "failed to get deed info")
 		}
 
 		infos[i] = info
@@ -254,13 +254,13 @@ func (s *Service) Renew(ctx context.Context, req *pb.RenewRequest) (*pb.RenewRes
 		return nil, grpc.Errorf(codes.Internal, "failed to get balance")
 	}
 
-	def, err := s.accounts.NameType(ctx, tx, req.Type)
+	def, err := s.accounts.DeedType(ctx, tx, req.Type)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "name type not found")
+			return nil, grpc.Errorf(codes.NotFound, "deed type not found")
 		}
-		glog.Errorf("Failed to load name type: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load name type")
+		glog.Errorf("Failed to load deed type: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load deed type")
 	}
 
 	cost := int64(def.Price * req.Periods)
@@ -273,18 +273,18 @@ func (s *Service) Renew(ctx context.Context, req *pb.RenewRequest) (*pb.RenewRes
 		return nil, grpc.Errorf(codes.Internal, "failed to charge price")
 	}
 
-	name, err := s.accounts.Name(ctx, tx, req.Type, req.Name)
+	deed, err := s.accounts.Deed(ctx, tx, req.Type, req.Name)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "name not found")
+			return nil, grpc.Errorf(codes.NotFound, "deed not found")
 		}
-		glog.Errorf("Failed to load name: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load name")
+		glog.Errorf("Failed to load deed: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load deed")
 	}
 
-	if err := name.Renew(ctx, tx, req.Periods); err != nil {
-		glog.Errorf("Failed to renew name: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to renew name")
+	if err := deed.Renew(ctx, tx, req.Periods); err != nil {
+		glog.Errorf("Failed to renew deed: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to renew deed")
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -316,16 +316,16 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 		return nil, grpc.Errorf(codes.PermissionDenied, "bad key")
 	}
 
-	name, err := s.accounts.Name(ctx, tx, req.Type, req.Name)
+	deed, err := s.accounts.Deed(ctx, tx, req.Type, req.Name)
 	if err != nil {
 		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "name not found")
+			return nil, grpc.Errorf(codes.NotFound, "deed not found")
 		}
-		glog.Errorf("Failed to load name: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load name")
+		glog.Errorf("Failed to load deed: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load deed")
 	}
 
-	info, err := name.Info(ctx, tx)
+	info, err := deed.Info(ctx, tx)
 	if err != nil {
 		glog.Errorf("Failed to get info: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to get info")
@@ -335,9 +335,9 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 		return nil, grpc.Errorf(codes.PermissionDenied, "not owned by requestor")
 	}
 
-	if err := name.Delete(ctx, tx); err != nil {
-		glog.Errorf("Failed to delete name: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to delete name")
+	if err := deed.Delete(ctx, tx); err != nil {
+		glog.Errorf("Failed to delete deed: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to delete deed")
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -356,7 +356,7 @@ func (s *Service) GetTypes(ctx context.Context, req *pb.GetTypesRequest) (*pb.Ge
 	}
 	defer tx.Rollback()
 
-	defs, err := s.accounts.NameTypes(ctx, tx)
+	defs, err := s.accounts.DeedTypes(ctx, tx)
 	if err != nil {
 		glog.Errorf("Failed to get types: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to get types")
@@ -380,7 +380,7 @@ func (s *Service) SetTypes(ctx context.Context, req *pb.SetTypesRequest) (*pb.Se
 	}
 	defer tx.Rollback()
 
-	if err := s.accounts.SetNameTypes(ctx, tx, req.Definition); err != nil {
+	if err := s.accounts.SetDeedTypes(ctx, tx, req.Definition); err != nil {
 		glog.Errorf("Failed to set types: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to set types")
 	}

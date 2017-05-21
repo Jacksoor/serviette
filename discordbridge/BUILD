@@ -6,13 +6,11 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//bank/accountsservice/v1pb:go_default_library",
+        "//bank/deedsservice/v1pb:go_default_library",
         "//bank/moneyservice/v1pb:go_default_library",
-        "//bank/namesservice/v1pb:go_default_library",
         "//discordbridge/client:go_default_library",
-        "//discordbridge/store:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "@com_github_golang_glog//:go_default_library",
-        "@com_github_mattn_go_sqlite3//:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
     ],
 )

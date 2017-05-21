@@ -20,6 +20,7 @@ import (
 
 	"github.com/porpoises/kobun4/executor/pricing"
 	"github.com/porpoises/kobun4/executor/worker"
+	"github.com/porpoises/kobun4/executor/worker/rpc/accountsservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/contextservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/moneyservice"
 
@@ -51,7 +52,7 @@ func New(scriptRoot string, moneyClient moneypb.MoneyClient, accountsClient acco
 var errInvalidScriptName = errors.New("invalid script name")
 
 func (s *Service) scriptPath(accountHandle []byte, scriptName string) (string, error) {
-	accountRoot := filepath.Join(s.scriptRoot, base64.URLEncoding.EncodeToString(accountHandle))
+	accountRoot := filepath.Join(s.scriptRoot, base64.RawURLEncoding.EncodeToString(accountHandle))
 	path := filepath.Join(accountRoot, scriptName)
 	expectedScriptName, err := filepath.Rel(accountRoot, path)
 
@@ -67,7 +68,7 @@ func (s *Service) scriptPath(accountHandle []byte, scriptName string) (string, e
 }
 
 func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.CreateResponse, error) {
-	accountRoot := filepath.Join(s.scriptRoot, base64.URLEncoding.EncodeToString(req.AccountHandle))
+	accountRoot := filepath.Join(s.scriptRoot, base64.RawURLEncoding.EncodeToString(req.AccountHandle))
 	if err := os.MkdirAll(accountRoot, 0700); err != nil {
 		glog.Errorf("Failed to make directories: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to create script")
@@ -111,7 +112,7 @@ func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.Create
 }
 
 func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
-	accountRoot := filepath.Join(s.scriptRoot, base64.URLEncoding.EncodeToString(req.AccountHandle))
+	accountRoot := filepath.Join(s.scriptRoot, base64.RawURLEncoding.EncodeToString(req.AccountHandle))
 	infos, err := ioutil.ReadDir(accountRoot)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -177,28 +178,43 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
 
-	billOwner := false
+	billingMethod := pb.BillingMethod_BILL_EXECUTING_ACCOUNT
 
 	var billingAccountHandle []byte
-	if billOwner {
-		billingAccountHandle = req.ScriptAccountHandle
-	} else {
+	switch billingMethod {
+	case pb.BillingMethod_BILL_EXECUTING_ACCOUNT:
 		billingAccountHandle = req.ExecutingAccountHandle
+	case pb.BillingMethod_BILL_OWNING_ACCOUNT:
+		billingAccountHandle = req.ScriptAccountHandle
+	case pb.BillingMethod_BILL_NOBODY:
+		billingAccountHandle = nil
 	}
 
-	getBalanceResp, err := s.moneyClient.GetBalance(ctx, &moneypb.GetBalanceRequest{
-		AccountHandle: [][]byte{billingAccountHandle},
-	})
-	if err != nil {
-		return nil, err
-	}
+	nsjailArgs := []string{}
+	if billingAccountHandle != nil {
+		getBalanceResp, err := s.moneyClient.GetBalance(ctx, &moneypb.GetBalanceRequest{
+			AccountHandle: [][]byte{billingAccountHandle},
+		})
+		if err != nil {
+			return nil, err
+		}
 
-	balance := getBalanceResp.Balance[0]
-	if balance <= 0 {
-		return nil, grpc.Errorf(codes.FailedPrecondition, "insufficient funds")
+		balance := getBalanceResp.Balance[0]
+		if balance <= 0 {
+			return nil, grpc.Errorf(codes.FailedPrecondition, "insufficient funds")
+		}
+
+		maxUsage := s.pricer.MaxUsage(balance)
+		nsjailArgs = []string{
+			"--rlimit_cpu", fmt.Sprintf("%d", maxUsage.CPUTime),
+			"--cgroup_mem_max", fmt.Sprintf("%d", maxUsage.Memory),
+		}
 	}
 
 	worker := s.supervisor.Spawn(scriptPath, []string{}, []byte(req.Rest))
+
+	accountsService := accountsservice.New(s.accountsClient)
+	worker.RegisterService("Accounts", accountsService)
 
 	moneyService := moneyservice.New(s.moneyClient, req.ExecutingAccountHandle, req.ExecutingAccountKey)
 	worker.RegisterService("Money", moneyService)
@@ -206,12 +222,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	contextService := contextservice.New(req.Context)
 	worker.RegisterService("Context", contextService)
 
-	maxUsage := s.pricer.MaxUsage(balance)
-
-	r, err := worker.Run(ctx, []string{
-		"--rlimit_cpu", fmt.Sprintf("%d", maxUsage.CPUTime),
-		"--cgroup_mem_max", fmt.Sprintf("%d", maxUsage.Memory),
-	})
+	r, err := worker.Run(ctx, nsjailArgs)
 	if r == nil {
 		return nil, err
 	}
@@ -223,11 +234,13 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		Memory:  int64(rusage.Maxrss * 1000),
 	})
 
-	if _, err := s.moneyClient.Add(ctx, &moneypb.AddRequest{
-		AccountHandle: billingAccountHandle,
-		Amount:        -usageCost,
-	}); err != nil {
-		return nil, err
+	if billingAccountHandle != nil {
+		if _, err := s.moneyClient.Add(ctx, &moneypb.AddRequest{
+			AccountHandle: billingAccountHandle,
+			Amount:        -usageCost,
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	withdrawalMap := moneyService.Withdrawals()
@@ -241,11 +254,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 
 	return &pb.ExecuteResponse{
-		Ok:         err == nil,
-		Stdout:     r.Stdout,
-		Stderr:     r.Stderr,
-		UsageCost:  usageCost,
-		Withdrawal: withdrawals,
-		BillOwner:  billOwner,
+		Ok:            err == nil,
+		Stdout:        r.Stdout,
+		Stderr:        r.Stderr,
+		UsageCost:     usageCost,
+		Withdrawal:    withdrawals,
+		BillingMethod: billingMethod,
 	}, nil
 }

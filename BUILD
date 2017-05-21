@@ -19,7 +19,6 @@ sh_binary(
     srcs = ["init.sh"],
     data = [
         "//bank/accounts:schema.sql",
-        "//discordbridge/store:schema.sql",
     ],
     visibility = ["//visibility:public"],
 )

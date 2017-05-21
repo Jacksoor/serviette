@@ -1,17 +1,11 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
-exports_files(["schema.sql"])
-
 go_library(
     name = "go_default_library",
-    srcs = [
-        "account.go",
-        "deed.go",
-        "store.go",
-    ],
+    srcs = ["service.go"],
     visibility = ["//visibility:public"],
     deps = [
-        "//bank/deedsservice/v1pb:go_default_library",
+        "//bank/accountsservice/v1pb:go_default_library",
         "@org_golang_x_net//context:go_default_library",
     ],
 )

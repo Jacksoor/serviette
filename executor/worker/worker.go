@@ -63,8 +63,7 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 		ctx, f.opts.NsjailPath,
 		append(append(nsjailArgs,
 			"--mode", "o",
-			"--quiet",
-			"--log", "/dev/null",
+			"--log", "/dev/fd/4",
 			"--pass_fd", "3",
 			"--user", "nobody",
 			"--group", "nogroup",
@@ -89,7 +88,10 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 	cmd.Stderr = &stderr
 
 	childFile := os.NewFile(uintptr(fds[1]), "")
-	cmd.ExtraFiles = []*os.File{childFile}
+	cmd.ExtraFiles = []*os.File{
+		childFile,
+		os.Stderr,
+	}
 
 	parentFile := os.NewFile(uintptr(fds[0]), "")
 	defer parentFile.Close()

@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	namespb "github.com/porpoises/kobun4/bank/namesservice/v1pb"
+	deedspb "github.com/porpoises/kobun4/bank/deedsservice/v1pb"
 )
 
 var (
 	ErrNotFound       error = errors.New("not found")
-	ErrNoSuchNameType       = errors.New("no such name type")
+	ErrNoSuchDeedType       = errors.New("no such deed type")
 )
 
 type Store struct {
@@ -73,8 +73,8 @@ func (s *Store) Create(ctx context.Context, tx *sql.Tx) (*Account, error) {
 	}, nil
 }
 
-func (s *Store) NameType(ctx context.Context, tx *sql.Tx, name string) (*namespb.TypeDefinition, error) {
-	def := &namespb.TypeDefinition{
+func (s *Store) DeedType(ctx context.Context, tx *sql.Tx, name string) (*deedspb.TypeDefinition, error) {
+	def := &deedspb.TypeDefinition{
 		Name: name,
 	}
 	if err := tx.QueryRowContext(ctx, `
@@ -90,7 +90,7 @@ func (s *Store) NameType(ctx context.Context, tx *sql.Tx, name string) (*namespb
 	return def, nil
 }
 
-func (s *Store) NameTypes(ctx context.Context, tx *sql.Tx) ([]*namespb.TypeDefinition, error) {
+func (s *Store) DeedTypes(ctx context.Context, tx *sql.Tx) ([]*deedspb.TypeDefinition, error) {
 	rows, err := tx.QueryContext(ctx, `
 		select name, price, duration_seconds from name_types
 	`)
@@ -99,10 +99,10 @@ func (s *Store) NameTypes(ctx context.Context, tx *sql.Tx) ([]*namespb.TypeDefin
 	}
 	defer rows.Close()
 
-	defs := make([]*namespb.TypeDefinition, 0)
+	defs := make([]*deedspb.TypeDefinition, 0)
 
 	for rows.Next() {
-		def := &namespb.TypeDefinition{}
+		def := &deedspb.TypeDefinition{}
 		if err := rows.Scan(&def.Name, &def.Price, &def.DurationSeconds); err != nil {
 			return nil, err
 		}
@@ -116,7 +116,7 @@ func (s *Store) NameTypes(ctx context.Context, tx *sql.Tx) ([]*namespb.TypeDefin
 	return defs, nil
 }
 
-func (s *Store) SetNameTypes(ctx context.Context, tx *sql.Tx, defs []*namespb.TypeDefinition) error {
+func (s *Store) SetDeedTypes(ctx context.Context, tx *sql.Tx, defs []*deedspb.TypeDefinition) error {
 	known := make([]interface{}, len(defs))
 	for i, def := range defs {
 		known[i] = def.Name
@@ -160,17 +160,17 @@ func (s *Store) SetNameTypes(ctx context.Context, tx *sql.Tx, defs []*namespb.Ty
 	return nil
 }
 
-func (s *Store) Name(ctx context.Context, tx *sql.Tx, typ string, name string) (*Name, error) {
-	if err := expireNames(ctx, tx); err != nil {
+func (s *Store) Deed(ctx context.Context, tx *sql.Tx, typ string, name string) (*Deed, error) {
+	if err := expireDeeds(ctx, tx); err != nil {
 		return nil, err
 	}
 
 	var id int64
 
 	if err := tx.QueryRowContext(ctx, `
-        select names.id from names
-        inner join name_types on names.name_type_id = name_types.id
-        where name_types.name = ? and names.name = ?
+        select deeds.id from deeds
+        inner join name_types on deeds.name_type_id = name_types.id
+        where name_types.name = ? and deeds.name = ?
     `, typ, name).Scan(&id); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
@@ -178,49 +178,49 @@ func (s *Store) Name(ctx context.Context, tx *sql.Tx, typ string, name string) (
 		return nil, err
 	}
 
-	return &Name{
+	return &Deed{
 		id: id,
 	}, nil
 }
 
-func (s *Store) Names(ctx context.Context, tx *sql.Tx) ([]*Name, error) {
-	if err := expireNames(ctx, tx); err != nil {
+func (s *Store) Deeds(ctx context.Context, tx *sql.Tx) ([]*Deed, error) {
+	if err := expireDeeds(ctx, tx); err != nil {
 		return nil, err
 	}
 
 	rows, err := tx.QueryContext(ctx, `
-        select id from names
+        select id from deeds
     `)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	names := make([]*Name, 0)
+	deeds := make([]*Deed, 0)
 
 	for rows.Next() {
-		name := &Name{}
-		if err := rows.Scan(&name.id); err != nil {
+		deed := &Deed{}
+		if err := rows.Scan(&deed.id); err != nil {
 			return nil, err
 		}
-		names = append(names, name)
+		deeds = append(deeds, deed)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return names, nil
+	return deeds, nil
 }
 
-func (s *Store) NamesByType(ctx context.Context, tx *sql.Tx, typ string) ([]*Name, error) {
-	if err := expireNames(ctx, tx); err != nil {
+func (s *Store) DeedsByType(ctx context.Context, tx *sql.Tx, typ string) ([]*Deed, error) {
+	if err := expireDeeds(ctx, tx); err != nil {
 		return nil, err
 	}
 
 	rows, err := tx.QueryContext(ctx, `
-        select names.id from names
-        inner join name_types on names.name_type_id = name_types.id
+        select deeds.id from deeds
+        inner join name_types on deeds.name_type_id = name_types.id
         name_types.name = ?
     `, typ)
 	if err != nil {
@@ -228,25 +228,25 @@ func (s *Store) NamesByType(ctx context.Context, tx *sql.Tx, typ string) ([]*Nam
 	}
 	defer rows.Close()
 
-	names := make([]*Name, 0)
+	deeds := make([]*Deed, 0)
 
 	for rows.Next() {
-		name := &Name{}
-		if err := rows.Scan(&name.id); err != nil {
+		deed := &Deed{}
+		if err := rows.Scan(&deed.id); err != nil {
 			return nil, err
 		}
-		names = append(names, name)
+		deeds = append(deeds, deed)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return names, nil
+	return deeds, nil
 }
 
-func (s *Store) AddName(ctx context.Context, tx *sql.Tx, typ string, name string, ownerAccountHandle []byte, periods int64, content []byte) (*Name, error) {
-	if err := expireNames(ctx, tx); err != nil {
+func (s *Store) AddDeed(ctx context.Context, tx *sql.Tx, typ string, name string, ownerAccountHandle []byte, periods int64, content []byte) (*Deed, error) {
+	if err := expireDeeds(ctx, tx); err != nil {
 		return nil, err
 	}
 
@@ -260,13 +260,13 @@ func (s *Store) AddName(ctx context.Context, tx *sql.Tx, typ string, name string
         where name = ?
     `, typ).Scan(&typeID, &durationSeconds); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, ErrNoSuchNameType
+			return nil, ErrNoSuchDeedType
 		}
 		return nil, err
 	}
 
 	r, err := tx.ExecContext(ctx, `
-        insert into names (name_type_id, name, owner_account_handle, expiry_time_unix, content)
+        insert into deeds (name_type_id, name, owner_account_handle, expiry_time_unix, content)
         values (?, ?, ?, ?, ?)
     `, typeID, name, ownerAccountHandle, now.Add(time.Duration(durationSeconds)*time.Second*time.Duration(periods)).Unix(), content)
 	if err != nil {
@@ -278,18 +278,71 @@ func (s *Store) AddName(ctx context.Context, tx *sql.Tx, typ string, name string
 		return nil, err
 	}
 
-	return &Name{
+	return &Deed{
 		id: id,
 	}, nil
 }
 
-func expireNames(ctx context.Context, tx *sql.Tx) error {
+func expireDeeds(ctx context.Context, tx *sql.Tx) error {
 	now := time.Now()
 
 	_, err := tx.ExecContext(ctx, `
-		delete from names
+		delete from deeds
 		where expiry_time_unix <= ?
 	`, now.Unix())
 
 	return err
+}
+
+func (s *Store) LoadByAlias(ctx context.Context, tx *sql.Tx, name string) (*Account, error) {
+	var handle []byte
+	var key []byte
+
+	if err := tx.QueryRowContext(ctx, `
+		select handle, key from accounts
+		inner join aliases on aliases.account_handle = accounts.handle
+		where aliases.name = ?
+	`, name).Scan(&handle, &key); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &Account{
+		handle: handle,
+		key:    key,
+	}, nil
+}
+
+func (s *Store) SetAlias(ctx context.Context, tx *sql.Tx, name string, account *Account) error {
+	var r sql.Result
+	var err error
+
+	if account == nil {
+		r, err = tx.ExecContext(ctx, `
+			delete from aliases
+			where name = ?
+		`, name)
+	} else {
+		r, err = tx.ExecContext(ctx, `
+			insert or replace into aliases (name, account_handle)
+			values (?, ?)
+		`, name, account.Handle())
+	}
+
+	if err != nil {
+		return err
+	}
+
+	n, err := r.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if n == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }

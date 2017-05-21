@@ -6,7 +6,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//bank/accounts:go_default_library",
-        "//bank/namesservice/v1pb:go_default_library",
+        "//bank/deedsservice/v1pb:go_default_library",
         "@com_github_golang_glog//:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//codes:go_default_library",

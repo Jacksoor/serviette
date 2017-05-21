@@ -105,3 +105,59 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 
 	return &pb.DeleteResponse{}, nil
 }
+
+func (s *Service) ResolveAlias(ctx context.Context, req *pb.ResolveAliasRequest) (*pb.ResolveAliasResponse, error) {
+	tx, err := s.accounts.BeginTx(ctx)
+	if err != nil {
+		glog.Errorf("Failed to start transaction: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to start transaction")
+	}
+	defer tx.Rollback()
+
+	account, err := s.accounts.LoadByAlias(ctx, tx, req.Name)
+	if err != nil {
+		if err == accounts.ErrNotFound {
+			return nil, grpc.Errorf(codes.NotFound, "account not found")
+		}
+		glog.Errorf("Failed to load account: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load account")
+	}
+
+	return &pb.ResolveAliasResponse{
+		AccountHandle: account.Handle(),
+		AccountKey:    account.Key(),
+	}, nil
+}
+
+func (s *Service) SetAlias(ctx context.Context, req *pb.SetAliasRequest) (*pb.SetAliasResponse, error) {
+	tx, err := s.accounts.BeginTx(ctx)
+	if err != nil {
+		glog.Errorf("Failed to start transaction: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to start transaction")
+	}
+	defer tx.Rollback()
+
+	var account *accounts.Account
+	if req.AccountHandle != nil {
+		account, err = s.accounts.Load(ctx, tx, req.AccountHandle)
+		if err != nil {
+			if err == accounts.ErrNotFound {
+				return nil, grpc.Errorf(codes.NotFound, "account not found")
+			}
+			glog.Errorf("Failed to load account: %v", err)
+			return nil, grpc.Errorf(codes.Internal, "failed to load account")
+		}
+	}
+
+	if err := s.accounts.SetAlias(ctx, tx, req.Name, account); err != nil {
+		glog.Errorf("Failed to set alias: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to set alias")
+	}
+
+	if err := tx.Commit(); err != nil {
+		glog.Errorf("Failed to commit: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to commit")
+	}
+
+	return &pb.SetAliasResponse{}, nil
+}

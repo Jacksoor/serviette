@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package kobun4.bank.names.v1;
+package kobun4.bank.deeds.v1;
 
 option go_package = "v1";
 
@@ -63,7 +63,6 @@ message DeleteResponse {
 }
 
 message ListRequest {
-    repeated string type = 2;
 }
 
 message ListResponse {
@@ -101,7 +100,7 @@ message SetTypesRequest {
 message SetTypesResponse {
 }
 
-service Names {
+service Deeds {
     rpc Buy(BuyRequest) returns (BuyResponse) { }
     rpc GetInfo(GetInfoRequest) returns (GetInfoResponse) { }
     rpc GetContent(GetContentRequest) returns (GetContentResponse) { }
