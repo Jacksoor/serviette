@@ -1,7 +1,7 @@
 package client
 
 import (
-	"encoding/hex"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -145,6 +145,11 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 			rest = strings.TrimSpace(rest[firstSpaceIndex+1:])
 		}
 
+		if commandName == "" {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, I didn't understand that. Please name a command", m.Author.ID))
+			return
+		}
+
 		if err := c.runScriptCommand(ctx, s, m.Message, commandName, rest); err != nil {
 			glog.Errorf("Failed to run script command %s: %v", commandName, err)
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, I ran into an error trying to process that script command.", m.Author.ID))
@@ -160,11 +165,11 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 var errCommandNotFound = errors.New("command not found")
 
 func (c *Client) resolveScriptName(ctx context.Context, commandName string) ([]byte, string, error) {
-	sepIndex := strings.Index(commandName, "/")
+	sepIndex := strings.Index(commandName, ":")
 	if sepIndex != -1 {
 		// Look up via qualified name.
 		encodedScriptHandle := commandName[:sepIndex]
-		scriptHandle, err := hex.DecodeString(encodedScriptHandle)
+		scriptHandle, err := base64.StdEncoding.DecodeString(encodedScriptHandle)
 		if err != nil {
 			return nil, "", errCommandNotFound
 		}
@@ -214,10 +219,11 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 	})
 	if err != nil {
 		if grpc.Code(err) == codes.NotFound {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, I couldn't find a script named `%s` owned by the account `%s`.", m.Author.ID, scriptName, hex.EncodeToString(scriptAccountHandle)))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, I couldn't find a script named `%s` owned by the account `%s`.", m.Author.ID, scriptName, base64.StdEncoding.EncodeToString(scriptAccountHandle)))
 			return nil
 		} else if grpc.Code(err) == codes.FailedPrecondition {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, you don't have enough funds in your checking account to run that command.", m.Author.ID))
+			// TODO: get the script's correct billing account
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, the script's billing account (which may be you!) doesn't have enough funds to run this script.", m.Author.ID))
 			return nil
 		}
 		return err

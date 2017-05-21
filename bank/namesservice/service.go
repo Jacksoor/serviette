@@ -140,6 +140,59 @@ func (s *Service) GetContent(ctx context.Context, req *pb.GetContentRequest) (*p
 	}, nil
 }
 
+func (s *Service) Update(ctx context.Context, req *pb.UpdateRequest) (*pb.UpdateResponse, error) {
+	tx, err := s.accounts.BeginTx(ctx)
+	if err != nil {
+		glog.Errorf("Failed to start transaction: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to start transaction")
+	}
+	defer tx.Rollback()
+
+	account, err := s.accounts.Load(ctx, tx, req.AccountHandle)
+	if err != nil {
+		if err == accounts.ErrNotFound {
+			return nil, grpc.Errorf(codes.NotFound, "account not found")
+		}
+		glog.Errorf("Failed to load account: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load account")
+	}
+
+	if string(req.AccountKey) != string(account.Key()) {
+		return nil, grpc.Errorf(codes.PermissionDenied, "bad key")
+	}
+
+	name, err := s.accounts.Name(ctx, tx, req.Type, req.Name)
+	if err != nil {
+		if err == accounts.ErrNotFound {
+			return nil, grpc.Errorf(codes.NotFound, "name not found")
+		}
+		glog.Errorf("Failed to load name: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load name")
+	}
+
+	info, err := name.Info(ctx, tx)
+	if err != nil {
+		glog.Errorf("Failed to get info: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to get info")
+	}
+
+	if string(info.OwnerAccountHandle) != string(account.Handle()) {
+		return nil, grpc.Errorf(codes.PermissionDenied, "not owned by requestor")
+	}
+
+	if err := name.Update(ctx, tx, req.Content); err != nil {
+		glog.Errorf("Failed to update name: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to update name")
+	}
+
+	if err := tx.Commit(); err != nil {
+		glog.Errorf("Failed to commit: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to commit")
+	}
+
+	return &pb.UpdateResponse{}, nil
+}
+
 func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
 	tx, err := s.accounts.BeginTx(ctx)
 	if err != nil {

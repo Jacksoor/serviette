@@ -83,3 +83,25 @@ func (a *Name) Renew(ctx context.Context, tx *sql.Tx, periods int64) error {
 
 	return nil
 }
+
+func (a *Name) Update(ctx context.Context, tx *sql.Tx, content []byte) error {
+	r, err := tx.ExecContext(ctx, `
+		update names
+		set content = ?
+		where id = ?
+	`, content, a.id)
+	if err != nil {
+		return err
+	}
+
+	n, err := r.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if n != 1 {
+		return ErrNotFound
+	}
+
+	return nil
+}

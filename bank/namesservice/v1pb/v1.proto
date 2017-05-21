@@ -41,6 +41,17 @@ message GetContentResponse {
     bytes content = 1;
 }
 
+message UpdateRequest {
+    bytes account_handle = 1;
+    bytes account_key = 2;
+    string type = 3;
+    string name = 4;
+    bytes content = 6;
+}
+
+message UpdateResponse {
+}
+
 message DeleteRequest {
     bytes account_handle = 1;
     bytes account_key = 2;
@@ -94,6 +105,7 @@ service Names {
     rpc Buy(BuyRequest) returns (BuyResponse) { }
     rpc GetInfo(GetInfoRequest) returns (GetInfoResponse) { }
     rpc GetContent(GetContentRequest) returns (GetContentResponse) { }
+    rpc Update(UpdateRequest) returns (UpdateResponse) { }
     rpc List(ListRequest) returns (ListResponse) { }
     rpc Renew(RenewRequest) returns (RenewResponse) { }
     rpc Delete(DeleteRequest) returns (DeleteResponse) { }

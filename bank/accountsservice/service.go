@@ -48,6 +48,30 @@ func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.Create
 	}, nil
 }
 
+func (s *Service) Check(ctx context.Context, req *pb.CheckRequest) (*pb.CheckResponse, error) {
+	tx, err := s.accounts.BeginTx(ctx)
+	if err != nil {
+		glog.Errorf("Failed to start transaction: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to start transaction")
+	}
+	defer tx.Rollback()
+
+	account, err := s.accounts.Load(ctx, tx, req.AccountHandle)
+	if err != nil {
+		if err == accounts.ErrNotFound {
+			return nil, grpc.Errorf(codes.NotFound, "account not found")
+		}
+		glog.Errorf("Failed to load account: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load account")
+	}
+
+	if string(req.AccountKey) != string(account.Key()) {
+		return nil, grpc.Errorf(codes.PermissionDenied, "bad key")
+	}
+
+	return &pb.CheckResponse{}, nil
+}
+
 func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteResponse, error) {
 	tx, err := s.accounts.BeginTx(ctx)
 	if err != nil {

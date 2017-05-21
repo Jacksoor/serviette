@@ -12,6 +12,14 @@ message CreateResponse {
     bytes account_key = 2;
 }
 
+message CheckRequest {
+    bytes account_handle = 1;
+    bytes account_key = 2;
+}
+
+message CheckResponse {
+}
+
 message DeleteRequest {
     bytes account_handle = 1;
     bytes account_key = 2;
@@ -22,5 +30,6 @@ message DeleteResponse {
 
 service Accounts {
     rpc Create(CreateRequest) returns (CreateResponse) { }
+    rpc Check(CheckRequest) returns (CheckResponse) { }
     rpc Delete(DeleteRequest) returns (DeleteResponse) { }
 }
