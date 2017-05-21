@@ -132,13 +132,6 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		return nil
 	}
 
-	matches := discordMentionRegexp.FindStringSubmatch(parts[0])
-	if len(matches) == 0 || matches[0] != parts[0] {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, I didn't understand that. Please use `$pay @nickname amount` to pay someone.", m.Author.ID))
-		return nil
-	}
-	targetID := matches[1]
-
 	amount, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, I didn't understand that. Please use `$pay @nickname amount` to pay someone.", m.Author.ID))
@@ -153,6 +146,13 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	if err := c.ensureAccount(ctx, targetID); err != nil {
 		return err
 	}
+
+	matches := discordMentionRegexp.FindStringSubmatch(parts[0])
+	if len(matches) == 0 || matches[0] != parts[0] {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, I didn't understand that. Please use `$pay @nickname amount` to pay someone.", m.Author.ID))
+		return nil
+	}
+	targetID := matches[1]
 
 	targetAccount, err := c.store.Account(ctx, targetID, checkingAccountName)
 	if err != nil {

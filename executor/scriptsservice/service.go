@@ -229,12 +229,22 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, err
 	}
 
+	withdrawalMap := moneyService.Withdrawals()
+	withdrawals := make([]*pb.ExecuteResponse_Withdrawal, 0, len(withdrawalMap))
+
+	for target, amount := range withdrawalMap {
+		withdrawals = append(withdrawals, &pb.ExecuteResponse_Withdrawal{
+			TargetAccountHandle: []byte(target),
+			Amount:              amount,
+		})
+	}
+
 	return &pb.ExecuteResponse{
-		Ok:          err == nil,
-		Stdout:      r.Stdout,
-		Stderr:      r.Stderr,
-		UsageCost:   usageCost,
-		Withdrawals: moneyService.Withdrawals(),
-		BillOwner:   billOwner,
+		Ok:         err == nil,
+		Stdout:     r.Stdout,
+		Stderr:     r.Stderr,
+		UsageCost:  usageCost,
+		Withdrawal: withdrawals,
+		BillOwner:  billOwner,
 	}, nil
 }

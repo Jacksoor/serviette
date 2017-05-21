@@ -49,11 +49,16 @@ message ExecuteRequest {
 }
 
 message ExecuteResponse {
+    message Withdrawal {
+        bytes target_account_handle = 1;
+        int64 amount = 2;
+    }
+
     bool ok = 1;
     bytes stdout = 2;
     bytes stderr = 3;
     int64 usage_cost = 4;
-    int64 withdrawals = 5;
+    repeated Withdrawal withdrawal = 5;
     bool bill_owner = 6;
 }
 

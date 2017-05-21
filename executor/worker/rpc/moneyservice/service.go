@@ -12,7 +12,7 @@ type Service struct {
 	accountHandle []byte
 	accountKey    []byte
 
-	withdrawals int64
+	withdrawals map[string]int64
 }
 
 func New(moneyClient moneypb.MoneyClient, accountHandle []byte, accountKey []byte) *Service {
@@ -21,10 +21,12 @@ func New(moneyClient moneypb.MoneyClient, accountHandle []byte, accountKey []byt
 
 		accountHandle: accountHandle,
 		accountKey:    accountKey,
+
+		withdrawals: make(map[string]int64, 0),
 	}
 }
 
-func (s *Service) Withdrawals() int64 {
+func (s *Service) Withdrawals() map[string]int64 {
 	return s.withdrawals
 }
 
@@ -69,7 +71,7 @@ func (s *Service) Transfer(req *TransferRequest, resp *TransferResponse) error {
 	}
 
 	if string(req.SourceAccountHandle) == string(s.accountHandle) {
-		s.withdrawals += req.Amount
+		s.withdrawals[string(req.TargetAccountHandle)] += req.Amount
 	}
 
 	return nil

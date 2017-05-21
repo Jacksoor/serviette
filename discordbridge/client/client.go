@@ -207,7 +207,7 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		return err
 	}
 
-	_, err = c.scriptsClient.Execute(ctx, &scriptspb.ExecuteRequest{
+	resp, err := c.scriptsClient.Execute(ctx, &scriptspb.ExecuteRequest{
 		ExecutingAccountHandle: checking.Handle,
 		ExecutingAccountKey:    checking.Key,
 		ScriptAccountHandle:    scriptAccountHandle,
@@ -227,6 +227,31 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 			return nil
 		}
 		return err
+	}
+
+	withdrawalDetails := make([]string, len(resp.Withdrawal))
+	for i, withdrawal := range resp.Withdrawal {
+		withdrawalDetails[i] = fmt.Sprintf("%d %s to `%s`", withdrawal.Amount, c.opts.CurrencyName, base64.StdEncoding.EncodeToString(withdrawal.TargetAccountHandle))
+	}
+
+	var usageDetails string
+	if resp.BillOwner {
+		usageDetails = "No usage was billed to you."
+	} else {
+		usageDetails = fmt.Sprintf("%d %s was billed as usage to you.", resp.UsageCost, c.opts.CurrencyName)
+	}
+
+	var billingDetails string
+	if len(resp.Withdrawal) > 0 {
+		billingDetails = fmt.Sprintf("The following withdrawals were made from your account:\n%s\n\n%s", strings.Join(withdrawalDetails, "\n"), usageDetails)
+	} else {
+		billingDetails = usageDetails
+	}
+
+	if resp.Ok {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>:\n\n%s\n\n_%s_", m.Author.ID, resp.Stdout, billingDetails))
+	} else {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@%s>, it looks like the script ran into an error:\n```\n%s\n```\n_%s_", m.Author.ID, resp.Stderr, billingDetails))
 	}
 
 	return nil
