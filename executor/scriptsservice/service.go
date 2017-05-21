@@ -2,7 +2,6 @@ package scriptsservice
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/porpoises/kobun4/executor/pricing"
 	"github.com/porpoises/kobun4/executor/worker"
+	"github.com/porpoises/kobun4/executor/worker/rpc/contextservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/moneyservice"
 
 	pb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
@@ -198,12 +198,13 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.FailedPrecondition, "insufficient funds")
 	}
 
-	scriptContext, err := json.Marshal(req.Context)
-
-	worker := s.supervisor.Spawn(scriptPath, []string{}, scriptContext)
+	worker := s.supervisor.Spawn(scriptPath, []string{}, []byte(req.Rest))
 
 	moneyService := moneyservice.New(s.moneyClient, req.ExecutingAccountHandle, req.ExecutingAccountKey)
 	worker.RegisterService("Money", moneyService)
+
+	contextService := contextservice.New(req.Context)
+	worker.RegisterService("Context", contextService)
 
 	maxUsage := s.pricer.MaxUsage(balance)
 

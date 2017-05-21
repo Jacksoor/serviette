@@ -212,6 +212,7 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		ExecutingAccountKey:    checking.Key,
 		ScriptAccountHandle:    scriptAccountHandle,
 		Name:                   scriptName,
+		Rest:                   rest,
 		Context: &scriptspb.Context{
 			BridgeName: "discord",
 			Mention:    fmt.Sprintf("<@%s>", m.Author.ID),

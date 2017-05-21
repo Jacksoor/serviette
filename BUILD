@@ -13,3 +13,13 @@ sh_binary(
     ],
     visibility = ["//visibility:public"],
 )
+
+sh_binary(
+    name = "init",
+    srcs = ["init.sh"],
+    data = [
+        "//bank/accounts:schema.sql",
+        "//discordbridge/store:schema.sql",
+    ],
+    visibility = ["//visibility:public"],
+)

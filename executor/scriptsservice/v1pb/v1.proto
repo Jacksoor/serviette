@@ -45,7 +45,8 @@ message ExecuteRequest {
     bytes script_account_handle = 3;
 
     string name = 4;
-    Context context = 5;
+    string rest = 5;
+    Context context = 6;
 }
 
 message ExecuteResponse {

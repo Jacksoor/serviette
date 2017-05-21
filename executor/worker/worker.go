@@ -8,6 +8,7 @@ import (
 	"net/rpc/jsonrpc"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 )
 
@@ -53,6 +54,11 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
+	pyLibraryPath, err := filepath.EvalSymlinks(filepath.Join(f.opts.K4LibraryPath, "k4.py"))
+	if err != nil {
+		return nil, err
+	}
+
 	cmd := exec.CommandContext(
 		ctx, f.opts.NsjailPath,
 		append(append(nsjailArgs,
@@ -62,8 +68,9 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 			"--pass_fd", "3",
 			"--user", "nobody",
 			"--group", "nogroup",
+			"--enable_clone_newcgroup",
 			"--disable_clone_newnet",
-			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4", f.opts.K4LibraryPath),
+			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4/k4.py", pyLibraryPath),
 			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4/_work", f.arg0),
 			"--bindmount_ro", "/dev/urandom",
 			"--bindmount_ro", "/bin",
@@ -73,6 +80,7 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 			"--bindmount_ro", "/usr",
 			"--bindmount_ro", "/lib",
 			"--bindmount_ro", "/lib64",
+			"--cwd", "/opt/k4",
 			"--",
 			"/opt/k4/_work"),
 			f.argv...)...)
