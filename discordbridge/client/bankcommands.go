@@ -50,6 +50,10 @@ func bankBalance(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 		Name: aliasName(targetID),
 	})
 	if err != nil {
+		if grpc.Code(err) == codes.NotFound {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, <@!%s> doesn't have an account.", m.Author.ID, targetID))
+			return nil
+		}
 		return err
 	}
 
@@ -82,6 +86,10 @@ func bankAccount(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 		Name: aliasName(targetID),
 	})
 	if err != nil {
+		if grpc.Code(err) == codes.NotFound {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, <@!%s> doesn't have an account.", m.Author.ID, targetID))
+			return nil
+		}
 		return err
 	}
 
@@ -131,6 +139,10 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		Name: aliasName(targetID),
 	})
 	if err != nil {
+		if grpc.Code(err) == codes.NotFound {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, <@!%s> doesn't have an account.", m.Author.ID, targetID))
+			return nil
+		}
 		return err
 	}
 

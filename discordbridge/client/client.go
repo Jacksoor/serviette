@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
@@ -58,6 +59,9 @@ func New(token string, opts *Options, accountsClient accountspb.AccountsClient, 
 
 	session.AddHandler(client.ready)
 	session.AddHandler(client.messageCreate)
+	session.AddHandler(client.guildCreate)
+	session.AddHandler(client.guildMemberAdd)
+	session.AddHandler(client.guildMembersChunk)
 
 	if err := session.Open(); err != nil {
 		return nil, err
@@ -74,15 +78,63 @@ func (c *Client) Close() {
 	c.session.Close()
 }
 
-func (c *Client) ready(s *discordgo.Session, event *discordgo.Ready) {
+func (c *Client) ready(s *discordgo.Session, r *discordgo.Ready) {
 	glog.Info("Discord ready.")
 	s.UpdateStatus(0, c.opts.Status)
+}
+
+func (c *Client) guildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
+	ctx := context.Background()
+
+	glog.Info("Guild received, ensuring accounts.")
+
+	for _, member := range g.Members {
+		if member.User.Bot {
+			continue
+		}
+
+		if err := c.ensureAccount(ctx, member.User.ID); err != nil {
+			glog.Errorf("Failed to ensure account: %v", err)
+		}
+	}
+
+	glog.Info("Accounts ensured.")
+}
+
+func (c *Client) guildMemberAdd(s *discordgo.Session, g *discordgo.GuildMemberAdd) {
+	ctx := context.Background()
+
+	if g.Member.User.Bot {
+		return
+	}
+
+	if err := c.ensureAccount(ctx, g.Member.User.ID); err != nil {
+		glog.Errorf("Failed to ensure account: %v", err)
+	}
+}
+
+func (c *Client) guildMembersChunk(s *discordgo.Session, g *discordgo.GuildMembersChunk) {
+	ctx := context.Background()
+
+	for _, member := range g.Members {
+		if member.User.Bot {
+			return
+		}
+
+		if err := c.ensureAccount(ctx, member.User.ID); err != nil {
+			glog.Errorf("Failed to ensure account: %v", err)
+		}
+	}
 }
 
 func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	ctx := context.Background()
 
 	if m.Author.ID == s.State.User.ID {
+		return
+	}
+
+	if m.Author.Bot {
 		return
 	}
 
@@ -222,6 +274,9 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		if grpc.Code(err) == codes.NotFound {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I couldn't find a script named `%s` owned by the account `%s`.", m.Author.ID, scriptName, base64.RawURLEncoding.EncodeToString(scriptAccountHandle)))
 			return nil
+		} else if grpc.Code(err) == codes.InvalidArgument {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, that's not a valid script name.", m.Author.ID))
+			return nil
 		} else if grpc.Code(err) == codes.FailedPrecondition {
 			// TODO: get the script's correct billing account
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, the script's billing account (which may be you!) doesn't have enough funds to run this script.", m.Author.ID))
@@ -236,10 +291,15 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 	}
 
 	var usageDetails string
-	if resp.BillingMethod == scriptspb.BillingMethod_BILL_EXECUTING_ACCOUNT {
-		usageDetails = fmt.Sprintf("%d %s was billed as usage to you.", resp.UsageCost, c.opts.CurrencyName)
-	} else {
-		usageDetails = "No usage was billed to you."
+	switch resp.BillingMethod {
+	case scriptspb.BillingMethod_BILL_EXECUTING_ACCOUNT:
+		usageDetails = fmt.Sprintf("%d %s was billed as usage to <@!%s>.", resp.UsageCost, c.opts.CurrencyName, m.Author.ID)
+	case scriptspb.BillingMethod_BILL_OWNING_ACCOUNT:
+		usageDetails = fmt.Sprintf("%d %s was billed as usage to the script's owner.", resp.UsageCost, c.opts.CurrencyName)
+	case scriptspb.BillingMethod_BILL_NOBODY:
+		usageDetails = fmt.Sprintf("Nobody was billed for the use of this script.")
+	default:
+		usageDetails = fmt.Sprintf("I don't know how this script was billed.")
 	}
 
 	var billingDetails string
@@ -267,9 +327,20 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 }
 
 func (c *Client) ensureAccount(ctx context.Context, authorID string) error {
-	_, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
-		Name: aliasName(authorID),
-	})
+	var err error
+
+	for {
+		_, err = c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
+			Name: aliasName(authorID),
+		})
+
+		if grpc.Code(err) != codes.Unavailable {
+			break
+		}
+
+		glog.Warningf("Temporary failure to ensure account: %v", err)
+		time.Sleep(1 * time.Second)
+	}
 
 	if err == nil {
 		return nil

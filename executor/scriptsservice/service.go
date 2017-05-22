@@ -27,6 +27,8 @@ import (
 	pb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
+var billingMethodXattrName = "user.kobun4.executor.billingMethod"
+
 type Service struct {
 	scriptRoot string
 
@@ -54,13 +56,8 @@ var errInvalidScriptName = errors.New("invalid script name")
 func (s *Service) scriptPath(accountHandle []byte, scriptName string) (string, error) {
 	accountRoot := filepath.Join(s.scriptRoot, base64.RawURLEncoding.EncodeToString(accountHandle))
 	path := filepath.Join(accountRoot, scriptName)
-	expectedScriptName, err := filepath.Rel(accountRoot, path)
 
-	if err != nil {
-		return "", err
-	}
-
-	if scriptName != expectedScriptName {
+	if filepath.Dir(path) != accountRoot {
 		return "", errInvalidScriptName
 	}
 
@@ -105,6 +102,12 @@ func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.Create
 	if err := f.Chmod(0700); err != nil {
 		os.Remove(f.Name())
 		glog.Errorf("Failed to chmod file: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to create script")
+	}
+
+	if err := syscall.Setxattr(f.Name(), billingMethodXattrName, []byte{byte(req.BillingMethod)}, 0); err != nil {
+		os.Remove(f.Name())
+		glog.Errorf("Failed to set xattr on file: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to create script")
 	}
 
@@ -178,7 +181,20 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
 
-	billingMethod := pb.BillingMethod_BILL_EXECUTING_ACCOUNT
+	xattrValue := make([]byte, 1)
+
+	size, err := syscall.Getxattr(scriptPath, billingMethodXattrName, xattrValue)
+	if err != nil {
+		glog.Errorf("Failed to get billing method xattr: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+
+	if size != 1 {
+		glog.Errorf("Failed to get billing method xattr: weird xattr value size")
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+
+	billingMethod := pb.BillingMethod(xattrValue[0])
 
 	var billingAccountHandle []byte
 	switch billingMethod {
@@ -188,6 +204,9 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		billingAccountHandle = req.ScriptAccountHandle
 	case pb.BillingMethod_BILL_NOBODY:
 		billingAccountHandle = nil
+	default:
+		glog.Errorf("Failed to get billing method xattr: unknown billing method")
+		return nil, grpc.Errorf(codes.Internal, "unknown billing method")
 	}
 
 	nsjailArgs := []string{}

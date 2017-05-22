@@ -5,9 +5,10 @@ package kobun4.executor.scripts.v1;
 option go_package = "v1pb";
 
 enum BillingMethod {
-    BILL_EXECUTING_ACCOUNT = 0;
-    BILL_OWNING_ACCOUNT = 1;
-    BILL_NOBODY = 2;
+    BILL_UNKNOWN = 0;
+    BILL_EXECUTING_ACCOUNT = 1;
+    BILL_OWNING_ACCOUNT = 2;
+    BILL_NOBODY = 3;
 }
 
 message Context {
