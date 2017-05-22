@@ -78,7 +78,7 @@ func (s *Store) DeedType(ctx context.Context, tx *sql.Tx, name string) (*deedspb
 		Name: name,
 	}
 	if err := tx.QueryRowContext(ctx, `
-		select price, duration_seconds from name_types
+		select price, duration_seconds from deed_types
 		where name = ?
 	`, name).Scan(&def.Price, &def.DurationSeconds); err != nil {
 		if err == sql.ErrNoRows {
@@ -92,7 +92,7 @@ func (s *Store) DeedType(ctx context.Context, tx *sql.Tx, name string) (*deedspb
 
 func (s *Store) DeedTypes(ctx context.Context, tx *sql.Tx) ([]*deedspb.TypeDefinition, error) {
 	rows, err := tx.QueryContext(ctx, `
-		select name, price, duration_seconds from name_types
+		select name, price, duration_seconds from deed_types
 	`)
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ func (s *Store) SetDeedTypes(ctx context.Context, tx *sql.Tx, defs []*deedspb.Ty
 		placeholders = placeholders[:len(placeholders)-1]
 
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`
-			delete from name_types
+			delete from deed_types
 			where name not in (%s)
 		`, placeholders), known...); err != nil {
 			return err
@@ -135,7 +135,7 @@ func (s *Store) SetDeedTypes(ctx context.Context, tx *sql.Tx, defs []*deedspb.Ty
 
 		for _, def := range defs {
 			if _, err := tx.ExecContext(ctx, `
-				update name_types
+				update deed_types
 				set price = ?, duration_seconds = ?
 				where name = ?
 			`, def.Price, def.DurationSeconds, def.Name); err != nil {
@@ -143,7 +143,7 @@ func (s *Store) SetDeedTypes(ctx context.Context, tx *sql.Tx, defs []*deedspb.Ty
 			}
 
 			if _, err := tx.ExecContext(ctx, `
-				insert or ignore into name_types (name, price, duration_seconds)
+				insert or ignore into deed_types (name, price, duration_seconds)
 				values (?, ?, ?)
 			`, def.Name, def.Price, def.DurationSeconds); err != nil {
 				return err
@@ -151,7 +151,7 @@ func (s *Store) SetDeedTypes(ctx context.Context, tx *sql.Tx, defs []*deedspb.Ty
 		}
 	} else {
 		if _, err := tx.ExecContext(ctx, `
-			delete from name_types
+			delete from deed_types
 		`); err != nil {
 			return err
 		}
@@ -168,10 +168,10 @@ func (s *Store) Deed(ctx context.Context, tx *sql.Tx, typ string, name string) (
 	var id int64
 
 	if err := tx.QueryRowContext(ctx, `
-        select deeds.id from deeds
-        inner join name_types on deeds.name_type_id = name_types.id
-        where name_types.name = ? and deeds.name = ?
-    `, typ, name).Scan(&id); err != nil {
+		select deeds.id from deeds
+		inner join deed_types on deeds.deed_type_id = deed_types.id
+		where deed_types.name = ? and deeds.name = ?
+	`, typ, name).Scan(&id); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
@@ -189,8 +189,8 @@ func (s *Store) Deeds(ctx context.Context, tx *sql.Tx) ([]*Deed, error) {
 	}
 
 	rows, err := tx.QueryContext(ctx, `
-        select id from deeds
-    `)
+		select id from deeds
+	`)
 	if err != nil {
 		return nil, err
 	}
@@ -219,10 +219,10 @@ func (s *Store) DeedsByType(ctx context.Context, tx *sql.Tx, typ string) ([]*Dee
 	}
 
 	rows, err := tx.QueryContext(ctx, `
-        select deeds.id from deeds
-        inner join name_types on deeds.name_type_id = name_types.id
-        name_types.name = ?
-    `, typ)
+		select deeds.id from deeds
+		inner join deed_types on deeds.deed_type_id = deed_types.id
+		deed_types.name = ?
+	`, typ)
 	if err != nil {
 		return nil, err
 	}
@@ -256,9 +256,9 @@ func (s *Store) AddDeed(ctx context.Context, tx *sql.Tx, typ string, name string
 	var durationSeconds int64
 
 	if err := tx.QueryRowContext(ctx, `
-        select id, duration_seconds from name_types
-        where name = ?
-    `, typ).Scan(&typeID, &durationSeconds); err != nil {
+		select id, duration_seconds from deed_types
+		where name = ?
+	`, typ).Scan(&typeID, &durationSeconds); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNoSuchDeedType
 		}
@@ -266,9 +266,9 @@ func (s *Store) AddDeed(ctx context.Context, tx *sql.Tx, typ string, name string
 	}
 
 	r, err := tx.ExecContext(ctx, `
-        insert into deeds (name_type_id, name, owner_account_handle, expiry_time_unix, content)
-        values (?, ?, ?, ?, ?)
-    `, typeID, name, ownerAccountHandle, now.Add(time.Duration(durationSeconds)*time.Second*time.Duration(periods)).Unix(), content)
+		insert into deeds (deed_type_id, name, owner_account_handle, expiry_time_unix, content)
+		values (?, ?, ?, ?, ?)
+	`, typeID, name, ownerAccountHandle, now.Add(time.Duration(durationSeconds)*time.Second*time.Duration(periods)).Unix(), content)
 	if err != nil {
 		return nil, err
 	}
