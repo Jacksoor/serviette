@@ -14,9 +14,12 @@
 </dl>
 
 <h2>Scripts Owned</h2>
+<p>
+    You own the following scripts.
+</p>
 <ul>
 {{range $_, $name := .ScriptNames}}
-    <li><a href="/scripts/{{$.AccountHandle}}/{{$name}}">{{$name}}</a></li>
+    <li><a href="/scripts/{{$.AccountHandle}}/{{$name}}"><samp>{{$name}}</samp></a></li>
 {{end}}
 </ul>
 
@@ -27,6 +30,7 @@
 
 <h2>Deeds Owned</h2>
 <p>
+    You own the following deeds.
     <table>
         <tr>
             <th>Type</th>
@@ -67,6 +71,7 @@
 
 <h3>Market Prices</h3>
 <p>
+    These are the most recent market prices for deeds.
     <table>
         <tr>
             <th>Type</th>

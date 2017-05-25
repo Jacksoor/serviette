@@ -175,12 +175,18 @@ func (h *Handler) accountIndex(w http.ResponseWriter, r *http.Request, ps httpro
 
 var newScriptTemplate string = `#!/usr/bin/python3 -S
 
-#
-# This is an example script using Python.
-#
+"""
+This is an example script using Python.
+"""
+
+import sys
 
 # Import the k4 library.
 import k4
+
+
+# Input.
+inp = sys.stdin.read()
 
 # Open some persistent storage.
 try:
@@ -196,7 +202,8 @@ client = k4.Client()
 context = client.Context.Get()
 
 # Greet the user!
-print('Hi, {}! I\'ve said "hi" {} times!'.format(context['mention'], num_his))
+print('Hi, {}! I\'ve said "hi" {} times! You said "{}"!'.format(
+    context['mention'], num_his, inp))
 
 # Increment the number of his and put it back into persistent storage.
 with open('/mnt/storage/number_of_greetings', 'w') as f:

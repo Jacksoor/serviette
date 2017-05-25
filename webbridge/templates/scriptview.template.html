@@ -9,7 +9,7 @@
 {{end}}
 
 {{define "body"}}
-<h1>Script: {{.ScriptAccountHandle}}/{{.ScriptName}}</h1>
+<h1>Script: <samp>{{.ScriptAccountHandle}}/{{.ScriptName}}</samp></h1>
 <form method="POST" action="/scripts/{{.ScriptAccountHandle}}/{{.ScriptName}}">
     <p>
         <label>Highlight as: <select id="modes"><option disabled selected></option></select></label>
@@ -21,15 +21,24 @@
 
     <h2>Requested Capabilities</h2>
     <p>
-        <strong>NOTE:</strong> If users have granted their capabilities to this script, their capabilities will be removed on save.
+        Capabilities grant specific abilities to act on behalf of the executing account. They must be explicitly granted by the executing account, and a script will fail to start if these capabilities are not available (no usage costs will be incurred).
+    </p>
+    <p>
+        <strong>NOTE:</strong> All capabilities granted from accounts will be removed on save and must be granted again each time.
     </p>
 
     <p>
-        <label><input type="checkbox" name="bill_usage_to_executing_account" {{if .RequestedCapabilities.BillUsageToExecutingAccount}}checked{{end}}> Bill usage to executing account?</label>
+        <label>
+            <input type="checkbox" name="bill_usage_to_executing_account" {{if .RequestedCapabilities.BillUsageToExecutingAccount}}checked{{end}}> <strong>Bill usage to executing account?</strong><br>
+            If checked, all usage costs that would usually be billed to the owner of the script will be billed to the executor. The executor must grant their capability to be billed.
+        </label>
     </p>
 
     <p>
-        <label>Maximum withdrawal limit: <input type="number" value="{{.RequestedCapabilities.WithdrawalLimit}}" name="withdrawal_limit"></label>
+        <label>
+            <strong>Maximum withdrawal limit:</strong> <input type="number" value="{{.RequestedCapabilities.WithdrawalLimit}}" name="withdrawal_limit"><br>
+            This is the maximum withdrawal limit the script may request to withdraw from the executor's account. The executor may set a lower personal limit via their capability, but the actual withdrawal limit is always the lower of the two. Be prepared to handle errors for withdrawals that don't exceed the requested withdrawal limit here, as it is mostly an advisory limit.
+        </label>
     </p>
 
     <p>
@@ -49,6 +58,7 @@
 (function() {
     var cm = CodeMirror.fromTextArea(document.getElementById("editor"), {
         lineNumbers: true,
+        viewportMargin: Infinity,
     });
 
     var modesSelect = document.getElementById("modes");

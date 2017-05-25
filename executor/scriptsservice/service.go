@@ -229,7 +229,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	accountsService := accountsservice.New(s.accountsClient)
 	worker.RegisterService("Accounts", accountsService)
 
-	moneyService := moneyservice.New(s.moneyClient, req.ExecutingAccountHandle, req.ExecutingAccountKey, accountCapabilities.WithdrawalLimit)
+	withdrawalLimit := requestedCapabilities.WithdrawalLimit
+	if accountCapabilities.WithdrawalLimit < withdrawalLimit {
+		withdrawalLimit = accountCapabilities.WithdrawalLimit
+	}
+	moneyService := moneyservice.New(s.moneyClient, req.ExecutingAccountHandle, req.ExecutingAccountKey, withdrawalLimit)
 	worker.RegisterService("Money", moneyService)
 
 	contextService := contextservice.New(req.Context)
