@@ -221,8 +221,12 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 
 	scriptAccountHandle, scriptName, err := resolveScriptName(ctx, c, commandName)
 	if err != nil {
-		if err == errNotFound {
+		switch err {
+		case errNotFound:
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I don't know what the `%s` command is.", m.Author.ID, commandName))
+			return nil
+		case errMisconfiguredCommand:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, the owner of the `%s` command hasn't configured their command correctly.", m.Author.ID, commandName))
 			return nil
 		}
 		return err
@@ -276,11 +280,9 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 %s
 
 **If you want to allow this, please run the following command:**
-
 `+"```"+`
 $setcaps %s %s
 `+"```"+`
-
 If you have your granted capabilities to this command before, **it has been changed from the last time you ran it.**`,
 			m.Author.ID, commandName, strings.Join(prettyCaps, "\n"), commandName, strings.Join(capSettings, " ")))
 		return nil
@@ -334,7 +336,7 @@ If you have your granted capabilities to this command before, **it has been chan
 		if len(stdout) > 1500 {
 			stdout = stdout[:1500]
 		}
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>:\n\n%s\n\n_%s_", m.Author.ID, stdout, billingDetails))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>:\n%s\n_%s_", m.Author.ID, stdout, billingDetails))
 	} else {
 		stderr := resp.Stderr
 		if len(stderr) > 1500 {

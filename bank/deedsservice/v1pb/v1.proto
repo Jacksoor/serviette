@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package kobun4.bank.deeds.v1;
 
-option go_package = "v1";
+option go_package = "v1pb";
 
 message Info {
     string type = 1;

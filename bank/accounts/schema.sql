@@ -13,6 +13,8 @@ create table deed_types (
 
 create unique index deed_types_name on deed_types(name);
 
+insert into deed_types(name, price, duration_seconds) values('command', 500, 8640000);
+
 create table deeds (
     id integer primary key autoincrement not null,
     owner_account_handle bytea not null,

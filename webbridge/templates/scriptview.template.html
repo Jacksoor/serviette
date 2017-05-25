@@ -1,4 +1,4 @@
-{{define "title"}}{{.ScriptName}} | Scripts{{end}}
+{{define "title"}}{{.ScriptAccountHandle}}/{{.ScriptName}} | Scripts{{end}}
 
 {{define "head"}}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.26.0/codemirror.min.js"></script>
@@ -9,29 +9,27 @@
 {{end}}
 
 {{define "body"}}
-<h1>{{.ScriptName}}</h1>
-<form action="POST">
+<h1>Script: {{.ScriptAccountHandle}}/{{.ScriptName}}</h1>
+<form method="POST" action="/scripts/{{.ScriptAccountHandle}}/{{.ScriptName}}">
     <p>
-        <label>Highlight as: <select id="modes"><option disabled></option></select></label>
+        <label>Highlight as: <select id="modes"><option disabled selected></option></select></label>
     </p>
 
     <p>
-        <textarea name="content" id="editor"></textarea>
+        <textarea name="content" id="editor">{{.ScriptContent}}</textarea>
+    </p>
+
+    <h2>Requested Capabilities</h2>
+    <p>
+        <strong>NOTE:</strong> If users have granted their capabilities to this script, their capabilities will be removed on save.
     </p>
 
     <p>
-        <label>
-            Billing method:
-            <select name="billingMethod">
-                <option value="1">Bill executing user</option>
-                <option value="2">Bill owning user</option>
-            </select>
-        </label>
+        <label><input type="checkbox" name="bill_usage_to_executing_account" {{if .RequestedCapabilities.BillUsageToExecutingAccount}}checked{{end}}> Bill usage to executing account?</label>
     </p>
 
     <p>
-        Capabilities required:
-        <label><input type="checkbox" name="capability.withdrawal"> withdrawals</label>
+        <label>Maximum withdrawal limit: <input type="number" value="{{.RequestedCapabilities.WithdrawalLimit}}" name="withdrawal_limit"></label>
     </p>
 
     <p>
@@ -39,13 +37,17 @@
     </p>
 </form>
 
+<form method="POST" action="/scripts/{{.ScriptAccountHandle}}/{{.ScriptName}}/delete">
+    <button type="submit">Delete</button>
+</form>
+
+<p>
+    <a href="/">Return to account home page</a>
+</p>
+
 <script>
 (function() {
-    var editorArea = document.getElementById("editor");
-    var cm = CodeMirror(function (elt) {
-        editorArea.parentNode.replaceChild(elt, editorArea);
-    }, {
-        value: editorArea.value,
+    var cm = CodeMirror.fromTextArea(document.getElementById("editor"), {
         lineNumbers: true,
     });
 

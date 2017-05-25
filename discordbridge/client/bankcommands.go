@@ -31,7 +31,7 @@ var bankCommands map[string]command = map[string]command{
 
 	"key": bankKey,
 
-	"cmdinfo": bankCmdinfo,
+	"cmd": bankCmd,
 
 	"setcaps": bankSetcaps,
 
@@ -171,7 +171,7 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	return nil
 }
 
-func bankCmdinfo(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
+func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
 	sourceResolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
 		Name: aliasName(m.Author.ID),
 	})
@@ -239,7 +239,7 @@ func bankCmdinfo(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 		prettyAccountCapDetails = fmt.Sprintf("**You have granted none of your capabilities.**")
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>, the command `%s` is an alias for `%s:%s`.\n\n%s\n\n%s", m.Author.ID, commandName, base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName, prettyRequestedCapDetails, prettyAccountCapDetails))
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>, the command `%s` is an alias for `%s/%s`.\n\n%s\n\n%s", m.Author.ID, commandName, base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName, prettyRequestedCapDetails, prettyAccountCapDetails))
 	return nil
 }
 
@@ -269,8 +269,12 @@ func bankSetcaps(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 
 	scriptAccountHandle, scriptName, err := resolveScriptName(ctx, c, commandName)
 	if err != nil {
-		if err == errNotFound {
+		switch err {
+		case errNotFound:
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I don't know what the `%s` command is.", m.Author.ID, commandName))
+			return nil
+		case errMisconfiguredCommand:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, the owner of the `%s` command hasn't configured their command correctly.", m.Author.ID, commandName))
 			return nil
 		}
 		return err
@@ -325,7 +329,7 @@ func bankKey(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		return err
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>, your account key is `%s`. Keep it secret!", m.Author.ID, base64.RawURLEncoding.EncodeToString(resolveResp.AccountKey)))
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>, your account handle is `%s` and your account key is `%s`. Keep it secret!", m.Author.ID, base64.RawURLEncoding.EncodeToString(resolveResp.AccountHandle), base64.RawURLEncoding.EncodeToString(resolveResp.AccountKey)))
 	return nil
 }
 
@@ -343,7 +347,7 @@ Get a user's account information. Leave out the username to get your own account
 `+"`"+`$pay @mention/handle amount`+"`"+`
 Pay a user from your account into their account.
 
-`+"`"+`$cmdinfo command`+"`"+`
+`+"`"+`$cmd command`+"`"+`
 Get information on a command.
 
 `+"`"+`$setcaps command [capabilities]`+"`"+`

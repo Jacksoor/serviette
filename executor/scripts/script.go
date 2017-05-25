@@ -58,7 +58,7 @@ func (s *Script) Content() ([]byte, error) {
 }
 
 func (s *Script) SetContent(content []byte) error {
-	return ioutil.WriteFile(s.Path(), content, 0700)
+	return ioutil.WriteFile(s.Path(), content, 0755)
 }
 
 func (s *Script) RequestedCapabilities() (*scriptspb.Capabilities, error) {

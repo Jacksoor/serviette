@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var (
@@ -25,6 +26,10 @@ func NewStore(rootPath string) *Store {
 }
 
 func (s *Store) load(accountHandle []byte, name string) (*Script, error) {
+	if strings.Contains(name, " ") {
+		return nil, ErrInvalidScriptName
+	}
+
 	accountRoot := filepath.Join(s.rootPath, base64.RawURLEncoding.EncodeToString(accountHandle))
 	path := filepath.Join(accountRoot, name)
 

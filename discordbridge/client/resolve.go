@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	errNotFound         error = errors.New("not found")
-	errBadAccountHandle       = errors.New("bad account handle")
+	errNotFound             error = errors.New("not found")
+	errBadAccountHandle           = errors.New("bad account handle")
+	errMisconfiguredCommand       = errors.New("misconfigured command")
 )
 
 func resolveAccountTarget(ctx context.Context, c *Client, target string) ([]byte, error) {
@@ -43,7 +44,7 @@ func resolveAccountTarget(ctx context.Context, c *Client, target string) ([]byte
 }
 
 func resolveScriptName(ctx context.Context, c *Client, commandName string) ([]byte, string, error) {
-	sepIndex := strings.Index(commandName, ":")
+	sepIndex := strings.Index(commandName, "/")
 	if sepIndex != -1 {
 		// Look up via qualified name.
 		encodedScriptHandle := commandName[:sepIndex]
@@ -65,7 +66,21 @@ func resolveScriptName(ctx context.Context, c *Client, commandName string) ([]by
 			}
 			return nil, "", err
 		}
-		return nil, string(contentResp.Content), errNotFound
+
+		resolvedName := string(contentResp.Content)
+		sepIndex := strings.Index(resolvedName, "/")
+
+		if sepIndex == -1 {
+			return nil, "", errMisconfiguredCommand
+		}
+
+		encodedScriptHandle := resolvedName[:sepIndex]
+		scriptHandle, err := base64.RawURLEncoding.DecodeString(encodedScriptHandle)
+		if err != nil {
+			return nil, "", errMisconfiguredCommand
+		}
+		name := resolvedName[sepIndex+1:]
+		return scriptHandle, name, nil
 	}
 	return nil, "", errNotFound
 }
