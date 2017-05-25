@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/porpoises/kobun4/executor/pricing"
+	"github.com/porpoises/kobun4/executor/scripts"
 	"github.com/porpoises/kobun4/executor/worker"
 
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
@@ -31,9 +32,13 @@ import (
 var (
 	socketPath      = flag.String("socket_path", "/tmp/kobun4-executor.socket", "Bind path for socket")
 	debugSocketPath = flag.String("debug_socket_path", "/tmp/kobun4-executor.debug.socket", "Bind path for socket")
-	bankTarget      = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
-	nsjailPath      = flag.String("nsjail_path", "nsjail", "Path to nsjail")
-	scriptRootPath  = flag.String("script_root_path", "scripts", "Path to script root")
+
+	bankTarget = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
+
+	scriptsRootPath = flag.String("scripts_root_path", "scripts", "Path to script root")
+
+	imagesRootPath = flag.String("images_root_path", "images", "Path to image root")
+	imageSize      = flag.Int64("image_size", 20*1024*1024, "Image size for new images")
 )
 
 func main() {
@@ -68,20 +73,25 @@ func main() {
 	defer bankConn.Close()
 
 	pricer := &pricing.FactorPricer{
-		CPUTimeNum: 1,
-		CPUTimeDen: 1000,
+		RealTimeNum: 1,
+		RealTimeDen: 1 * time.Second,
 
 		MemoryNum: 1,
 		MemoryDen: 1000000,
 	}
 
 	supervisor := worker.NewSupervisor(&worker.WorkerOptions{
-		NsjailPath:    *nsjailPath,
 		K4LibraryPath: k4LibraryPath,
 	})
 
+	scriptsService, err := scriptsservice.New(scripts.NewStore(*scriptsRootPath), *imagesRootPath, *imageSize, moneypb.NewMoneyClient(bankConn), accountspb.NewAccountsClient(bankConn), pricer, supervisor)
+	if err != nil {
+		glog.Fatalf("could not create scripts service: %v", err)
+	}
+	defer scriptsService.Stop()
+
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(*scriptRootPath, moneypb.NewMoneyClient(bankConn), accountspb.NewAccountsClient(bankConn), pricer, supervisor))
+	scriptspb.RegisterScriptsServer(s, scriptsService)
 	reflection.Register(s)
 
 	signalChan := make(chan os.Signal, 1)

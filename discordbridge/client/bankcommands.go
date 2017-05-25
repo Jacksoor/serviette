@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/golang/protobuf/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -15,6 +16,7 @@ import (
 
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
+	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
 var bankCommands map[string]command = map[string]command{
@@ -27,80 +29,85 @@ var bankCommands map[string]command = map[string]command{
 
 	"pay": bankPay,
 
+	"key": bankKey,
+
+	"cmdinfo": bankCmdinfo,
+
+	"setcaps": bankSetcaps,
+
+	"?":    bankHelp,
 	"help": bankHelp,
 }
 
 var discordMentionRegexp = regexp.MustCompile(`<@!?(\d+)>`)
 
 func bankBalance(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
-	var targetID string
-	if rest == "" {
-		targetID = m.Author.ID
-	} else {
-		matches := discordMentionRegexp.FindStringSubmatch(rest)
-		if len(matches) == 0 || matches[0] != rest {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand that. Please use `$ @nickname` to ask for someone's balance.", m.Author.ID))
-			return nil
-		}
+	target := rest
 
-		targetID = matches[1]
+	if target == "" {
+		target = fmt.Sprintf("<@!%s>", m.Author.ID)
 	}
 
-	resolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
-		Name: aliasName(targetID),
-	})
+	accountHandle, err := resolveAccountTarget(ctx, c, target)
 	if err != nil {
-		if grpc.Code(err) == codes.NotFound {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, <@!%s> doesn't have an account.", m.Author.ID, targetID))
+		switch err {
+		case errNotFound:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, %s doesn't have an account.", m.Author.ID, target))
+			return nil
+		case errBadAccountHandle:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, `%s` is neither a @mention nor an account handle.", m.Author.ID, target))
 			return nil
 		}
 		return err
 	}
 
 	resp, err := c.moneyClient.GetBalance(ctx, &moneypb.GetBalanceRequest{
-		AccountHandle: [][]byte{resolveResp.AccountHandle},
+		AccountHandle: [][]byte{accountHandle},
 	})
 	if err != nil {
 		return err
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s> has %d %s.", targetID, resp.Balance[0], c.opts.CurrencyName))
+	if target[0] != '<' {
+		target = "`" + target + "`"
+	}
+
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s has %d %s.", target, resp.Balance[0], c.opts.CurrencyName))
 	return nil
 }
 
 func bankAccount(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
-	var targetID string
-	if rest == "" {
-		targetID = m.Author.ID
-	} else {
-		matches := discordMentionRegexp.FindStringSubmatch(rest)
-		if len(matches) == 0 || matches[0] != rest {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand that. Please use `$ @nickname` to ask for someone's balance.", m.Author.ID))
-			return nil
-		}
+	target := rest
 
-		targetID = matches[1]
+	if target == "" {
+		target = fmt.Sprintf("<@!%s>", m.Author.ID)
 	}
 
-	resolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
-		Name: aliasName(targetID),
-	})
+	accountHandle, err := resolveAccountTarget(ctx, c, target)
 	if err != nil {
-		if grpc.Code(err) == codes.NotFound {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, <@!%s> doesn't have an account.", m.Author.ID, targetID))
+		switch err {
+		case errNotFound:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, %s doesn't have an account.", m.Author.ID, target))
+			return nil
+		case errBadAccountHandle:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, `%s` is neither a @mention nor an account handle.", m.Author.ID, target))
 			return nil
 		}
 		return err
 	}
 
 	resp, err := c.moneyClient.GetBalance(ctx, &moneypb.GetBalanceRequest{
-		AccountHandle: [][]byte{resolveResp.AccountHandle},
+		AccountHandle: [][]byte{accountHandle},
 	})
 	if err != nil {
 		return err
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>'s account handle is `%s` and has %d %s.", targetID, base64.RawURLEncoding.EncodeToString(resolveResp.AccountHandle), resp.Balance[0], c.opts.CurrencyName))
+	if target[0] != '<' {
+		target = "`" + target + "`"
+	}
+
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s's account handle is `%s` and has %d %s.", target, base64.RawURLEncoding.EncodeToString(accountHandle), resp.Balance[0], c.opts.CurrencyName))
 	return nil
 }
 
@@ -108,13 +115,13 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	parts := strings.SplitN(rest, " ", 2)
 
 	if len(parts) != 2 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand that. Please use `$pay @nickname amount` to pay someone.", m.Author.ID))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand that. Please use `$pay @mention/handle amount` to pay someone.", m.Author.ID))
 		return nil
 	}
 
 	amount, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand that. Please use `$pay @nickname amount` to pay someone.", m.Author.ID))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand the amount you wanted to pay. Please use `$pay @mention/handle amount` to pay someone.", m.Author.ID))
 		return nil
 	}
 
@@ -125,22 +132,15 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		return err
 	}
 
-	matches := discordMentionRegexp.FindStringSubmatch(parts[0])
-	if len(matches) == 0 || matches[0] != parts[0] {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand that. Please use `$pay @nickname amount` to pay someone.", m.Author.ID))
-		return nil
-	}
-	targetID := matches[1]
-	if err := c.ensureAccount(ctx, targetID); err != nil {
-		return err
-	}
-
-	targetResolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
-		Name: aliasName(targetID),
-	})
+	target := parts[0]
+	targetAccountHandle, err := resolveAccountTarget(ctx, c, target)
 	if err != nil {
-		if grpc.Code(err) == codes.NotFound {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, <@!%s> doesn't have an account.", m.Author.ID, targetID))
+		switch err {
+		case errNotFound:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, %s doesn't have an account.", m.Author.ID, target))
+			return nil
+		case errBadAccountHandle:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, `%s` is neither a @mention nor an account handle.", m.Author.ID, target))
 			return nil
 		}
 		return err
@@ -149,7 +149,7 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	_, err = c.moneyClient.Transfer(ctx, &moneypb.TransferRequest{
 		SourceAccountHandle: sourceResolveResp.AccountHandle,
 		SourceAccountKey:    sourceResolveResp.AccountKey,
-		TargetAccountHandle: targetResolveResp.AccountHandle,
+		TargetAccountHandle: targetAccountHandle,
 		Amount:              amount,
 	})
 	if err != nil {
@@ -163,23 +163,197 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		return err
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>, you have been paid %d %s by <@!%s>.", targetID, amount, c.opts.CurrencyName, m.Author.ID))
+	if target[0] != '<' {
+		target = "`" + target + "`"
+	}
+
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s, you have been paid %d %s by <@!%s>.", target, amount, c.opts.CurrencyName, m.Author.ID))
+	return nil
+}
+
+func bankCmdinfo(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
+	sourceResolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
+		Name: aliasName(m.Author.ID),
+	})
+	if err != nil {
+		return err
+	}
+
+	commandName := rest
+
+	scriptAccountHandle, scriptName, err := resolveScriptName(ctx, c, commandName)
+	if err != nil {
+		if err == errNotFound {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I don't know what the `%s` command is.", m.Author.ID, commandName))
+			return nil
+		}
+		return err
+	}
+
+	getRequestedCapsResp, err := c.scriptsClient.GetRequestedCapabilities(ctx, &scriptspb.GetRequestedCapabilitiesRequest{
+		AccountHandle: scriptAccountHandle,
+		Name:          scriptName,
+	})
+	if err != nil {
+		return err
+	}
+
+	prettyRequestedCaps := make([]string, 0)
+	if getRequestedCapsResp.Capabilities.BillUsageToExecutingAccount {
+		prettyRequestedCaps = append(prettyRequestedCaps, " - "+explainBillUsageToExecutingAccount(c))
+	}
+
+	if getRequestedCapsResp.Capabilities.WithdrawalLimit > 0 {
+		prettyRequestedCaps = append(prettyRequestedCaps, " - "+explainWithdrawalLimit(c, getRequestedCapsResp.Capabilities.WithdrawalLimit))
+	}
+
+	var prettyRequestedCapDetails string
+	if len(prettyRequestedCaps) > 0 {
+		prettyRequestedCapDetails = fmt.Sprintf("**This command requests your following capabilities:**\n\n%s", strings.Join(prettyRequestedCaps, "\n"))
+	} else {
+		prettyRequestedCapDetails = fmt.Sprintf("**This command requests none of your capabilities.**")
+	}
+
+	getAccountCapsResp, err := c.scriptsClient.GetAccountCapabilities(ctx, &scriptspb.GetAccountCapabilitiesRequest{
+		ExecutingAccountHandle: sourceResolveResp.AccountHandle,
+		ScriptAccountHandle:    scriptAccountHandle,
+		ScriptName:             scriptName,
+	})
+	if err != nil {
+		return err
+	}
+
+	prettyAccountCaps := make([]string, 0)
+	if getAccountCapsResp.Capabilities.BillUsageToExecutingAccount {
+		prettyAccountCaps = append(prettyAccountCaps, " - "+explainBillUsageToExecutingAccount(c)+" (you!)")
+	}
+
+	if getAccountCapsResp.Capabilities.WithdrawalLimit > 0 {
+		prettyAccountCaps = append(prettyAccountCaps, " - "+explainWithdrawalLimit(c, getAccountCapsResp.Capabilities.WithdrawalLimit))
+	}
+
+	var prettyAccountCapDetails string
+	if len(prettyAccountCaps) > 0 {
+		prettyAccountCapDetails = fmt.Sprintf("**You have granted your following capabilities:**\n\n%s", strings.Join(prettyAccountCaps, "\n"))
+	} else {
+		prettyAccountCapDetails = fmt.Sprintf("**You have granted none of your capabilities.**")
+	}
+
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>, the command `%s` is an alias for `%s:%s`.\n\n%s\n\n%s", m.Author.ID, commandName, base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName, prettyRequestedCapDetails, prettyAccountCapDetails))
+	return nil
+}
+
+func bankSetcaps(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
+	sourceResolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
+		Name: aliasName(m.Author.ID),
+	})
+	if err != nil {
+		return err
+	}
+
+	parts := strings.SplitN(rest, " ", 2)
+
+	if len(parts) != 2 && len(parts) != 1 {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand that. Please use `$setcaps command capabilities` to set command capabilities.", m.Author.ID))
+		return nil
+	}
+
+	commandName := parts[0]
+	capabilities := &scriptspb.Capabilities{}
+	if len(parts) == 2 {
+		if err := proto.UnmarshalText(parts[1], capabilities); err != nil {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand the capabilities you wanted to set. Please use `$setcaps command capabilities` to set command capabilities.", m.Author.ID))
+			return nil
+		}
+	}
+
+	scriptAccountHandle, scriptName, err := resolveScriptName(ctx, c, commandName)
+	if err != nil {
+		if err == errNotFound {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I don't know what the `%s` command is.", m.Author.ID, commandName))
+			return nil
+		}
+		return err
+	}
+
+	if _, err := c.scriptsClient.SetAccountCapabilities(ctx, &scriptspb.SetAccountCapabilitiesRequest{
+		ExecutingAccountHandle: sourceResolveResp.AccountHandle,
+		ScriptAccountHandle:    scriptAccountHandle,
+		ScriptName:             scriptName,
+		Capabilities:           capabilities,
+	}); err != nil {
+		return err
+	}
+
+	prettyAccountCaps := make([]string, 0)
+	if capabilities.BillUsageToExecutingAccount {
+		prettyAccountCaps = append(prettyAccountCaps, " - "+explainBillUsageToExecutingAccount(c)+" (you!)")
+	}
+
+	if capabilities.WithdrawalLimit > 0 {
+		prettyAccountCaps = append(prettyAccountCaps, " - "+explainWithdrawalLimit(c, capabilities.WithdrawalLimit))
+	}
+
+	if len(prettyAccountCaps) > 0 {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>, you have granted your following capabilities to `%s`:\n\n%s", m.Author.ID, commandName, strings.Join(prettyAccountCaps, "\n")))
+	} else {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>, you have revoked all of your capabilities from `%s`.", m.Author.ID, commandName))
+	}
+
+	return nil
+}
+
+func bankKey(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
+	channel, err := s.Channel(m.ChannelID)
+	if err != nil {
+		return err
+	}
+
+	if !channel.IsPrivate {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I only respond to this command in private.", m.Author.ID))
+		return nil
+	}
+
+	resolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
+		Name: aliasName(m.Author.ID),
+	})
+	if err != nil {
+		if grpc.Code(err) == codes.NotFound {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, you don't have an account.", m.Author.ID))
+			return nil
+		}
+		return err
+	}
+
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>, your account key is `%s`. Keep it secret!", m.Author.ID, base64.RawURLEncoding.EncodeToString(resolveResp.AccountKey)))
 	return nil
 }
 
 func bankHelp(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
 	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(`Hi <@!%s>, I understand the following commands:
 
-`+"`"+`$balance [@username]`+"`"+`
-**Also available as:** `+"`"+`$`+"`"+`, `+"`"+`$bal`+"`"+`
+`+"`"+`$balance [@mention/handle]`+"`"+`
+_Also available as:_ `+"`"+`$`+"`"+`, `+"`"+`$bal`+"`"+`
 Get a user's balance. Leave out the username to get your own balance.
 
-`+"`"+`$account [@username]`+"`"+`
-**Also available as:** `+"`"+`$$`+"`"+`
+`+"`"+`$account [@mention/handle]`+"`"+`
+_Also available as:_ `+"`"+`$$`+"`"+`
 Get a user's account information. Leave out the username to get your own accounts.
 
-`+"`"+`$pay @username amount`+"`"+`
+`+"`"+`$pay @mention/handle amount`+"`"+`
 Pay a user from your account into their account.
+
+`+"`"+`$cmdinfo command`+"`"+`
+Get information on a command.
+
+`+"`"+`$setcaps command [capabilities]`+"`"+`
+Set your capabilities on a command. If capabilities are left empty, all capabilities you have previously granted are revoked.
+
+**I will only respond to the following commands in private:**
+
+`+"`"+`$key`+"`"+`
+Gets the key to your account.
+
 `, m.Author.ID))
 	return nil
 }

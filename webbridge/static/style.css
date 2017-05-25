@@ -1,0 +1,23 @@
+body {
+    font: 10pt sans-serif;
+}
+
+table, th, td {
+    border: 1px solid black;
+}
+
+dt {
+    font-weight: bold;
+}
+
+.secret {
+    background: black;
+}
+
+.secret:hover {
+    color: white;
+}
+
+.CodeMirror {
+    border: 1px solid black;
+}

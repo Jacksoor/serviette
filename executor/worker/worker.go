@@ -23,7 +23,6 @@ type Worker struct {
 }
 
 type WorkerOptions struct {
-	NsjailPath    string
 	K4LibraryPath string
 }
 
@@ -60,13 +59,14 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 	}
 
 	cmd := exec.CommandContext(
-		ctx, f.opts.NsjailPath,
+		ctx, "nsjail",
 		append(append(nsjailArgs,
 			"--mode", "o",
-			"--log", "/dev/fd/4",
+			"--log", "/proc/self/fd/4",
 			"--pass_fd", "3",
 			"--user", "nobody",
 			"--group", "nogroup",
+			"--hostname", "kobun4",
 			"--enable_clone_newcgroup",
 			"--disable_clone_newnet",
 			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4/k4.py", pyLibraryPath),
@@ -79,6 +79,7 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 			"--bindmount_ro", "/usr",
 			"--bindmount_ro", "/lib",
 			"--bindmount_ro", "/lib64",
+			"--tmpfsmount", "/tmp",
 			"--cwd", "/opt/k4",
 			"--",
 			"/opt/k4/_work"),

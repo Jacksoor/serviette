@@ -1,0 +1,64 @@
+{{define "title"}}{{.ScriptName}} | Scripts{{end}}
+
+{{define "head"}}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.26.0/codemirror.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.26.0/codemirror.min.css">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.26.0/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.26.0/mode/shell/shell.min.js"></script>
+{{end}}
+
+{{define "body"}}
+<h1>{{.ScriptName}}</h1>
+<form action="POST">
+    <p>
+        <label>Highlight as: <select id="modes"><option disabled></option></select></label>
+    </p>
+
+    <p>
+        <textarea name="content" id="editor"></textarea>
+    </p>
+
+    <p>
+        <label>
+            Billing method:
+            <select name="billingMethod">
+                <option value="1">Bill executing user</option>
+                <option value="2">Bill owning user</option>
+            </select>
+        </label>
+    </p>
+
+    <p>
+        Capabilities required:
+        <label><input type="checkbox" name="capability.withdrawal"> withdrawals</label>
+    </p>
+
+    <p>
+        <button type="submit">Save</button>
+    </p>
+</form>
+
+<script>
+(function() {
+    var editorArea = document.getElementById("editor");
+    var cm = CodeMirror(function (elt) {
+        editorArea.parentNode.replaceChild(elt, editorArea);
+    }, {
+        value: editorArea.value,
+        lineNumbers: true,
+    });
+
+    var modesSelect = document.getElementById("modes");
+    Object.keys(CodeMirror.modes).forEach(function (k) {
+        var option = document.createElement('option');
+        option.value = k;
+        option.textContent = k;
+        modesSelect.appendChild(option);
+    })
+    modesSelect.onchange = function () {
+        cm.setOption('mode', this.value);
+    };
+})();
+</script>
+{{end}}

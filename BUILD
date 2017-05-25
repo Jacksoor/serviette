@@ -27,19 +27,21 @@ sh_binary(
 pkg_tar(
     name = "kobun4_dist",
     extension = "tar.gz",
-    strip_prefix = "/",
-    package_dir = "kobun4",
     files = [
         ":init.sh",
         "//bank",
         "//bank/accounts:schema.sql",
         "//discordbridge",
         "//executor",
+        "//webbridge",
     ],
     modes = {
         ":init.sh": "0755",
         "//bank": "0755",
         "//discordbridge": "0755",
         "//executor": "0755",
-    }
+        "//webbridge": "0755",
+    },
+    package_dir = "kobun4",
+    strip_prefix = "/",
 )

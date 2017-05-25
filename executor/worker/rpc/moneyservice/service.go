@@ -2,6 +2,7 @@ package moneyservice
 
 import (
 	"encoding/base64"
+	"errors"
 
 	"golang.org/x/net/context"
 
@@ -14,15 +15,19 @@ type Service struct {
 	accountHandle []byte
 	accountKey    []byte
 
+	withdrawalLimit int64
+
 	withdrawals map[string]int64
 }
 
-func New(moneyClient moneypb.MoneyClient, accountHandle []byte, accountKey []byte) *Service {
+func New(moneyClient moneypb.MoneyClient, accountHandle []byte, accountKey []byte, withdrawalLimit int64) *Service {
 	return &Service{
 		moneyClient: moneyClient,
 
 		accountHandle: accountHandle,
 		accountKey:    accountKey,
+
+		withdrawalLimit: withdrawalLimit,
 
 		withdrawals: make(map[string]int64, 0),
 	}
@@ -41,6 +46,10 @@ type PayResponse struct{}
 
 // Pay transfers money from the executing account into a target account.
 func (s *Service) Pay(req *PayRequest, resp *PayResponse) error {
+	if req.Amount > s.withdrawalLimit {
+		return errors.New("transfer would exceed withdrawal limit")
+	}
+
 	targetAccountHandle, err := base64.RawURLEncoding.DecodeString(req.TargetAccountHandle)
 	if err != nil {
 		return err
@@ -56,6 +65,7 @@ func (s *Service) Pay(req *PayRequest, resp *PayResponse) error {
 	}
 
 	s.withdrawals[string(targetAccountHandle)] += req.Amount
+	s.withdrawalLimit -= req.Amount
 
 	return nil
 }

@@ -2,7 +2,6 @@ package client
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -212,36 +211,6 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 	}
 }
 
-var errCommandNotFound = errors.New("command not found")
-
-func (c *Client) resolveScriptName(ctx context.Context, commandName string) ([]byte, string, error) {
-	sepIndex := strings.Index(commandName, ":")
-	if sepIndex != -1 {
-		// Look up via qualified name.
-		encodedScriptHandle := commandName[:sepIndex]
-		scriptHandle, err := base64.RawURLEncoding.DecodeString(encodedScriptHandle)
-		if err != nil {
-			return nil, "", errCommandNotFound
-		}
-		name := commandName[sepIndex+1:]
-		return scriptHandle, name, nil
-	} else {
-		// Look up via an alias name.
-		contentResp, err := c.deedsClient.GetContent(ctx, &deedspb.GetContentRequest{
-			Type: "command",
-			Name: commandName,
-		})
-		if err != nil {
-			if grpc.Code(err) == codes.NotFound {
-				return nil, "", errCommandNotFound
-			}
-			return nil, "", err
-		}
-		return nil, string(contentResp.Content), errCommandNotFound
-	}
-	return nil, "", errCommandNotFound
-}
-
 func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *discordgo.Message, commandName string, rest string) error {
 	resolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
 		Name: aliasName(m.Author.ID),
@@ -250,13 +219,71 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		return err
 	}
 
-	scriptAccountHandle, scriptName, err := c.resolveScriptName(ctx, commandName)
+	scriptAccountHandle, scriptName, err := resolveScriptName(ctx, c, commandName)
 	if err != nil {
-		if err == errCommandNotFound {
+		if err == errNotFound {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I don't know what the `%s` command is.", m.Author.ID, commandName))
 			return nil
 		}
 		return err
+	}
+
+	getRequestedCapsResp, err := c.scriptsClient.GetRequestedCapabilities(ctx, &scriptspb.GetRequestedCapabilitiesRequest{
+		AccountHandle: scriptAccountHandle,
+		Name:          scriptName,
+	})
+	if err != nil {
+		if grpc.Code(err) == codes.NotFound {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I couldn't find a command named `%s` owned by the account `%s`.", m.Author.ID, scriptName, base64.RawURLEncoding.EncodeToString(scriptAccountHandle)))
+			return nil
+		} else if grpc.Code(err) == codes.InvalidArgument {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, that's not a valid command name.", m.Author.ID))
+			return nil
+		}
+		return err
+	}
+
+	getAccountCapsResp, err := c.scriptsClient.GetAccountCapabilities(ctx, &scriptspb.GetAccountCapabilitiesRequest{
+		ExecutingAccountHandle: resolveResp.AccountHandle,
+		ScriptAccountHandle:    scriptAccountHandle,
+		ScriptName:             scriptName,
+	})
+	if err != nil {
+		return err
+	}
+
+	prettyCaps := make([]string, 0)
+	capSettings := make([]string, 0)
+	if getRequestedCapsResp.Capabilities.BillUsageToExecutingAccount {
+		if !getAccountCapsResp.Capabilities.BillUsageToExecutingAccount {
+			prettyCaps = append(prettyCaps, " - "+explainBillUsageToExecutingAccount(c)+" (you!)")
+		}
+		capSettings = append(capSettings, "bill_usage_to_executing_account:true")
+	}
+
+	if getRequestedCapsResp.Capabilities.WithdrawalLimit > 0 {
+		if getAccountCapsResp.Capabilities.WithdrawalLimit <= 0 {
+			prettyCaps = append(prettyCaps, " - "+explainWithdrawalLimit(c, getRequestedCapsResp.Capabilities.WithdrawalLimit)+" (you may set this lower)")
+			capSettings = append(capSettings, fmt.Sprintf("withdrawal_limit:%d", getRequestedCapsResp.Capabilities.WithdrawalLimit))
+		} else {
+			capSettings = append(capSettings, fmt.Sprintf("withdrawal_limit:%d", getAccountCapsResp.Capabilities.WithdrawalLimit))
+		}
+	}
+
+	if len(prettyCaps) > 0 {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(`Sorry <@!%s>, the `+"`"+`%s`+"`"+` command requires your following additional capabilities:
+
+%s
+
+**If you want to allow this, please run the following command:**
+
+`+"```"+`
+$setcaps %s %s
+`+"```"+`
+
+If you have your granted capabilities to this command before, **it has been changed from the last time you ran it.**`,
+			m.Author.ID, commandName, strings.Join(prettyCaps, "\n"), commandName, strings.Join(capSettings, " ")))
+		return nil
 	}
 
 	resp, err := c.scriptsClient.Execute(ctx, &scriptspb.ExecuteRequest{
@@ -270,16 +297,14 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 			Mention:    fmt.Sprintf("<@!%s>", m.Author.ID),
 		},
 	})
+
 	if err != nil {
-		if grpc.Code(err) == codes.NotFound {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I couldn't find a script named `%s` owned by the account `%s`.", m.Author.ID, scriptName, base64.RawURLEncoding.EncodeToString(scriptAccountHandle)))
-			return nil
-		} else if grpc.Code(err) == codes.InvalidArgument {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, that's not a valid script name.", m.Author.ID))
-			return nil
-		} else if grpc.Code(err) == codes.FailedPrecondition {
-			// TODO: get the script's correct billing account
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, the script's billing account (which may be you!) doesn't have enough funds to run this script.", m.Author.ID))
+		if grpc.Code(err) == codes.FailedPrecondition {
+			if getRequestedCapsResp.Capabilities.BillUsageToExecutingAccount {
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, the command's billing account doesn't have enough funds to run this command.", m.Author.ID))
+			} else {
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, you don't have enough funds to run this command.", m.Author.ID))
+			}
 			return nil
 		}
 		return err
@@ -291,15 +316,10 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 	}
 
 	var usageDetails string
-	switch resp.BillingMethod {
-	case scriptspb.BillingMethod_BILL_EXECUTING_ACCOUNT:
+	if getRequestedCapsResp.Capabilities.BillUsageToExecutingAccount {
 		usageDetails = fmt.Sprintf("%d %s was billed as usage to <@!%s>.", resp.UsageCost, c.opts.CurrencyName, m.Author.ID)
-	case scriptspb.BillingMethod_BILL_OWNING_ACCOUNT:
-		usageDetails = fmt.Sprintf("%d %s was billed as usage to the script's owner.", resp.UsageCost, c.opts.CurrencyName)
-	case scriptspb.BillingMethod_BILL_NOBODY:
-		usageDetails = fmt.Sprintf("Nobody was billed for the use of this script.")
-	default:
-		usageDetails = fmt.Sprintf("I don't know how this script was billed.")
+	} else {
+		usageDetails = fmt.Sprintf("%d %s was billed as usage to the command's owner.", resp.UsageCost, c.opts.CurrencyName)
 	}
 
 	var billingDetails string

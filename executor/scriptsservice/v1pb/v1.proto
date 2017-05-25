@@ -4,11 +4,9 @@ package kobun4.executor.scripts.v1;
 
 option go_package = "v1pb";
 
-enum BillingMethod {
-    BILL_UNKNOWN = 0;
-    BILL_EXECUTING_ACCOUNT = 1;
-    BILL_OWNING_ACCOUNT = 2;
-    BILL_NOBODY = 3;
+message Capabilities {
+    bool bill_usage_to_executing_account = 1;
+    int64 withdrawal_limit = 2;
 }
 
 message Context {
@@ -19,10 +17,9 @@ message Context {
 
 message CreateRequest {
     bytes account_handle = 1;
-    bytes account_key = 2;
-    string name = 3;
+    string name = 2;
+    Capabilities requested_capabilities = 3;
     bytes content = 4;
-    BillingMethod billing_method = 5;
 }
 
 message CreateResponse {
@@ -38,8 +35,7 @@ message ListResponse {
 
 message DeleteRequest {
     bytes account_handle = 1;
-    bytes account_key = 2;
-    string name = 3;
+    string name = 2;
 }
 
 message DeleteResponse {
@@ -67,7 +63,44 @@ message ExecuteResponse {
     bytes stderr = 3;
     int64 usage_cost = 4;
     repeated Withdrawal withdrawal = 5;
-    BillingMethod billing_method = 6;
+}
+
+message GetContentRequest {
+    bytes account_handle = 1;
+    string name = 2;
+}
+
+message GetContentResponse {
+    bytes content = 1;
+}
+
+message GetRequestedCapabilitiesRequest {
+    bytes account_handle = 1;
+    string name = 2;
+}
+
+message GetRequestedCapabilitiesResponse {
+    Capabilities capabilities = 1;
+}
+
+message SetAccountCapabilitiesRequest {
+    bytes executing_account_handle = 1;
+    bytes script_account_handle = 2;
+    string script_name = 3;
+    Capabilities capabilities = 4;
+}
+
+message SetAccountCapabilitiesResponse {
+}
+
+message GetAccountCapabilitiesRequest {
+    bytes executing_account_handle = 1;
+    bytes script_account_handle = 2;
+    string script_name = 3;
+}
+
+message GetAccountCapabilitiesResponse {
+    Capabilities capabilities = 1;
 }
 
 service Scripts {
@@ -75,4 +108,11 @@ service Scripts {
     rpc List(ListRequest) returns (ListResponse) { }
     rpc Delete(DeleteRequest) returns (DeleteResponse) { }
     rpc Execute(ExecuteRequest) returns (ExecuteResponse) { }
+
+    rpc GetContent(GetContentRequest) returns (GetContentResponse) { }
+
+    rpc GetRequestedCapabilities(GetRequestedCapabilitiesRequest) returns (GetRequestedCapabilitiesResponse) { }
+
+    rpc SetAccountCapabilities(SetAccountCapabilitiesRequest) returns (SetAccountCapabilitiesResponse) { }
+    rpc GetAccountCapabilities(GetAccountCapabilitiesRequest) returns (GetAccountCapabilitiesResponse) { }
 }

@@ -88,3 +88,9 @@ new_go_repository(
     commit = "83a6d8dc879e5db09185e352561da4326f443de6",
     importpath = "github.com/hako/durafmt",
 )
+
+new_go_repository(
+    name = "com_github_julienschmidt_httprouter",
+    commit = "975b5c4c7c21c0e3d2764200bf2aa8e34657ae6e",
+    importpath = "github.com/julienschmidt/httprouter",
+)

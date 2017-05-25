@@ -1,0 +1,92 @@
+{{define "title"}}{{.AccountHandle}}{{end}}
+
+{{define "body"}}
+<p>Hi, and welcome to your account page.</p>
+<dl>
+    <dt>Account Handle</dt>
+    <dd><samp>{{.AccountHandle}}</samp></dd>
+
+    <dt>Account Key (keep this secret!)</dt>
+    <dd><span class="secret"><samp>{{.AccountKey}}</samp></span></dd>
+
+    <dt>Balance</dt>
+    <dd>{{.Balance}}</dd>
+</dl>
+
+<h2>Scripts Owned</h2>
+<ul>
+    <li><a href="/accounts/{{.AccountHandle}}/scripts/SCRIPT_NAME?key={{.AccountKey}}">SCRIPT NAME</a></li>
+</ul>
+
+<form method="POST" action="/accounts/{{.AccountHandle}}/scripts">
+    <input type="text" name="name">
+    <input type="hidden" name="key" value="{{.AccountKey}}">
+    <button type="submit">Create new script</button>
+</form>
+
+<h2>Deeds Owned</h2>
+<p>
+    <table>
+        <tr>
+            <th>Type</th>
+            <th>Name</th>
+            <th>Lease expires in</th>
+            <th>Renew</th>
+            <th>Delete</th>
+        </tr>
+
+        <tr>
+            <td>command</td>
+            <td><samp>ud</samp></td>
+            <td>1 hour</td>
+            <td>
+                <form method="POST" action="/accounts/{{.AccountHandle}}/deeds/DEED_NAME/renew">
+                    <input type="hidden" name="name" value="">
+                    <input type="hidden" name="key" value="{{.AccountKey}}">
+                    <input type="number" name="periods" value="1"> periods <button type="submit">Renew</button>
+                </form>
+            </td>
+            <td>
+                <form method="POST" action="/accounts/{{.AccountHandle}}/deeds/DEED_NAME/delete">
+                    <input type="hidden" name="name" value="">
+                    <input type="hidden" name="key" value="{{.AccountKey}}">
+                    <button type="submit">Delete</button>
+                </form>
+            </td>
+        </tr>
+    </table>
+</p>
+
+<h3>Market Prices</h3>
+<p>
+    <table>
+        <tr>
+            <th>Type</th>
+            <th>Price</th>
+            <th>Lease period</th>
+        </tr>
+
+        <tr>
+            <td>command</td>
+            <td>50</td>
+            <td>100 days</td>
+        </tr>
+    </table>
+</p>
+
+<form method="POST" action="/accounts/{{.AccountHandle}}/deeds">
+    <dl>
+        <dt><label for="deed-name">Name</label></dt>
+        <dd><input id="deed-name" type="text" name="name"></dd>
+
+        <dt><label for="deed-type">Type</label></dt>
+        <dd><select id="deed-type" name="type"></select></dd>
+
+        <dt><label for="deed-periods">Periods</label></dt>
+        <dd><input id="deed-periods" type="number" name="periods" value="1"></dd>
+    </dl>
+    <input type="hidden" name="key" value="{{.AccountKey}}">
+    <button type="submit">Purchase deed</button>
+</form>
+
+{{end}}

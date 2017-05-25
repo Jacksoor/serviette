@@ -8,6 +8,7 @@ go_library(
         "//bank/accountsservice/v1pb:go_default_library",
         "//bank/moneyservice/v1pb:go_default_library",
         "//executor/pricing:go_default_library",
+        "//executor/scripts:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "//executor/worker:go_default_library",
         "//executor/worker/rpc/accountsservice:go_default_library",
