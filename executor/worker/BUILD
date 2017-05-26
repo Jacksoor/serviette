@@ -7,4 +7,5 @@ go_library(
         "worker.go",
     ],
     visibility = ["//visibility:public"],
+    deps = ["@com_github_djherbis_buffer//limio:go_default_library"],
 )

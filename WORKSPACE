@@ -94,3 +94,9 @@ new_go_repository(
     commit = "975b5c4c7c21c0e3d2764200bf2aa8e34657ae6e",
     importpath = "github.com/julienschmidt/httprouter",
 )
+
+new_go_repository(
+    name = "com_github_djherbis_buffer",
+    commit = "81a3204d823f2cb127fd516387fab63abe1017f3",
+    importpath = "github.com/djherbis/buffer",
+)

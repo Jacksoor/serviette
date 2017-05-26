@@ -20,7 +20,6 @@ import (
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
 
-	"github.com/porpoises/kobun4/executor/pricing"
 	"github.com/porpoises/kobun4/executor/scripts"
 	"github.com/porpoises/kobun4/executor/worker"
 	"github.com/porpoises/kobun4/executor/worker/rpc/accountsservice"
@@ -42,11 +41,12 @@ type Service struct {
 	moneyClient    moneypb.MoneyClient
 	accountsClient accountspb.AccountsClient
 
-	pricer     pricing.Pricer
+	durationPerUnitCost time.Duration
+
 	supervisor *worker.Supervisor
 }
 
-func New(scripts *scripts.Store, imagesRoot string, imageSize int64, moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, pricer pricing.Pricer, supervisor *worker.Supervisor) (*Service, error) {
+func New(scripts *scripts.Store, imagesRoot string, imageSize int64, moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, durationPerUnitCost time.Duration, supervisor *worker.Supervisor) (*Service, error) {
 	mountsRoot, err := ioutil.TempDir("", "kobun4-mounts-")
 	if err != nil {
 		return nil, err
@@ -63,7 +63,8 @@ func New(scripts *scripts.Store, imagesRoot string, imageSize int64, moneyClient
 		moneyClient:    moneyClient,
 		accountsClient: accountsClient,
 
-		pricer:     pricer,
+		durationPerUnitCost: durationPerUnitCost,
+
 		supervisor: supervisor,
 	}, nil
 }
@@ -217,10 +218,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.FailedPrecondition, "the executing account does not have enough funds")
 	}
 
-	maxUsage := s.pricer.MaxUsage(balance)
 	nsjailArgs = []string{
-		"--rlimit_cpu", fmt.Sprintf("%d", maxUsage.RealTime/time.Second),
-		"--cgroup_mem_max", fmt.Sprintf("%d", maxUsage.Memory),
 		"--bindmount", fmt.Sprintf("%s:/mnt/storage", mountPath),
 	}
 
@@ -239,25 +237,21 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	contextService := contextservice.New(req.Context)
 	worker.RegisterService("Context", contextService)
 
-	workerCtx, workerCancel := context.WithTimeout(ctx, maxUsage.RealTime)
+	workerCtx, workerCancel := context.WithTimeout(ctx, time.Duration(balance)*s.durationPerUnitCost)
 	defer workerCancel()
 
 	startTime := time.Now()
-
 	r, err := worker.Run(workerCtx, nsjailArgs)
 	if r == nil {
 		glog.Errorf("Failed to run worker: %v", err)
 		return nil, err
 	}
-
 	endTime := time.Now()
 
-	rusage := r.ProcessState.SysUsage().(*syscall.Rusage)
+	dur := endTime.Sub(startTime)
+	usageCost := int64(dur / s.durationPerUnitCost)
 
-	usageCost := s.pricer.Cost(&pricing.Usage{
-		RealTime: endTime.Sub(startTime),
-		Memory:   int64(rusage.Maxrss * 1000),
-	})
+	glog.Infof("Script execution result: %s, time: %s, cost: %d", string(r.Stderr), dur, usageCost)
 
 	if _, err := s.moneyClient.Add(ctx, &moneypb.AddRequest{
 		AccountHandle: billingAccountHandle,
@@ -275,8 +269,6 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 			Amount:              amount,
 		})
 	}
-
-	glog.Infof("Script execution result: %s", string(r.Stderr))
 
 	return &pb.ExecuteResponse{
 		Ok:         r.ProcessState.Success(),

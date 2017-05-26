@@ -8,6 +8,10 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/net/trace"
+	"net/http"
+	_ "net/http/pprof"
+
 	"github.com/golang/glog"
 	"google.golang.org/grpc"
 
@@ -20,6 +24,8 @@ import (
 )
 
 var (
+	debugSocketPath = flag.String("debug_socket_path", "/tmp/kobun4-discordbridge.debug.socket", "Bind path for socket")
+
 	discordToken = flag.String("discord_token", "", "Token for Discord.")
 	status       = flag.String("status", "", "Status to show.")
 
@@ -35,6 +41,20 @@ var (
 
 func main() {
 	flag.Parse()
+
+	grpc.EnableTracing = true
+	trace.AuthRequest = func(req *http.Request) (bool, bool) {
+		return true, true
+	}
+
+	debugLis, err := net.Listen("unix", *debugSocketPath)
+	if err != nil {
+		glog.Fatalf("failed to listen: %v", err)
+	}
+	defer debugLis.Close()
+	glog.Infof("Debug listening on: %s", debugLis.Addr())
+
+	go http.Serve(debugLis, nil)
 
 	bankConn, err := grpc.Dial(*bankTarget, grpc.WithInsecure(), grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
 		return net.DialTimeout("unix", addr, timeout)

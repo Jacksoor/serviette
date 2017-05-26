@@ -17,7 +17,6 @@ import (
 	_ "google.golang.org/grpc/grpclog/glogger"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/porpoises/kobun4/executor/pricing"
 	"github.com/porpoises/kobun4/executor/scripts"
 	"github.com/porpoises/kobun4/executor/worker"
 
@@ -41,7 +40,10 @@ var (
 	imagesRootPath = flag.String("images_root_path", "images", "Path to image root")
 	imageSize      = flag.Int64("image_size", 20*1024*1024, "Image size for new images")
 
-	timeLimit = flag.Duration("time_limit", 5*time.Second, "Time limit")
+	timeLimit   = flag.Duration("time_limit", 5*time.Second, "Time limit")
+	memoryLimit = flag.Int64("memory_limit", 20*1024*1024, "Memory limit")
+
+	durationPerUnitCost = flag.Duration("duration_per_unit_cost", time.Second, "Duration per unit cost")
 )
 
 func main() {
@@ -69,20 +71,13 @@ func main() {
 	}
 	defer bankConn.Close()
 
-	pricer := &pricing.FactorPricer{
-		RealTimeNum: 1,
-		RealTimeDen: 1 * time.Second,
-
-		MemoryNum: 1,
-		MemoryDen: 1000000,
-	}
-
 	supervisor := worker.NewSupervisor(&worker.WorkerOptions{
 		K4LibraryPath: *k4LibraryPath,
 		TimeLimit:     *timeLimit,
+		MemoryLimit:   *memoryLimit,
 	})
 
-	scriptsService, err := scriptsservice.New(scripts.NewStore(*scriptsRootPath), *imagesRootPath, *imageSize, moneypb.NewMoneyClient(bankConn), accountspb.NewAccountsClient(bankConn), pricer, supervisor)
+	scriptsService, err := scriptsservice.New(scripts.NewStore(*scriptsRootPath), *imagesRootPath, *imageSize, moneypb.NewMoneyClient(bankConn), accountspb.NewAccountsClient(bankConn), *durationPerUnitCost, supervisor)
 	if err != nil {
 		glog.Fatalf("could not create scripts service: %v", err)
 	}

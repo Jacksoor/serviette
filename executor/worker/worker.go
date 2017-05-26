@@ -10,7 +10,11 @@ import (
 	"os/exec"
 	"syscall"
 	"time"
+
+	"github.com/djherbis/buffer/limio"
 )
+
+const maxBufferSize int64 = 1 * 1024 * 1024 // 1MB
 
 type Worker struct {
 	opts *WorkerOptions
@@ -25,6 +29,7 @@ type Worker struct {
 type WorkerOptions struct {
 	K4LibraryPath string
 	TimeLimit     time.Duration
+	MemoryLimit   int64
 }
 
 type WorkerResult struct {
@@ -68,6 +73,7 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 			"--hostname", "kobun4",
 			"--enable_clone_newcgroup",
 			"--disable_clone_newnet",
+			"--cgroup_mem_max", fmt.Sprintf("%d", f.opts.MemoryLimit),
 			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4", f.opts.K4LibraryPath),
 			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4/_work", f.arg0),
 			"--bindmount_ro", "/etc/alternatives",
@@ -85,8 +91,8 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 			"/opt/k4/_work"),
 			f.argv...)...)
 	cmd.Stdin = f.stdin
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.Stdout = limio.LimitWriter(&stdout, maxBufferSize)
+	cmd.Stderr = limio.LimitWriter(&stderr, maxBufferSize)
 
 	childFile := os.NewFile(uintptr(fds[1]), "")
 	cmd.ExtraFiles = []*os.File{
