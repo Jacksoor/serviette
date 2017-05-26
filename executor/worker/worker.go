@@ -8,7 +8,6 @@ import (
 	"net/rpc/jsonrpc"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 	"time"
 )
@@ -58,15 +57,6 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	pyLibraryPath, err := filepath.EvalSymlinks(filepath.Join(f.opts.K4LibraryPath, "k4.py"))
-	if err != nil {
-		return nil, err
-	}
-
-	luaLibraryPath, err := filepath.EvalSymlinks(filepath.Join(f.opts.K4LibraryPath, "k4.lua"))
-	if err != nil {
-		return nil, err
-	}
 	cmd := exec.CommandContext(
 		ctx, "nsjail",
 		append(append(nsjailArgs,
@@ -78,8 +68,7 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 			"--hostname", "kobun4",
 			"--enable_clone_newcgroup",
 			"--disable_clone_newnet",
-			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4/k4.py", pyLibraryPath),
-			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4/k4.lua", luaLibraryPath),
+			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4", f.opts.K4LibraryPath),
 			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4/_work", f.arg0),
 			"--bindmount_ro", "/etc/alternatives",
 			"--bindmount_ro", "/dev/urandom",

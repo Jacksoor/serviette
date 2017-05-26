@@ -31,9 +31,12 @@ pkg_tar(
         ":init.sh",
         "//bank",
         "//bank/accounts:schema.sql",
+        "//clients",
         "//discordbridge",
         "//executor",
         "//webbridge",
+        "//webbridge/static",
+        "//webbridge/templates",
     ],
     modes = {
         ":init.sh": "0755",

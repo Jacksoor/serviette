@@ -246,6 +246,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	r, err := worker.Run(workerCtx, nsjailArgs)
 	if r == nil {
+		glog.Errorf("Failed to run worker: %v", err)
 		return nil, err
 	}
 
@@ -274,6 +275,8 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 			Amount:              amount,
 		})
 	}
+
+	glog.Infof("Script execution result: %s", string(r.Stderr))
 
 	return &pb.ExecuteResponse{
 		Ok:         r.ProcessState.Success(),
@@ -414,12 +417,18 @@ func (s *Service) ensureAndMountAccountDisk(scriptAccountHandle []byte) (string,
 		f.Close()
 
 		if err := exec.Command("mkfs.ntfs", "-F", imagePath).Run(); err != nil {
-			return "", err
+			if eErr, ok := err.(*exec.ExitError); ok {
+				return "", fmt.Errorf("mkfs.ntfs %v: %v", eErr, string(eErr.Stderr))
+			}
+			return "", fmt.Errorf("mkfs.ntfs: %v", err)
 		}
 	}
 
 	if err := exec.Command("ntfs-3g", imagePath, mountPath).Run(); err != nil {
-		return "", err
+		if eErr, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("ntfs-3g %v: %v", eErr, string(eErr.Stderr))
+		}
+		return "", fmt.Errorf("ntfs-3g: %v", err)
 	}
 
 	return mountPath, nil

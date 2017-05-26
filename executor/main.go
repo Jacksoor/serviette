@@ -5,7 +5,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -35,6 +34,8 @@ var (
 
 	bankTarget = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
 
+	k4LibraryPath = flag.String("k4_library_path", "clients", "Path to library root")
+
 	scriptsRootPath = flag.String("scripts_root_path", "scripts", "Path to script root")
 
 	imagesRootPath = flag.String("images_root_path", "images", "Path to image root")
@@ -60,12 +61,6 @@ func main() {
 
 	go http.Serve(debugLis, nil)
 
-	wd, err := os.Getwd()
-	if err != nil {
-		glog.Fatalf("failed to get working dir: %v", err)
-	}
-	k4LibraryPath := filepath.Join(wd, "clients")
-
 	bankConn, err := grpc.Dial(*bankTarget, grpc.WithInsecure(), grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
 		return net.DialTimeout("unix", addr, timeout)
 	}))
@@ -83,7 +78,7 @@ func main() {
 	}
 
 	supervisor := worker.NewSupervisor(&worker.WorkerOptions{
-		K4LibraryPath: k4LibraryPath,
+		K4LibraryPath: *k4LibraryPath,
 		TimeLimit:     *timeLimit,
 	})
 

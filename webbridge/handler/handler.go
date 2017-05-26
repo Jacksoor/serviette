@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -22,12 +23,14 @@ import (
 )
 
 var (
-	templatePathPrefix string = "webbridge/templates/"
-	templatePathSuffix        = ".template.html"
+	templatePathSuffix = ".template.html"
 )
 
 type Handler struct {
 	*httprouter.Router
+
+	staticPath   string
+	templatePath string
 
 	accountsClient accountspb.AccountsClient
 	deedsClient    deedspb.DeedsClient
@@ -45,11 +48,14 @@ var funcMap template.FuncMap = template.FuncMap{
 	},
 }
 
-func New(accountsClient accountspb.AccountsClient, deedsClient deedspb.DeedsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (http.Handler, error) {
+func New(staticPath string, templatePath string, accountsClient accountspb.AccountsClient, deedsClient deedspb.DeedsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (http.Handler, error) {
 	router := httprouter.New()
 
 	h := &Handler{
 		Router: router,
+
+		staticPath:   staticPath,
+		templatePath: templatePath,
 
 		accountsClient: accountsClient,
 		deedsClient:    deedsClient,
@@ -57,7 +63,7 @@ func New(accountsClient accountspb.AccountsClient, deedsClient deedspb.DeedsClie
 		scriptsClient:  scriptsClient,
 	}
 
-	router.ServeFiles("/static/*filepath", http.Dir("webbridge/static"))
+	router.ServeFiles("/static/*filepath", http.Dir(staticPath))
 
 	router.GET("/", h.home)
 	router.GET("/scripts", h.scriptsIndex)
@@ -108,10 +114,10 @@ func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) ([]byte, 
 	return accountHandle, accountKey, nil
 }
 
-func renderTemplate(w http.ResponseWriter, files []string, data interface{}) {
+func (h *Handler) renderTemplate(w http.ResponseWriter, files []string, data interface{}) {
 	firstFile := files[0] + templatePathSuffix
 	for i, name := range files {
-		files[i] = templatePathPrefix + name + templatePathSuffix
+		files[i] = filepath.Join(h.templatePath, name+templatePathSuffix)
 	}
 
 	t, err := template.New(firstFile).Funcs(funcMap).ParseFiles(files...)
@@ -193,7 +199,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		})
 	}
 
-	renderTemplate(w, []string{"_layout", "home"}, struct {
+	h.renderTemplate(w, []string{"_layout", "home"}, struct {
 		AccountHandle string
 		AccountKey    string
 		Balance       int64
@@ -238,7 +244,7 @@ func (h *Handler) scriptsIndex(w http.ResponseWriter, r *http.Request, ps httpro
 		details.Names = listResp.Name
 	}
 
-	renderTemplate(w, []string{"_layout", "scriptindex"}, struct {
+	h.renderTemplate(w, []string{"_layout", "scriptindex"}, struct {
 		AccountScripts []accountScriptDetails
 	}{
 		accountScripts,
@@ -261,7 +267,7 @@ func (h *Handler) scriptAccountIndex(w http.ResponseWriter, r *http.Request, ps 
 		return
 	}
 
-	renderTemplate(w, []string{"_layout", "scriptaccountindex"}, struct {
+	h.renderTemplate(w, []string{"_layout", "scriptaccountindex"}, struct {
 		ScriptAccountHandle string
 		Names               []string
 	}{
@@ -378,7 +384,7 @@ func (h *Handler) scriptGet(w http.ResponseWriter, r *http.Request, ps httproute
 		return
 	}
 
-	renderTemplate(w, []string{"_layout", "scriptview"}, struct {
+	h.renderTemplate(w, []string{"_layout", "scriptview"}, struct {
 		ScriptAccountHandle   string
 		ScriptName            string
 		ScriptContent         string

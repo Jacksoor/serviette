@@ -25,6 +25,9 @@ var (
 
 	bankTarget     = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
 	executorTarget = flag.String("executor_target", "/tmp/kobun4-executor.socket", "Executor target")
+
+	staticPath   = flag.String("static_path", "Path to templates", "static")
+	templatePath = flag.String("template_path", "Path to templates", "templates")
 )
 
 func main() {
@@ -46,7 +49,7 @@ func main() {
 	}
 	defer executorConn.Close()
 
-	handler, err := handler.New(accountspb.NewAccountsClient(bankConn), deedspb.NewDeedsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
+	handler, err := handler.New(*staticPath, *templatePath, accountspb.NewAccountsClient(bankConn), deedspb.NewDeedsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to create handler: %v", err)
 	}
@@ -59,6 +62,11 @@ func main() {
 		glog.Fatalf("failed to listen: %v", err)
 	}
 	defer lis.Close()
+
+	if err := os.Chmod(*socketPath, 0777); err != nil {
+		glog.Fatalf("failed to chmod listener: %v", err)
+	}
+
 	glog.Infof("Listening on: %v", lis.Addr())
 
 	signalChan := make(chan os.Signal, 1)
