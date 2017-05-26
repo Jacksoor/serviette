@@ -13,11 +13,10 @@ message Info {
 
 message BuyRequest {
     bytes account_handle = 1;
-    bytes account_key = 2;
-    string type = 3;
-    string name = 4;
-    int64 periods = 5;
-    bytes content = 6;
+    string type = 2;
+    string name = 3;
+    int64 periods = 4;
+    bytes content = 5;
 }
 
 message BuyResponse {
@@ -42,21 +41,17 @@ message GetContentResponse {
 }
 
 message UpdateRequest {
-    bytes account_handle = 1;
-    bytes account_key = 2;
-    string type = 3;
-    string name = 4;
-    bytes content = 6;
+    string type = 1;
+    string name = 2;
+    bytes content = 3;
 }
 
 message UpdateResponse {
 }
 
 message DeleteRequest {
-    bytes account_handle = 1;
-    bytes account_key = 2;
-    string type = 3;
-    string name = 4;
+    string type = 1;
+    string name = 2;
 }
 
 message DeleteResponse {
@@ -71,10 +66,9 @@ message ListResponse {
 
 message RenewRequest {
     bytes account_handle = 1;
-    bytes account_key = 2;
-    string type = 3;
-    string name = 4;
-    int64 periods = 5;
+    string type = 2;
+    string name = 3;
+    int64 periods = 4;
 }
 
 message RenewResponse {

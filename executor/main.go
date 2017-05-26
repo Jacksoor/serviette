@@ -39,6 +39,8 @@ var (
 
 	imagesRootPath = flag.String("images_root_path", "images", "Path to image root")
 	imageSize      = flag.Int64("image_size", 20*1024*1024, "Image size for new images")
+
+	timeLimit = flag.Duration("time_limit", 5*time.Second, "Time limit")
 )
 
 func main() {
@@ -82,6 +84,7 @@ func main() {
 
 	supervisor := worker.NewSupervisor(&worker.WorkerOptions{
 		K4LibraryPath: k4LibraryPath,
+		TimeLimit:     *timeLimit,
 	})
 
 	scriptsService, err := scriptsservice.New(scripts.NewStore(*scriptsRootPath), *imagesRootPath, *imageSize, moneypb.NewMoneyClient(bankConn), accountspb.NewAccountsClient(bankConn), pricer, supervisor)

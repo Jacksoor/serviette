@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 )
 
 type Worker struct {
@@ -24,6 +25,7 @@ type Worker struct {
 
 type WorkerOptions struct {
 	K4LibraryPath string
+	TimeLimit     time.Duration
 }
 
 type WorkerResult struct {
@@ -45,6 +47,9 @@ func newWorker(opts *WorkerOptions, arg0 string, argv []string, stdin []byte) *W
 }
 
 func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, f.opts.TimeLimit)
+	defer cancel()
+
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {
 		return nil, err
@@ -58,6 +63,10 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 		return nil, err
 	}
 
+	luaLibraryPath, err := filepath.EvalSymlinks(filepath.Join(f.opts.K4LibraryPath, "k4.lua"))
+	if err != nil {
+		return nil, err
+	}
 	cmd := exec.CommandContext(
 		ctx, "nsjail",
 		append(append(nsjailArgs,
@@ -70,7 +79,9 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 			"--enable_clone_newcgroup",
 			"--disable_clone_newnet",
 			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4/k4.py", pyLibraryPath),
+			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4/k4.lua", luaLibraryPath),
 			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4/_work", f.arg0),
+			"--bindmount_ro", "/etc/alternatives",
 			"--bindmount_ro", "/dev/urandom",
 			"--bindmount_ro", "/bin",
 			"--bindmount_ro", "/sbin",

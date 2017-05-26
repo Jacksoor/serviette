@@ -233,7 +233,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	if accountCapabilities.WithdrawalLimit < withdrawalLimit {
 		withdrawalLimit = accountCapabilities.WithdrawalLimit
 	}
-	moneyService := moneyservice.New(s.moneyClient, req.ExecutingAccountHandle, req.ExecutingAccountKey, withdrawalLimit)
+	moneyService := moneyservice.New(s.moneyClient, s.accountsClient, req.ExecutingAccountHandle, req.ExecutingAccountKey, withdrawalLimit)
 	worker.RegisterService("Money", moneyService)
 
 	contextService := contextservice.New(req.Context)
@@ -243,10 +243,12 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	defer workerCancel()
 
 	startTime := time.Now()
+
 	r, err := worker.Run(workerCtx, nsjailArgs)
 	if r == nil {
 		return nil, err
 	}
+
 	endTime := time.Now()
 
 	rusage := r.ProcessState.SysUsage().(*syscall.Rusage)
@@ -274,7 +276,8 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 
 	return &pb.ExecuteResponse{
-		Ok:         err == nil,
+		Ok:         r.ProcessState.Success(),
+		Killed:     r.ProcessState.Sys().(syscall.WaitStatus).Signal() == syscall.SIGKILL,
 		Stdout:     r.Stdout,
 		Stderr:     r.Stderr,
 		UsageCost:  usageCost,

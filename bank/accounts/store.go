@@ -73,6 +73,38 @@ func (s *Store) Create(ctx context.Context, tx *sql.Tx) (*Account, error) {
 	}, nil
 }
 
+func (s *Store) Accounts(ctx context.Context, tx *sql.Tx) ([]*Account, error) {
+	accounts := make([]*Account, 0)
+
+	rows, err := tx.QueryContext(ctx, `
+		select handle, key from accounts
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var handle []byte
+		var key []byte
+
+		if err := rows.Scan(&handle, &key); err != nil {
+			return nil, err
+		}
+
+		accounts = append(accounts, &Account{
+			handle: handle,
+			key:    key,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return accounts, nil
+}
+
 func (s *Store) DeedType(ctx context.Context, tx *sql.Tx, name string) (*deedspb.TypeDefinition, error) {
 	def := &deedspb.TypeDefinition{
 		Name: name,

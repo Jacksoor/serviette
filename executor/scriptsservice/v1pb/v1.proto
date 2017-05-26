@@ -59,10 +59,11 @@ message ExecuteResponse {
     }
 
     bool ok = 1;
-    bytes stdout = 2;
-    bytes stderr = 3;
-    int64 usage_cost = 4;
-    repeated Withdrawal withdrawal = 5;
+    bool killed = 2;
+    bytes stdout = 3;
+    bytes stderr = 4;
+    int64 usage_cost = 5;
+    repeated Withdrawal withdrawal = 6;
 }
 
 message GetContentRequest {

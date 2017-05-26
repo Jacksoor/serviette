@@ -22,9 +22,8 @@ message GetBalanceResponse {
 
 message TransferRequest {
     bytes source_account_handle = 1;
-    bytes source_account_key = 2;
-    bytes target_account_handle = 3;
-    int64 amount = 4;
+    bytes target_account_handle = 2;
+    int64 amount = 3;
 }
 
 message TransferResponse {

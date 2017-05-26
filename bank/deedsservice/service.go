@@ -39,10 +39,6 @@ func (s *Service) Buy(ctx context.Context, req *pb.BuyRequest) (*pb.BuyResponse,
 		return nil, grpc.Errorf(codes.Internal, "failed to load account")
 	}
 
-	if string(req.AccountKey) != string(account.Key()) {
-		return nil, grpc.Errorf(codes.PermissionDenied, "bad key")
-	}
-
 	balance, err := account.Balance(ctx, tx)
 	if err != nil {
 		glog.Errorf("Failed to get balance: %v", err)
@@ -148,19 +144,6 @@ func (s *Service) Update(ctx context.Context, req *pb.UpdateRequest) (*pb.Update
 	}
 	defer tx.Rollback()
 
-	account, err := s.accounts.Load(ctx, tx, req.AccountHandle)
-	if err != nil {
-		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "account not found")
-		}
-		glog.Errorf("Failed to load account: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load account")
-	}
-
-	if string(req.AccountKey) != string(account.Key()) {
-		return nil, grpc.Errorf(codes.PermissionDenied, "bad key")
-	}
-
 	deed, err := s.accounts.Deed(ctx, tx, req.Type, req.Name)
 	if err != nil {
 		if err == accounts.ErrNotFound {
@@ -168,16 +151,6 @@ func (s *Service) Update(ctx context.Context, req *pb.UpdateRequest) (*pb.Update
 		}
 		glog.Errorf("Failed to load deed: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to load deed")
-	}
-
-	info, err := deed.Info(ctx, tx)
-	if err != nil {
-		glog.Errorf("Failed to get info: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to get info")
-	}
-
-	if string(info.OwnerAccountHandle) != string(account.Handle()) {
-		return nil, grpc.Errorf(codes.PermissionDenied, "not owned by requestor")
 	}
 
 	if err := deed.Update(ctx, tx, req.Content); err != nil {
@@ -201,8 +174,6 @@ func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 	}
 	defer tx.Rollback()
 
-	infos := make([]*pb.Info, 0)
-
 	deeds, err := s.accounts.Deeds(ctx, tx)
 	if err != nil {
 		if err == accounts.ErrNotFound {
@@ -212,6 +183,7 @@ func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 		return nil, grpc.Errorf(codes.Internal, "failed to load deeds")
 	}
 
+	infos := make([]*pb.Info, len(deeds))
 	for i, deed := range deeds {
 		info, err := deed.Info(ctx, tx)
 		if err != nil {
@@ -242,10 +214,6 @@ func (s *Service) Renew(ctx context.Context, req *pb.RenewRequest) (*pb.RenewRes
 		}
 		glog.Errorf("Failed to load account: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to load account")
-	}
-
-	if string(req.AccountKey) != string(account.Key()) {
-		return nil, grpc.Errorf(codes.PermissionDenied, "bad key")
 	}
 
 	balance, err := account.Balance(ctx, tx)
@@ -303,19 +271,6 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 	}
 	defer tx.Rollback()
 
-	account, err := s.accounts.Load(ctx, tx, req.AccountHandle)
-	if err != nil {
-		if err == accounts.ErrNotFound {
-			return nil, grpc.Errorf(codes.NotFound, "account not found")
-		}
-		glog.Errorf("Failed to load account: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load account")
-	}
-
-	if string(req.AccountKey) != string(account.Key()) {
-		return nil, grpc.Errorf(codes.PermissionDenied, "bad key")
-	}
-
 	deed, err := s.accounts.Deed(ctx, tx, req.Type, req.Name)
 	if err != nil {
 		if err == accounts.ErrNotFound {
@@ -323,16 +278,6 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 		}
 		glog.Errorf("Failed to load deed: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to load deed")
-	}
-
-	info, err := deed.Info(ctx, tx)
-	if err != nil {
-		glog.Errorf("Failed to get info: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to get info")
-	}
-
-	if string(info.OwnerAccountHandle) != string(account.Handle()) {
-		return nil, grpc.Errorf(codes.PermissionDenied, "not owned by requestor")
 	}
 
 	if err := deed.Delete(ctx, tx); err != nil {

@@ -6,11 +6,13 @@ import (
 
 	"golang.org/x/net/context"
 
+	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
 )
 
 type Service struct {
-	moneyClient moneypb.MoneyClient
+	moneyClient    moneypb.MoneyClient
+	accountsClient accountspb.AccountsClient
 
 	accountHandle []byte
 	accountKey    []byte
@@ -20,9 +22,10 @@ type Service struct {
 	withdrawals map[string]int64
 }
 
-func New(moneyClient moneypb.MoneyClient, accountHandle []byte, accountKey []byte, withdrawalLimit int64) *Service {
+func New(moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, accountHandle []byte, accountKey []byte, withdrawalLimit int64) *Service {
 	return &Service{
-		moneyClient: moneyClient,
+		moneyClient:    moneyClient,
+		accountsClient: accountsClient,
 
 		accountHandle: accountHandle,
 		accountKey:    accountKey,
@@ -57,7 +60,6 @@ func (s *Service) Pay(req *PayRequest, resp *PayResponse) error {
 
 	if _, err := s.moneyClient.Transfer(context.Background(), &moneypb.TransferRequest{
 		SourceAccountHandle: s.accountHandle,
-		SourceAccountKey:    s.accountKey,
 		TargetAccountHandle: targetAccountHandle,
 		Amount:              req.Amount,
 	}); err != nil {
@@ -85,19 +87,25 @@ func (s *Service) Transfer(req *TransferRequest, resp *TransferResponse) error {
 		return err
 	}
 
-	targetAccountHandle, err := base64.RawURLEncoding.DecodeString(req.TargetAccountHandle)
-	if err != nil {
-		return err
-	}
-
 	sourceAccountKey, err := base64.RawURLEncoding.DecodeString(req.SourceAccountKey)
 	if err != nil {
 		return err
 	}
 
+	targetAccountHandle, err := base64.RawURLEncoding.DecodeString(req.TargetAccountHandle)
+	if err != nil {
+		return err
+	}
+
+	if _, err := s.accountsClient.Check(context.Background(), &accountspb.CheckRequest{
+		AccountHandle: sourceAccountHandle,
+		AccountKey:    sourceAccountKey,
+	}); err != nil {
+		return err
+	}
+
 	if _, err := s.moneyClient.Transfer(context.Background(), &moneypb.TransferRequest{
 		SourceAccountHandle: sourceAccountHandle,
-		SourceAccountKey:    sourceAccountKey,
 		TargetAccountHandle: targetAccountHandle,
 		Amount:              req.Amount,
 	}); err != nil {

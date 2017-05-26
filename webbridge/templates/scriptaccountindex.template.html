@@ -1,0 +1,20 @@
+{{define "title"}}{{.ScriptAccountHandle}} | Scripts{{end}}
+
+{{define "body"}}
+<h1>Scripts owned by <samp>{{.ScriptAccountHandle}}</samp></h1>
+
+<ul>
+{{range $_, $name := .Names}}
+    <li>
+        <a href="/scripts/{{$.ScriptAccountHandle}}/{{$name}}"><samp>{{$name}}</samp></a>
+    </li>
+{{end}}
+</ul>
+
+<nav>
+    <ul>
+        <li><a href="/scripts/">Return to script index</a></li>
+        <li><a href="/">Return to account home page</a></li>
+    </ul>
+</nav>
+{{end}}

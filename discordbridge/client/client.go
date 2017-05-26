@@ -26,6 +26,7 @@ type Options struct {
 	ScriptCommandPrefix string
 	Status              string
 	CurrencyName        string
+	WebURL              string
 }
 
 type Client struct {
@@ -200,7 +201,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 		}
 
 		if err := c.runScriptCommand(ctx, s, m.Message, commandName, rest); err != nil {
-			glog.Errorf("Failed to run script command %s: %v", commandName, err)
+			glog.Errorf("Failed to run command %s: %v", commandName, err)
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I ran into an error trying to process that script command.", m.Author.ID))
 			return
 		}
@@ -219,7 +220,7 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		return err
 	}
 
-	scriptAccountHandle, scriptName, err := resolveScriptName(ctx, c, commandName)
+	scriptAccountHandle, scriptName, aliased, err := resolveScriptName(ctx, c, commandName)
 	if err != nil {
 		switch err {
 		case errNotFound:
@@ -238,7 +239,11 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 	})
 	if err != nil {
 		if grpc.Code(err) == codes.NotFound {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I couldn't find a command named `%s` owned by the account `%s`.", m.Author.ID, scriptName, base64.RawURLEncoding.EncodeToString(scriptAccountHandle)))
+			if aliased {
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, the owner of the `%s` command hasn't configured their command correctly.", m.Author.ID, commandName))
+			} else {
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I couldn't find a command named `%s` owned by the account `%s`.", m.Author.ID, scriptName, base64.RawURLEncoding.EncodeToString(scriptAccountHandle)))
+			}
 			return nil
 		} else if grpc.Code(err) == codes.InvalidArgument {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, that's not a valid command name.", m.Author.ID))
@@ -331,18 +336,24 @@ If you have your granted capabilities to this command before, **it has been chan
 		billingDetails = usageDetails
 	}
 
+	stdout := resp.Stdout
+	if len(stdout) > 1500 {
+		stdout = stdout[:1500]
+	}
+
+	stderr := resp.Stderr
+	if len(stderr) > 1500 {
+		stderr = stderr[:1500]
+	}
+
 	if resp.Ok {
-		stdout := resp.Stdout
-		if len(stdout) > 1500 {
-			stdout = stdout[:1500]
-		}
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>:\n%s\n_%s_", m.Author.ID, stdout, billingDetails))
 	} else {
-		stderr := resp.Stderr
-		if len(stderr) > 1500 {
-			stderr = stderr[:1500]
+		if resp.Killed {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, it looks like the command took too long to run.\n\n_%s_", m.Author.ID, billingDetails))
+		} else {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, it looks like the command ran into an error:\n```\n%s\n```\n_%s_", m.Author.ID, stderr, billingDetails))
 		}
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, it looks like the script ran into an error:\n```\n%s\n```\n_%s_", m.Author.ID, stderr, billingDetails))
 	}
 
 	return nil

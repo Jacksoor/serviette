@@ -34,7 +34,7 @@ class Client(object):
     def __init__(self):
         self._id = 0
         self._f = socket.fromfd(3, socket.AF_UNIX, socket.SOCK_STREAM).makefile(
-            'rwb', buffering=0)
+            'rwb')
 
     def call(self, method, **kwargs):
         req_id = self._id
@@ -43,7 +43,9 @@ class Client(object):
             'id': req_id,
             'method': method,
             'params': [kwargs],
-        }).encode('utf-8'))
+        }).encode('utf-8') + b'\n')
+        self._f.flush()
+
         self._id += 1
 
         while True:

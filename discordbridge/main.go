@@ -29,6 +29,8 @@ var (
 
 	bankTarget     = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
 	executorTarget = flag.String("executor_target", "/tmp/kobun4-executor.socket", "Executor target")
+
+	webURL = flag.String("web_url", "http://kobun", "URL to web UI")
 )
 
 func main() {
@@ -55,6 +57,7 @@ func main() {
 		BankCommandPrefix:   *bankCommandPrefix,
 		ScriptCommandPrefix: *scriptCommandPrefix,
 		CurrencyName:        *currencyName,
+		WebURL:              *webURL,
 	}, accountspb.NewAccountsClient(bankConn), deedspb.NewDeedsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)

@@ -13,7 +13,7 @@
     <dd>{{.Balance}}</dd>
 </dl>
 
-<h2>Scripts Owned</h2>
+<h2>Scripts Owned <small><a href="/scripts">view all scripts</a></small></h2>
 <p>
     You own the following scripts.
 </p>
@@ -41,31 +41,30 @@
             <th>Delete</th>
         </tr>
 
+        {{range $_, $deed := .Deeds}}
         <tr>
-            <td>command</td>
+            <td>{{$deed.Info.Type}}</td>
             <td>
-                <samp>ud</samp>
+                <samp>{{$deed.Info.Name}}</samp>
             </td>
             <td>
-                <form method="POST" action="/deeds/DEED_NAME">
-                    <input type="hidden" name="name" value="">
-                    <input type="text" name="content" value=""><button type="submit">Update</button>
+                <form method="POST" action="/deeds/{{$deed.Info.Type}}/{{$deed.Info.Name}}">
+                    <input type="text" name="content" value="{{$deed.Content}}"><button type="submit">Update</button>
                 </form>
             </td>
-            <td>1 hour</td>
+            <td>{{prettyTime $deed.Info.ExpiryTimeUnix}}</td>
             <td>
-                <form method="POST" action="/deeds/DEED_NAME/renew">
-                    <input type="hidden" name="name" value="">
+                <form method="POST" action="/deeds/{{$deed.Info.Type}}/{{$deed.Info.Name}}/renew">
                     <input type="number" name="periods" value="1"> periods <button type="submit">Renew</button>
                 </form>
             </td>
             <td>
-                <form method="POST" action="/deeds/DEED_NAME/delete">
-                    <input type="hidden" name="name" value="">
+                <form method="POST" action="/deeds/{{$deed.Info.Type}}/{{$deed.Info.Name}}/delete">
                     <button type="submit">Delete</button>
                 </form>
             </td>
         </tr>
+        {{end}}
     </table>
 </p>
 
@@ -79,13 +78,13 @@
             <th>Lease period</th>
         </tr>
 
+        {{range $_, $def := .DeedTypes}}
         <tr>
-            {{range $_, $def := .DeedTypes}}
             <td>{{$def.Name}}</td>
             <td>{{$def.Price}}</td>
-            <td>{{$def.DurationSeconds | prettySeconds}}</td>
-            {{end}}
+            <td>{{prettyDuration $def.DurationSeconds}}</td>
         </tr>
+        {{end}}
     </table>
 </p>
 

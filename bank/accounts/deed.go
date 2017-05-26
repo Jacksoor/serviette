@@ -15,8 +15,8 @@ func (d *Deed) Info(ctx context.Context, tx *sql.Tx) (*deedspb.Info, error) {
 	info := &deedspb.Info{}
 
 	if err := tx.QueryRowContext(ctx, `
-		select deed_type.name, name, owner_account_handle, expiry_time_unix from deeds
-		inner join deed_type on deed_type.id = deeds.deed_type_id
+		select deed_types.name, deeds.name, owner_account_handle, expiry_time_unix from deeds
+		inner join deed_types on deed_types.id = deeds.deed_type_id
 		where deeds.id = ?
 	`, d.id).Scan(&info.Type, &info.Name, &info.OwnerAccountHandle, &info.ExpiryTimeUnix); err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (d *Deed) Delete(ctx context.Context, tx *sql.Tx) error {
 func (d *Deed) Renew(ctx context.Context, tx *sql.Tx, periods int64) error {
 	r, err := tx.ExecContext(ctx, `
 		update deeds
-		set expiry_time_unix = expiry_time_unix + (select duration_seconds * ? from deeds where id = deeds.deed_type_id)
+		set expiry_time_unix = expiry_time_unix + (select duration_seconds * ? from deed_types where id = deeds.deed_type_id)
 		where id = ?
 	`, periods, d.id)
 	if err != nil {

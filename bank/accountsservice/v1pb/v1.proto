@@ -12,6 +12,13 @@ message CreateResponse {
     bytes account_key = 2;
 }
 
+message ListRequest {
+}
+
+message ListResponse {
+    repeated bytes account_handle = 1;
+}
+
 message CheckRequest {
     bytes account_handle = 1;
     bytes account_key = 2;
@@ -22,7 +29,6 @@ message CheckResponse {
 
 message DeleteRequest {
     bytes account_handle = 1;
-    bytes account_key = 2;
 }
 
 message DeleteResponse {
@@ -47,6 +53,7 @@ message SetAliasResponse {
 
 service Accounts {
     rpc Create(CreateRequest) returns (CreateResponse) { }
+    rpc List(ListRequest) returns (ListResponse) { }
     rpc Check(CheckRequest) returns (CheckResponse) { }
     rpc Delete(DeleteRequest) returns (DeleteResponse) { }
 

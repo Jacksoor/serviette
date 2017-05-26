@@ -1,0 +1,24 @@
+{{define "title"}}Scripts{{end}}
+
+{{define "body"}}
+<h1>Scripts</h1>
+
+<ul>
+{{range $_, $details := .AccountScripts}}
+    <li>
+        <a href="/scripts/{{$details.AccountHandle}}"><samp>{{$details.AccountHandle}}</samp></a>
+        <ul>
+        {{range $_, $name := $details.Names}}
+            <li><a href="/scripts/{{$details.AccountHandle}}/{{$name}}"><samp>{{$name}}</samp></a></li>
+        {{end}}
+        </ul>
+    </li>
+{{end}}
+</ul>
+
+<nav>
+    <ul>
+        <li><a href="/">Return to account home page</a></li>
+    </ul>
+</nav>
+{{end}}

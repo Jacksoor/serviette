@@ -108,10 +108,6 @@ func (s *Service) Transfer(ctx context.Context, req *pb.TransferRequest) (*pb.Tr
 		return nil, grpc.Errorf(codes.Internal, "failed to load source account")
 	}
 
-	if string(req.SourceAccountKey) != string(source.Key()) {
-		return nil, grpc.Errorf(codes.PermissionDenied, "bad key")
-	}
-
 	balance, err := source.Balance(ctx, tx)
 	if err != nil {
 		glog.Errorf("Failed to get source balance: %v", err)

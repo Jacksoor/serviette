@@ -48,6 +48,30 @@ func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.Create
 	}, nil
 }
 
+func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
+	tx, err := s.accounts.BeginTx(ctx)
+	if err != nil {
+		glog.Errorf("Failed to start transaction: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to start transaction")
+	}
+	defer tx.Rollback()
+
+	accounts, err := s.accounts.Accounts(ctx, tx)
+	if err != nil {
+		glog.Errorf("Failed to load accounts: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load accounts")
+	}
+
+	handles := make([][]byte, len(accounts))
+	for i, account := range accounts {
+		handles[i] = account.Handle()
+	}
+
+	return &pb.ListResponse{
+		AccountHandle: handles,
+	}, nil
+}
+
 func (s *Service) Check(ctx context.Context, req *pb.CheckRequest) (*pb.CheckResponse, error) {
 	tx, err := s.accounts.BeginTx(ctx)
 	if err != nil {
@@ -87,10 +111,6 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 		}
 		glog.Errorf("Failed to load account: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to load account")
-	}
-
-	if string(req.AccountKey) != string(account.Key()) {
-		return nil, grpc.Errorf(codes.PermissionDenied, "bad key")
 	}
 
 	if err := account.Delete(ctx, tx); err != nil {

@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"encoding/base64"
 	"fmt"
 	"html/template"
@@ -37,8 +36,12 @@ type Handler struct {
 }
 
 var funcMap template.FuncMap = template.FuncMap{
-	"prettySeconds": func(seconds int64) string {
+	"prettyDuration": func(seconds int64) string {
 		return durafmt.Parse(time.Duration(seconds) * time.Second).String()
+	},
+
+	"prettyTime": func(unixSeconds int64) string {
+		return durafmt.Parse(time.Unix(unixSeconds, 0).Sub(time.Now())).String()
 	},
 }
 
@@ -56,12 +59,17 @@ func New(accountsClient accountspb.AccountsClient, deedsClient deedspb.DeedsClie
 
 	router.ServeFiles("/static/*filepath", http.Dir("webbridge/static"))
 
-	router.GET("/", h.accountIndex)
+	router.GET("/", h.home)
+	router.GET("/scripts", h.scriptsIndex)
+	router.GET("/scripts/:scriptAccountHandle", h.scriptAccountIndex)
 	router.POST("/scripts/:scriptAccountHandle", h.scriptCreate)
 	router.GET("/scripts/:scriptAccountHandle/:scriptName", h.scriptGet)
 	router.POST("/scripts/:scriptAccountHandle/:scriptName", h.scriptUpdate)
 	router.POST("/scripts/:scriptAccountHandle/:scriptName/delete", h.scriptDelete)
 	router.POST("/deeds", h.deedCreate)
+	router.POST("/deeds/:deedType/:deedName", h.deedUpdate)
+	router.POST("/deeds/:deedType/:deedName/renew", h.deedRenew)
+	router.POST("/deeds/:deedType/:deedName/delete", h.deedDelete)
 
 	return h, nil
 }
@@ -113,19 +121,19 @@ func renderTemplate(w http.ResponseWriter, files []string, data interface{}) {
 		return
 	}
 
-	buf := new(bytes.Buffer)
-	if err := t.Execute(buf, data); err != nil {
+	if err := t.Execute(w, data); err != nil {
 		glog.Errorf("Failed to execute template: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-
-	buf.WriteTo(w)
 }
 
-func (h *Handler) accountIndex(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	now := time.Now()
+type deedDetails struct {
+	Info    *deedspb.Info
+	Content string
+}
 
+func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	accountHandle, accountKey, err := h.authenticate(w, r)
 	if err != nil {
 		return
@@ -140,7 +148,7 @@ func (h *Handler) accountIndex(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	listResp, err := h.scriptsClient.List(r.Context(), &scriptspb.ListRequest{
+	scriptsListResp, err := h.scriptsClient.List(r.Context(), &scriptspb.ListRequest{
 		AccountHandle: accountHandle,
 	})
 	if err != nil {
@@ -156,20 +164,109 @@ func (h *Handler) accountIndex(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	renderTemplate(w, []string{"_layout", "accountindex"}, struct {
-		NowSeconds    int64
+	deedsListResp, err := h.deedsClient.List(r.Context(), &deedspb.ListRequest{})
+	if err != nil {
+		glog.Errorf("Failed to list deeds: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	deeds := make([]*deedDetails, 0)
+	for _, info := range deedsListResp.Info {
+		if string(info.OwnerAccountHandle) != string(accountHandle) {
+			continue
+		}
+
+		contentResp, err := h.deedsClient.GetContent(r.Context(), &deedspb.GetContentRequest{
+			Type: info.Type,
+			Name: info.Name,
+		})
+		if err != nil {
+			glog.Errorf("Failed to get deed content: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		deeds = append(deeds, &deedDetails{
+			Info:    info,
+			Content: string(contentResp.Content),
+		})
+	}
+
+	renderTemplate(w, []string{"_layout", "home"}, struct {
 		AccountHandle string
 		AccountKey    string
 		Balance       int64
 		ScriptNames   []string
 		DeedTypes     []*deedspb.TypeDefinition
+		Deeds         []*deedDetails
 	}{
-		now.Unix(),
 		base64.RawURLEncoding.EncodeToString(accountHandle),
 		base64.RawURLEncoding.EncodeToString(accountKey),
 		balanceResp.Balance[0],
-		listResp.Name,
+		scriptsListResp.Name,
 		deedTypesResp.Definition,
+		deeds,
+	})
+}
+
+type accountScriptDetails struct {
+	AccountHandle string
+	Names         []string
+}
+
+func (h *Handler) scriptsIndex(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	listResp, err := h.accountsClient.List(r.Context(), &accountspb.ListRequest{})
+	if err != nil {
+		glog.Errorf("Failed to list accounts: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	accountScripts := make([]accountScriptDetails, len(listResp.AccountHandle))
+	for i, accountHandle := range listResp.AccountHandle {
+		details := &accountScripts[i]
+		details.AccountHandle = base64.RawURLEncoding.EncodeToString(accountHandle)
+		listResp, err := h.scriptsClient.List(r.Context(), &scriptspb.ListRequest{
+			AccountHandle: accountHandle,
+		})
+		if err != nil {
+			glog.Errorf("Failed to get script names: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		details.Names = listResp.Name
+	}
+
+	renderTemplate(w, []string{"_layout", "scriptindex"}, struct {
+		AccountScripts []accountScriptDetails
+	}{
+		accountScripts,
+	})
+}
+
+func (h *Handler) scriptAccountIndex(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	scriptAccountHandle, err := base64.RawURLEncoding.DecodeString(ps.ByName("scriptAccountHandle"))
+	if err != nil {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	listResp, err := h.scriptsClient.List(r.Context(), &scriptspb.ListRequest{
+		AccountHandle: scriptAccountHandle,
+	})
+	if err != nil {
+		glog.Errorf("Failed to get script names: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	renderTemplate(w, []string{"_layout", "scriptaccountindex"}, struct {
+		ScriptAccountHandle string
+		Names               []string
+	}{
+		base64.RawURLEncoding.EncodeToString(scriptAccountHandle),
+		listResp.Name,
 	})
 }
 
@@ -395,7 +492,7 @@ func (h *Handler) scriptDelete(w http.ResponseWriter, r *http.Request, ps httpro
 }
 
 func (h *Handler) deedCreate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	accountHandle, accountKey, err := h.authenticate(w, r)
+	accountHandle, _, err := h.authenticate(w, r)
 	if err != nil {
 		return
 	}
@@ -413,7 +510,6 @@ func (h *Handler) deedCreate(w http.ResponseWriter, r *http.Request, ps httprout
 
 	if _, err := h.deedsClient.Buy(r.Context(), &deedspb.BuyRequest{
 		AccountHandle: accountHandle,
-		AccountKey:    accountKey,
 		Type:          r.Form.Get("type"),
 		Name:          r.Form.Get("name"),
 		Periods:       periods,
@@ -423,6 +519,135 @@ func (h *Handler) deedCreate(w http.ResponseWriter, r *http.Request, ps httprout
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	http.Redirect(w, r, "/", http.StatusMovedPermanently)
+}
+
+func (h *Handler) deedUpdate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	accountHandle, _, err := h.authenticate(w, r)
+	if err != nil {
+		return
+	}
+
+	infoResp, err := h.deedsClient.GetInfo(r.Context(), &deedspb.GetInfoRequest{
+		Type: ps.ByName("deedType"),
+		Name: ps.ByName("deedName"),
+	})
+	if err != nil {
+		glog.Errorf("Failed to get deed info: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if string(accountHandle) != string(infoResp.Info.OwnerAccountHandle) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := h.deedsClient.Update(r.Context(), &deedspb.UpdateRequest{
+		Type:    infoResp.Info.Type,
+		Name:    infoResp.Info.Name,
+		Content: []byte(r.Form.Get("content")),
+	}); err != nil {
+		glog.Errorf("Failed to update deed: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	_ = accountHandle
+
+	http.Redirect(w, r, "/", http.StatusMovedPermanently)
+}
+
+func (h *Handler) deedRenew(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	accountHandle, _, err := h.authenticate(w, r)
+	if err != nil {
+		return
+	}
+
+	infoResp, err := h.deedsClient.GetInfo(r.Context(), &deedspb.GetInfoRequest{
+		Type: ps.ByName("deedType"),
+		Name: ps.ByName("deedName"),
+	})
+	if err != nil {
+		glog.Errorf("Failed to get deed info: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if string(accountHandle) != string(infoResp.Info.OwnerAccountHandle) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	periods, err := strconv.ParseInt(r.Form.Get("periods"), 10, 64)
+	if err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := h.deedsClient.Renew(r.Context(), &deedspb.RenewRequest{
+		AccountHandle: accountHandle,
+		Type:          infoResp.Info.Type,
+		Name:          infoResp.Info.Name,
+		Periods:       periods,
+	}); err != nil {
+		glog.Errorf("Failed to renew deed: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	_ = accountHandle
+
+	http.Redirect(w, r, "/", http.StatusMovedPermanently)
+}
+
+func (h *Handler) deedDelete(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	accountHandle, _, err := h.authenticate(w, r)
+	if err != nil {
+		return
+	}
+
+	infoResp, err := h.deedsClient.GetInfo(r.Context(), &deedspb.GetInfoRequest{
+		Type: ps.ByName("deedType"),
+		Name: ps.ByName("deedName"),
+	})
+	if err != nil {
+		glog.Errorf("Failed to get deed info: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if string(accountHandle) != string(infoResp.Info.OwnerAccountHandle) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := h.deedsClient.Delete(r.Context(), &deedspb.DeleteRequest{
+		Type: infoResp.Info.Type,
+		Name: infoResp.Info.Name,
+	}); err != nil {
+		glog.Errorf("Failed to delete deed: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	_ = accountHandle
 
 	http.Redirect(w, r, "/", http.StatusMovedPermanently)
 }
