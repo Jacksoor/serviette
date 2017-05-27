@@ -55,7 +55,7 @@
                     <button type="submit">Update</button>
                 </form>
             </td>
-            <td>{{prettyTime $alias.ExpiryTimeUnix}}</td>
+            <td>{{prettyTime $alias.ExpiryTime}}</td>
             <td>
                 <form method="POST" action="/aliases/{{$alias.Name}}/renew">
                     <input type="number" name="periods" value="1"> periods <button type="submit">Renew</button>

@@ -3,15 +3,26 @@
 {{define "body"}}
 <h1>Scripts</h1>
 
+<h2>By Account</h2>
 <ul>
-{{range $_, $details := .AccountScripts}}
+{{range $accountHandle, $scriptNames := .AccountScripts}}
     <li>
-        <a href="/scripts/{{$details.AccountHandle}}"><samp>{{$details.AccountHandle}}</samp></a>
+        <a href="/scripts/{{$accountHandle}}"><samp>{{$accountHandle}}</samp></a>
         <ul>
-        {{range $_, $name := $details.Names}}
-            <li><a href="/scripts/{{$details.AccountHandle}}/{{$name}}"><samp>{{$name}}</samp></a></li>
+        {{range $_, $name := $scriptNames}}
+            <li><a href="/scripts/{{$accountHandle}}/{{$name}}"><samp>{{$name}}</samp></a></li>
         {{end}}
         </ul>
+    </li>
+{{end}}
+</ul>
+
+<h2>By Alias</h2>
+<ul>
+{{range $_, $alias := .Aliases}}
+    <li>
+        <a href="/scripts/{{$alias.AccountHandle}}/{{$alias.ScriptName}}"><samp>{{$alias.Name}}</samp></a> (<samp>{{$alias.AccountHandle}}/{{$alias.ScriptName}}</samp>)<br>
+        Expires in {{prettyTime $alias.ExpiryTime}}.
     </li>
 {{end}}
 </ul>

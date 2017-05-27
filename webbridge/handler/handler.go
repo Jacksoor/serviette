@@ -44,8 +44,8 @@ var funcMap template.FuncMap = template.FuncMap{
 		return durafmt.Parse(dur).String()
 	},
 
-	"prettyTime": func(unixSeconds int64) string {
-		return durafmt.Parse(time.Unix(unixSeconds, 0).Sub(time.Now())).String()
+	"prettyTime": func(t time.Time) string {
+		return durafmt.Parse(t.Sub(time.Now())).String()
 	},
 
 	"eq": func(a interface{}, b interface{}) bool {
@@ -73,7 +73,7 @@ func New(staticPath string, templatePath string, aliasCost int64, aliasDuration 
 	router.ServeFiles("/static/*filepath", http.Dir(staticPath))
 
 	router.GET("/", h.home)
-	router.GET("/scripts", h.scriptsIndex)
+	router.GET("/scripts", h.scriptIndex)
 	router.GET("/scripts/:scriptAccountHandle", h.scriptAccountIndex)
 	router.POST("/scripts/:scriptAccountHandle", h.scriptCreate)
 	router.GET("/scripts/:scriptAccountHandle/:scriptName", h.scriptGet)
@@ -141,6 +141,13 @@ func (h *Handler) renderTemplate(w http.ResponseWriter, files []string, data int
 	}
 }
 
+type aliasDetails struct {
+	Name          string
+	AccountHandle string
+	ScriptName    string
+	ExpiryTime    time.Time
+}
+
 func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	accountHandle, accountKey, err := h.authenticate(w, r)
 	if err != nil {
@@ -172,13 +179,18 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		return
 	}
 
-	aliases := make([]*scriptspb.ListAliasesResponse_Entry, 0)
+	aliases := make([]*aliasDetails, 0)
 	for _, entry := range aliasesListResp.Entry {
 		if string(entry.AccountHandle) != string(accountHandle) {
 			continue
 		}
 
-		aliases = append(aliases, entry)
+		aliases = append(aliases, &aliasDetails{
+			Name:          entry.Name,
+			AccountHandle: base64.RawURLEncoding.EncodeToString(entry.AccountHandle),
+			ScriptName:    entry.ScriptName,
+			ExpiryTime:    time.Unix(entry.ExpiryTimeUnix, 0),
+		})
 	}
 
 	h.renderTemplate(w, []string{"_layout", "home"}, struct {
@@ -186,7 +198,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		AccountKey    string
 		Balance       int64
 		ScriptNames   []string
-		Aliases       []*scriptspb.ListAliasesResponse_Entry
+		Aliases       []*aliasDetails
 
 		AliasCost     int64
 		AliasDuration time.Duration
@@ -202,7 +214,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	})
 }
 
-func (h *Handler) scriptsIndex(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (h *Handler) scriptIndex(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	listResp, err := h.accountsClient.List(r.Context(), &accountspb.ListRequest{})
 	if err != nil {
 		glog.Errorf("Failed to list accounts: %v", err)
@@ -223,10 +235,29 @@ func (h *Handler) scriptsIndex(w http.ResponseWriter, r *http.Request, ps httpro
 		accountScripts[base64.RawURLEncoding.EncodeToString(accountHandle)] = listResp.Name
 	}
 
+	aliasesListResp, err := h.scriptsClient.ListAliases(r.Context(), &scriptspb.ListAliasesRequest{})
+	if err != nil {
+		glog.Errorf("Failed to list aliases: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	aliases := make([]*aliasDetails, len(aliasesListResp.Entry))
+	for i, entry := range aliasesListResp.Entry {
+		aliases[i] = &aliasDetails{
+			Name:          entry.Name,
+			AccountHandle: base64.RawURLEncoding.EncodeToString(entry.AccountHandle),
+			ScriptName:    entry.ScriptName,
+			ExpiryTime:    time.Unix(entry.ExpiryTimeUnix, 0),
+		}
+	}
+
 	h.renderTemplate(w, []string{"_layout", "scriptindex"}, struct {
 		AccountScripts map[string][]string
+		Aliases        []*aliasDetails
 	}{
 		accountScripts,
+		aliases,
 	})
 }
 
