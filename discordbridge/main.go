@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"net"
 	"os"
@@ -27,6 +28,8 @@ var (
 
 	discordToken = flag.String("discord_token", "", "Token for Discord.")
 	status       = flag.String("status", "", "Status to show.")
+
+	flavors = flag.String("flavors", `{"": {"bankCommandPrefix": "$", "scriptCommandPrefix": "!", "currencyName": "coins"}}`, "Per-guild flavors")
 
 	bankCommandPrefix   = flag.String("bank_command_prefix", "$", "Bank command prefix")
 	scriptCommandPrefix = flag.String("script_command_prefix", "!", "Script command prefix")
@@ -71,12 +74,15 @@ func main() {
 	}
 	defer executorConn.Close()
 
+	var flavorsMap map[string]client.Flavor
+	if err := json.Unmarshal([]byte(*flavors), &flavorsMap); err != nil {
+		glog.Fatalf("did not load flavors: %v", err)
+	}
+
 	client, err := client.New(*discordToken, &client.Options{
-		Status:              *status,
-		BankCommandPrefix:   *bankCommandPrefix,
-		ScriptCommandPrefix: *scriptCommandPrefix,
-		CurrencyName:        *currencyName,
-		WebURL:              *webURL,
+		Status:  *status,
+		Flavors: flavorsMap,
+		WebURL:  *webURL,
 	}, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)

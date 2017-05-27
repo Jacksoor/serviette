@@ -14,10 +14,25 @@ func New(context *scriptspb.Context) *Service {
 	}
 }
 
-type ContextRequest struct {
+func (s *Service) Context() *scriptspb.Context {
+	return s.context
 }
 
-func (s *Service) Get(req *ContextRequest, resp *scriptspb.Context) error {
+type GetRequest struct {
+}
+
+func (s *Service) Get(req *GetRequest, resp *scriptspb.Context) error {
 	*resp = *s.context
+	return nil
+}
+
+type SetOutputFormatRequest struct {
+	Format string `json:"format"`
+}
+
+type SetOutputFormatResponse struct{}
+
+func (s *Service) SetOutputFormat(req *SetOutputFormatRequest, resp *SetOutputFormatResponse) error {
+	s.context.OutputFormat = req.Format
 	return nil
 }

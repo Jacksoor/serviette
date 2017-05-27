@@ -41,7 +41,7 @@ var bankCommands map[string]command = map[string]command{
 
 var discordMentionRegexp = regexp.MustCompile(`<@!?(\d+)>`)
 
-func bankBalance(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
+func bankBalance(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	target := rest
 
 	if target == "" {
@@ -72,11 +72,11 @@ func bankBalance(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 		target = "`" + target + "`"
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s has %d %s.", target, resp.Balance[0], c.opts.CurrencyName))
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s has %d %s.", target, resp.Balance[0], c.currencyName(channel.GuildID)))
 	return nil
 }
 
-func bankAccount(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
+func bankAccount(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	target := rest
 
 	if target == "" {
@@ -107,11 +107,11 @@ func bankAccount(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 		target = "`" + target + "`"
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s's account handle is `%s` and has %d %s.", target, base64.RawURLEncoding.EncodeToString(accountHandle), resp.Balance[0], c.opts.CurrencyName))
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s's account handle is `%s` and has %d %s.", target, base64.RawURLEncoding.EncodeToString(accountHandle), resp.Balance[0], c.currencyName(channel.GuildID)))
 	return nil
 }
 
-func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
+func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	parts := strings.SplitN(rest, " ", 2)
 
 	if len(parts) != 2 {
@@ -166,11 +166,11 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		target = "`" + target + "`"
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s, you have been paid %d %s by <@!%s>.", target, amount, c.opts.CurrencyName, m.Author.ID))
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%s, you have been paid %d %s by <@!%s>.", target, amount, c.currencyName(channel.GuildID), m.Author.ID))
 	return nil
 }
 
-func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
+func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	sourceResolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
 		Name: aliasName(m.Author.ID),
 	})
@@ -211,7 +211,7 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	}
 
 	if getRequestedCapsResp.Capabilities.WithdrawalLimit > 0 {
-		prettyRequestedCaps = append(prettyRequestedCaps, " - "+explainWithdrawalLimit(c, getRequestedCapsResp.Capabilities.WithdrawalLimit))
+		prettyRequestedCaps = append(prettyRequestedCaps, " - "+explainWithdrawalLimit(c, channel, getRequestedCapsResp.Capabilities.WithdrawalLimit))
 	}
 
 	var prettyRequestedCapDetails string
@@ -236,7 +236,7 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	}
 
 	if getAccountCapsResp.Capabilities.WithdrawalLimit > 0 {
-		prettyAccountCaps = append(prettyAccountCaps, " - "+explainWithdrawalLimit(c, getAccountCapsResp.Capabilities.WithdrawalLimit))
+		prettyAccountCaps = append(prettyAccountCaps, " - "+explainWithdrawalLimit(c, channel, getAccountCapsResp.Capabilities.WithdrawalLimit))
 	}
 
 	var prettyAccountCapDetails string
@@ -257,7 +257,7 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	return nil
 }
 
-func bankSetcaps(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
+func bankSetcaps(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	sourceResolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
 		Name: aliasName(m.Author.ID),
 	})
@@ -305,7 +305,7 @@ func bankSetcaps(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 	}
 
 	if capabilities.WithdrawalLimit > 0 {
-		prettyAccountCaps = append(prettyAccountCaps, " - "+explainWithdrawalLimit(c, capabilities.WithdrawalLimit))
+		prettyAccountCaps = append(prettyAccountCaps, " - "+explainWithdrawalLimit(c, channel, capabilities.WithdrawalLimit))
 	}
 
 	if len(prettyAccountCaps) > 0 {
@@ -317,12 +317,7 @@ func bankSetcaps(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 	return nil
 }
 
-func bankKey(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
-	channel, err := s.Channel(m.ChannelID)
-	if err != nil {
-		return err
-	}
-
+func bankKey(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	if !channel.IsPrivate {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I only respond to this command in private.", m.Author.ID))
 		return nil
@@ -343,7 +338,7 @@ func bankKey(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	return nil
 }
 
-func bankHelp(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, rest string) error {
+func bankHelp(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(`Hi <@!%s>, I understand the following commands:
 
 `+"`"+`$balance [@mention/handle]`+"`"+`

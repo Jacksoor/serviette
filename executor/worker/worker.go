@@ -14,7 +14,7 @@ import (
 	"github.com/djherbis/buffer/limio"
 )
 
-const maxBufferSize int64 = 1 * 1024 * 1024 // 1MB
+const maxBufferSize int64 = 5 * 1024 * 1024 // 5MB
 
 type Worker struct {
 	opts *WorkerOptions

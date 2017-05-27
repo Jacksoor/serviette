@@ -535,8 +535,18 @@ func (h *Handler) aliasCreate(w http.ResponseWriter, r *http.Request, ps httprou
 		return
 	}
 
-	if balanceResp.Balance[0] < periods*h.aliasCost {
+	cost := periods * h.aliasCost
+	if balanceResp.Balance[0] < cost {
 		http.Error(w, "Forbidden: insufficient funds", http.StatusForbidden)
+		return
+	}
+
+	if _, err := h.moneyClient.Add(r.Context(), &moneypb.AddRequest{
+		AccountHandle: accountHandle,
+		Amount:        -cost,
+	}); err != nil {
+		glog.Errorf("Failed to adjust balance: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -633,8 +643,18 @@ func (h *Handler) aliasRenew(w http.ResponseWriter, r *http.Request, ps httprout
 		return
 	}
 
-	if balanceResp.Balance[0] < periods*h.aliasCost {
+	cost := periods * h.aliasCost
+	if balanceResp.Balance[0] < cost {
 		http.Error(w, "Forbidden: insufficient funds", http.StatusForbidden)
+		return
+	}
+
+	if _, err := h.moneyClient.Add(r.Context(), &moneypb.AddRequest{
+		AccountHandle: accountHandle,
+		Amount:        -cost,
+	}); err != nil {
+		glog.Errorf("Failed to adjust balance: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -673,7 +693,7 @@ func (h *Handler) aliasDelete(w http.ResponseWriter, r *http.Request, ps httprou
 	}
 
 	if _, err := h.scriptsClient.SetAlias(r.Context(), &scriptspb.SetAliasRequest{
-		Name:           r.Form.Get("name"),
+		Name:           ps.ByName("aliasName"),
 		AccountHandle:  nil,
 		ScriptName:     "",
 		ExpiryTimeUnix: 0,

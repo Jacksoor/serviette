@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
+	"regexp"
 	"time"
 
 	"golang.org/x/net/context"
@@ -31,8 +31,10 @@ func NewStore(rootPath string, db *sql.DB) *Store {
 	}
 }
 
+var nameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
 func (s *Store) load(ctx context.Context, accountHandle []byte, name string) (*Script, error) {
-	if strings.Contains(name, " ") {
+	if !nameRegexp.MatchString(name) {
 		return nil, ErrInvalidName
 	}
 
@@ -156,7 +158,7 @@ func (s *Store) LoadAlias(ctx context.Context, name string) (*Alias, error) {
 }
 
 func (s *Store) SetAlias(ctx context.Context, name string, accountHandle []byte, scriptName string, expiry time.Time) error {
-	if strings.ContainsAny(name, "/. ") {
+	if !nameRegexp.MatchString(name) {
 		return ErrInvalidName
 	}
 
