@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"net"
 	"os"
@@ -17,6 +18,8 @@ import (
 	_ "google.golang.org/grpc/grpclog/glogger"
 	"google.golang.org/grpc/reflection"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/porpoises/kobun4/executor/scripts"
 	"github.com/porpoises/kobun4/executor/worker"
 
@@ -30,6 +33,8 @@ import (
 var (
 	socketPath      = flag.String("socket_path", "/tmp/kobun4-executor.socket", "Bind path for socket")
 	debugSocketPath = flag.String("debug_socket_path", "/tmp/kobun4-executor.debug.socket", "Bind path for socket")
+
+	sqliteDBPath = flag.String("sqlite_db_path", "executor.db", "Path to SQLite database")
 
 	bankTarget = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
 
@@ -63,6 +68,11 @@ func main() {
 
 	go http.Serve(debugLis, nil)
 
+	db, err := sql.Open("sqlite3", *sqliteDBPath)
+	if err != nil {
+		glog.Fatalf("failed to open db: %v", err)
+	}
+
 	bankConn, err := grpc.Dial(*bankTarget, grpc.WithInsecure(), grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
 		return net.DialTimeout("unix", addr, timeout)
 	}))
@@ -77,7 +87,7 @@ func main() {
 		MemoryLimit:   *memoryLimit,
 	})
 
-	scriptsService, err := scriptsservice.New(scripts.NewStore(*scriptsRootPath), *imagesRootPath, *imageSize, moneypb.NewMoneyClient(bankConn), accountspb.NewAccountsClient(bankConn), *durationPerUnitCost, supervisor)
+	scriptsService, err := scriptsservice.New(scripts.NewStore(*scriptsRootPath, db), *imagesRootPath, *imageSize, moneypb.NewMoneyClient(bankConn), accountspb.NewAccountsClient(bankConn), *durationPerUnitCost, supervisor)
 	if err != nil {
 		glog.Fatalf("could not create scripts service: %v", err)
 	}

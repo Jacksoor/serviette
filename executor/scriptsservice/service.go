@@ -94,10 +94,10 @@ func (s *Service) Stop() {
 }
 
 func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.CreateResponse, error) {
-	script, err := s.scripts.Create(req.AccountHandle, req.Name)
+	script, err := s.scripts.Create(ctx, req.AccountHandle, req.Name)
 	if err != nil {
 		switch err {
-		case scripts.ErrInvalidScriptName:
+		case scripts.ErrInvalidName:
 			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
 		case scripts.ErrAlreadyExists:
 			return nil, grpc.Errorf(codes.AlreadyExists, "script already exists")
@@ -122,7 +122,7 @@ func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.Create
 }
 
 func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
-	scripts, err := s.scripts.AccountScripts(req.AccountHandle)
+	scripts, err := s.scripts.AccountScripts(ctx, req.AccountHandle)
 	if err != nil {
 		glog.Errorf("Failed to list scripts: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to list scripts")
@@ -139,11 +139,11 @@ func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 }
 
 func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.DeleteResponse, error) {
-	script, err := s.scripts.Open(req.AccountHandle, req.Name)
+	script, err := s.scripts.Open(ctx, req.AccountHandle, req.Name)
 
 	if err != nil {
 		switch err {
-		case scripts.ErrInvalidScriptName:
+		case scripts.ErrInvalidName:
 			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
 		case scripts.ErrNotFound:
 			return nil, grpc.Errorf(codes.NotFound, "script not found")
@@ -161,11 +161,11 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 }
 
 func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
-	script, err := s.scripts.Open(req.ScriptAccountHandle, req.Name)
+	script, err := s.scripts.Open(ctx, req.ScriptAccountHandle, req.Name)
 
 	if err != nil {
 		switch err {
-		case scripts.ErrInvalidScriptName:
+		case scripts.ErrInvalidName:
 			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
 		case scripts.ErrNotFound:
 			return nil, grpc.Errorf(codes.NotFound, "script not found")
@@ -281,11 +281,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 }
 
 func (s *Service) GetContent(ctx context.Context, req *pb.GetContentRequest) (*pb.GetContentResponse, error) {
-	script, err := s.scripts.Open(req.AccountHandle, req.Name)
+	script, err := s.scripts.Open(ctx, req.AccountHandle, req.Name)
 
 	if err != nil {
 		switch err {
-		case scripts.ErrInvalidScriptName:
+		case scripts.ErrInvalidName:
 			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
 		case scripts.ErrNotFound:
 			return nil, grpc.Errorf(codes.NotFound, "script not found")
@@ -306,11 +306,11 @@ func (s *Service) GetContent(ctx context.Context, req *pb.GetContentRequest) (*p
 }
 
 func (s *Service) GetRequestedCapabilities(ctx context.Context, req *pb.GetRequestedCapabilitiesRequest) (*pb.GetRequestedCapabilitiesResponse, error) {
-	script, err := s.scripts.Open(req.AccountHandle, req.Name)
+	script, err := s.scripts.Open(ctx, req.AccountHandle, req.Name)
 
 	if err != nil {
 		switch err {
-		case scripts.ErrInvalidScriptName:
+		case scripts.ErrInvalidName:
 			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
 		case scripts.ErrNotFound:
 			return nil, grpc.Errorf(codes.NotFound, "script not found")
@@ -331,11 +331,11 @@ func (s *Service) GetRequestedCapabilities(ctx context.Context, req *pb.GetReque
 }
 
 func (s *Service) GetAccountCapabilities(ctx context.Context, req *pb.GetAccountCapabilitiesRequest) (*pb.GetAccountCapabilitiesResponse, error) {
-	script, err := s.scripts.Open(req.ScriptAccountHandle, req.ScriptName)
+	script, err := s.scripts.Open(ctx, req.ScriptAccountHandle, req.ScriptName)
 
 	if err != nil {
 		switch err {
-		case scripts.ErrInvalidScriptName:
+		case scripts.ErrInvalidName:
 			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
 		case scripts.ErrNotFound:
 			return nil, grpc.Errorf(codes.NotFound, "script not found")
@@ -356,11 +356,11 @@ func (s *Service) GetAccountCapabilities(ctx context.Context, req *pb.GetAccount
 }
 
 func (s *Service) SetAccountCapabilities(ctx context.Context, req *pb.SetAccountCapabilitiesRequest) (*pb.SetAccountCapabilitiesResponse, error) {
-	script, err := s.scripts.Open(req.ScriptAccountHandle, req.ScriptName)
+	script, err := s.scripts.Open(ctx, req.ScriptAccountHandle, req.ScriptName)
 
 	if err != nil {
 		switch err {
-		case scripts.ErrInvalidScriptName:
+		case scripts.ErrInvalidName:
 			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
 		case scripts.ErrNotFound:
 			return nil, grpc.Errorf(codes.NotFound, "script not found")
@@ -424,4 +424,61 @@ func (s *Service) ensureAndMountAccountDisk(scriptAccountHandle []byte) (string,
 	}
 
 	return mountPath, nil
+}
+
+func (s *Service) ResolveAlias(ctx context.Context, req *pb.ResolveAliasRequest) (*pb.ResolveAliasResponse, error) {
+	alias, err := s.scripts.LoadAlias(ctx, req.Name)
+	if err != nil {
+		switch err {
+		case scripts.ErrInvalidName:
+			return nil, grpc.Errorf(codes.InvalidArgument, "invalid alias name")
+		case scripts.ErrNotFound:
+			return nil, grpc.Errorf(codes.NotFound, "alias not found")
+		}
+		glog.Errorf("Failed to resolve alias: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to resolve alias")
+	}
+
+	return &pb.ResolveAliasResponse{
+		AccountHandle:  alias.AccountHandle,
+		ScriptName:     alias.ScriptName,
+		ExpiryTimeUnix: alias.ExpiryTime.Unix(),
+	}, nil
+}
+
+func (s *Service) SetAlias(ctx context.Context, req *pb.SetAliasRequest) (*pb.SetAliasResponse, error) {
+	if err := s.scripts.SetAlias(ctx, req.Name, req.AccountHandle, req.ScriptName, time.Unix(req.ExpiryTimeUnix, 0)); err != nil {
+		switch err {
+		case scripts.ErrInvalidName:
+			return nil, grpc.Errorf(codes.InvalidArgument, "invalid alias name")
+		case scripts.ErrNotFound:
+			return nil, grpc.Errorf(codes.NotFound, "alias not found")
+		}
+		glog.Errorf("Failed to set alias: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to set alias")
+	}
+
+	return &pb.SetAliasResponse{}, nil
+}
+
+func (s *Service) ListAliases(ctx context.Context, req *pb.ListAliasesRequest) (*pb.ListAliasesResponse, error) {
+	aliases, err := s.scripts.Aliases(ctx)
+	if err != nil {
+		glog.Errorf("Failed to list aliases: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to list aliases")
+	}
+
+	entries := make([]*pb.ListAliasesResponse_Entry, len(aliases))
+	for i, alias := range aliases {
+		entries[i] = &pb.ListAliasesResponse_Entry{
+			Name:           alias.Name,
+			AccountHandle:  alias.AccountHandle,
+			ScriptName:     alias.ScriptName,
+			ExpiryTimeUnix: alias.ExpiryTime.Unix(),
+		}
+	}
+
+	return &pb.ListAliasesResponse{
+		Entry: entries,
+	}, nil
 }

@@ -28,38 +28,41 @@
     <button type="submit">Create new script</button>
 </form>
 
-<h2>Deeds Owned</h2>
+<h2>Aliases Owned</h2>
 <p>
-    You own the following deeds.
+    You own the following aliases.
     <table>
         <tr>
-            <th>Type</th>
             <th>Name</th>
-            <th>Content</th>
+            <th>Script Name</th>
             <th>Lease expires in</th>
             <th>Renew</th>
             <th>Delete</th>
         </tr>
 
-        {{range $_, $deed := .Deeds}}
+        {{range $_, $alias := .Aliases}}
         <tr>
-            <td>{{$deed.Info.Type}}</td>
             <td>
-                <samp>{{$deed.Info.Name}}</samp>
+                <samp>{{$alias.Name}}</samp>
             </td>
             <td>
-                <form method="POST" action="/deeds/{{$deed.Info.Type}}/{{$deed.Info.Name}}">
-                    <input type="text" name="content" value="{{$deed.Content}}"><button type="submit">Update</button>
+                <form method="POST" action="/aliases/{{$alias.Name}}">
+                    <select name="script_name">
+                        {{range $_, $name := $.ScriptNames}}
+                        <option value="{{$name}}" {{if eq $name $alias.ScriptName}}selected{{end}}>{{$name}}</option>
+                        {{end}}
+                    </select>
+                    <button type="submit">Update</button>
                 </form>
             </td>
-            <td>{{prettyTime $deed.Info.ExpiryTimeUnix}}</td>
+            <td>{{prettyTime $alias.ExpiryTimeUnix}}</td>
             <td>
-                <form method="POST" action="/deeds/{{$deed.Info.Type}}/{{$deed.Info.Name}}/renew">
+                <form method="POST" action="/aliases/{{$alias.Name}}/renew">
                     <input type="number" name="periods" value="1"> periods <button type="submit">Renew</button>
                 </form>
             </td>
             <td>
-                <form method="POST" action="/deeds/{{$deed.Info.Type}}/{{$deed.Info.Name}}/delete">
+                <form method="POST" action="/aliases/{{$alias.Name}}/delete">
                     <button type="submit">Delete</button>
                 </form>
             </td>
@@ -68,48 +71,29 @@
     </table>
 </p>
 
-<h3>Market Prices</h3>
 <p>
-    These are the most recent market prices for deeds.
-    <table>
-        <tr>
-            <th>Type</th>
-            <th>Price</th>
-            <th>Lease period</th>
-        </tr>
-
-        {{range $_, $def := .DeedTypes}}
-        <tr>
-            <td>{{$def.Name}}</td>
-            <td>{{$def.Price}}</td>
-            <td>{{prettyDuration $def.DurationSeconds}}</td>
-        </tr>
-        {{end}}
-    </table>
+    An alias costs {{.AliasCost}} for {{prettyDuration .AliasDuration}}.
 </p>
 
-<form method="POST" action="/deeds">
+<form method="POST" action="/aliases">
     <dl>
-        <dt><label for="deed-type">Type</label></dt>
+        <dt><label for="alias-name">Name</label></dt>
+        <dd><input id="alias-name" type="text" name="name"></dd>
+
+        <dt><label for="alias-scriptname">Script Name</label></dt>
         <dd>
-            <select id="deed-type" name="type">
+            <select id="alias-scriptname" name="script_name">
                 <option disabled selected></option>
-                {{range $_, $def := .DeedTypes}}
-                    <option value="{{$def.Name}}">{{$def.Name}}</td>
+                {{range $_, $name := $.ScriptNames}}
+                <option value="{{$name}}">{{$name}}</option>
                 {{end}}
             </select>
         </dd>
 
-        <dt><label for="deed-name">Name</label></dt>
-        <dd><input id="deed-name" type="text" name="name"></dd>
-
-        <dt><label for="deed-content">Content</label></dt>
-        <dd><input id="deed-content" type="text" name="content"></dd>
-
-        <dt><label for="deed-periods">Periods</label></dt>
-        <dd><input id="deed-periods" type="number" name="periods" value="1"></dd>
+        <dt><label for="alias-periods">Periods</label></dt>
+        <dd><input id="alias-periods" type="number" name="periods" value="1"></dd>
     </dl>
-    <button type="submit">Purchase deed</button>
+    <button type="submit">Purchase alias</button>
 </form>
 
 {{end}}

@@ -8,8 +8,6 @@ go_library(
         "//bank/accounts:go_default_library",
         "//bank/accountsservice:go_default_library",
         "//bank/accountsservice/v1pb:go_default_library",
-        "//bank/deedsservice:go_default_library",
-        "//bank/deedsservice/v1pb:go_default_library",
         "//bank/moneyservice:go_default_library",
         "//bank/moneyservice/v1pb:go_default_library",
         "@com_github_golang_glog//:go_default_library",

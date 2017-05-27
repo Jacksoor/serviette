@@ -15,6 +15,7 @@ go_library(
         "//executor/scriptsservice/v1pb:go_default_library",
         "//executor/worker:go_default_library",
         "@com_github_golang_glog//:go_default_library",
+        "@com_github_mattn_go_sqlite3//:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//grpclog/glogger:go_default_library",
         "@org_golang_google_grpc//reflection:go_default_library",

@@ -283,12 +283,8 @@ func bankSetcaps(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 
 	scriptAccountHandle, scriptName, _, err := resolveScriptName(ctx, c, commandName)
 	if err != nil {
-		switch err {
-		case errNotFound:
+		if err == errNotFound {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I don't know what the `%s` command is.", m.Author.ID, commandName))
-			return nil
-		case errMisconfiguredCommand:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, the owner of the `%s` command hasn't configured their command correctly.", m.Author.ID, commandName))
 			return nil
 		}
 		return err

@@ -18,20 +18,22 @@ import (
 	"github.com/porpoises/kobun4/webbridge/handler"
 
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
-	deedspb "github.com/porpoises/kobun4/bank/deedsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
 var (
 	socketPath      = flag.String("socket_path", "/tmp/kobun4-webbridge.socket", "Bind path for socket")
-	debugSocketPath = flag.String("debug_socket_path", "/tmp/kobun4-discordbridge.debug.socket", "Bind path for socket")
+	debugSocketPath = flag.String("debug_socket_path", "/tmp/kobun4-webbridge.debug.socket", "Bind path for socket")
 
 	bankTarget     = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
 	executorTarget = flag.String("executor_target", "/tmp/kobun4-executor.socket", "Executor target")
 
 	staticPath   = flag.String("static_path", "Path to templates", "static")
 	templatePath = flag.String("template_path", "Path to templates", "templates")
+
+	aliasCost     = flag.Int64("alias_cost", 500, "Cost of an alias purchase")
+	aliasDuration = flag.Duration("alias_duration", 4*7*24*time.Hour, "Time for an alias to last")
 )
 
 func main() {
@@ -67,7 +69,7 @@ func main() {
 	}
 	defer executorConn.Close()
 
-	handler, err := handler.New(*staticPath, *templatePath, accountspb.NewAccountsClient(bankConn), deedspb.NewDeedsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
+	handler, err := handler.New(*staticPath, *templatePath, *aliasCost, *aliasDuration, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to create handler: %v", err)
 	}

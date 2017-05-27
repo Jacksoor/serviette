@@ -10,13 +10,12 @@ import (
 	"google.golang.org/grpc/codes"
 
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
-	deedspb "github.com/porpoises/kobun4/bank/deedsservice/v1pb"
+	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
 var (
-	errNotFound             error = errors.New("not found")
-	errBadAccountHandle           = errors.New("bad account handle")
-	errMisconfiguredCommand       = errors.New("misconfigured command")
+	errNotFound         error = errors.New("not found")
+	errBadAccountHandle       = errors.New("bad account handle")
 )
 
 func resolveAccountTarget(ctx context.Context, c *Client, target string) ([]byte, error) {
@@ -56,8 +55,7 @@ func resolveScriptName(ctx context.Context, c *Client, commandName string) ([]by
 	}
 
 	// Look up via an alias name.
-	contentResp, err := c.deedsClient.GetContent(ctx, &deedspb.GetContentRequest{
-		Type: "command",
+	resolveResp, err := c.scriptsClient.ResolveAlias(ctx, &scriptspb.ResolveAliasRequest{
 		Name: commandName,
 	})
 	if err != nil {
@@ -67,18 +65,6 @@ func resolveScriptName(ctx context.Context, c *Client, commandName string) ([]by
 		return nil, "", true, err
 	}
 
-	resolvedName := string(contentResp.Content)
-	sepIndex := strings.Index(resolvedName, "/")
+	return resolveResp.AccountHandle, resolveResp.ScriptName, true, nil
 
-	if sepIndex == -1 {
-		return nil, "", true, errMisconfiguredCommand
-	}
-
-	encodedScriptHandle := resolvedName[:sepIndex]
-	scriptHandle, err := base64.RawURLEncoding.DecodeString(encodedScriptHandle)
-	if err != nil {
-		return nil, "", true, errMisconfiguredCommand
-	}
-	name := resolvedName[sepIndex+1:]
-	return scriptHandle, name, true, nil
 }

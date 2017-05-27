@@ -6,7 +6,6 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//bank/accountsservice/v1pb:go_default_library",
-        "//bank/deedsservice/v1pb:go_default_library",
         "//bank/moneyservice/v1pb:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "//webbridge/handler:go_default_library",

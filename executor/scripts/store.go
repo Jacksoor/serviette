@@ -1,40 +1,46 @@
 package scripts
 
 import (
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"golang.org/x/net/context"
 )
 
 var (
-	ErrInvalidScriptName error = errors.New("invalid script name")
-	ErrAlreadyExists           = errors.New("already exists")
-	ErrNotFound                = errors.New("not found")
+	ErrInvalidName   error = errors.New("invalid name")
+	ErrAlreadyExists       = errors.New("already exists")
+	ErrNotFound            = errors.New("not found")
 )
 
 type Store struct {
 	rootPath string
+	db       *sql.DB
 }
 
-func NewStore(rootPath string) *Store {
+func NewStore(rootPath string, db *sql.DB) *Store {
 	return &Store{
 		rootPath: rootPath,
+		db:       db,
 	}
 }
 
-func (s *Store) load(accountHandle []byte, name string) (*Script, error) {
+func (s *Store) load(ctx context.Context, accountHandle []byte, name string) (*Script, error) {
 	if strings.Contains(name, " ") {
-		return nil, ErrInvalidScriptName
+		return nil, ErrInvalidName
 	}
 
 	accountRoot := filepath.Join(s.rootPath, base64.RawURLEncoding.EncodeToString(accountHandle))
 	path := filepath.Join(accountRoot, name)
 
 	if filepath.Dir(path) != accountRoot {
-		return nil, ErrInvalidScriptName
+		return nil, ErrInvalidName
 	}
 
 	return &Script{
@@ -44,8 +50,8 @@ func (s *Store) load(accountHandle []byte, name string) (*Script, error) {
 	}, nil
 }
 
-func (s *Store) Create(accountHandle []byte, name string) (*Script, error) {
-	script, err := s.load(accountHandle, name)
+func (s *Store) Create(ctx context.Context, accountHandle []byte, name string) (*Script, error) {
+	script, err := s.load(ctx, accountHandle, name)
 	if err != nil {
 		return nil, err
 	}
@@ -66,8 +72,8 @@ func (s *Store) Create(accountHandle []byte, name string) (*Script, error) {
 	return script, nil
 }
 
-func (s *Store) Open(accountHandle []byte, name string) (*Script, error) {
-	script, err := s.load(accountHandle, name)
+func (s *Store) Open(ctx context.Context, accountHandle []byte, name string) (*Script, error) {
+	script, err := s.load(ctx, accountHandle, name)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +88,7 @@ func (s *Store) Open(accountHandle []byte, name string) (*Script, error) {
 	return script, nil
 }
 
-func (s *Store) AccountScripts(accountHandle []byte) ([]*Script, error) {
+func (s *Store) AccountScripts(ctx context.Context, accountHandle []byte) ([]*Script, error) {
 	accountRoot := filepath.Join(s.rootPath, base64.RawURLEncoding.EncodeToString(accountHandle))
 
 	infos, err := ioutil.ReadDir(accountRoot)
@@ -103,4 +109,123 @@ func (s *Store) AccountScripts(accountHandle []byte) ([]*Script, error) {
 	}
 
 	return scripts, nil
+}
+
+type Alias struct {
+	Name          string
+	AccountHandle []byte
+	ScriptName    string
+	ExpiryTime    time.Time
+}
+
+func (s *Store) expireAliases(ctx context.Context) error {
+	now := time.Now()
+
+	_, err := s.db.ExecContext(ctx, `
+		delete from aliases
+		where expiry_time_unix <= ?
+	`, now.Unix())
+
+	return err
+}
+
+func (s *Store) LoadAlias(ctx context.Context, name string) (*Alias, error) {
+	if err := s.expireAliases(ctx); err != nil {
+		return nil, err
+	}
+
+	alias := &Alias{
+		Name: name,
+	}
+
+	var expiryTimeUnix int64
+
+	if err := s.db.QueryRowContext(ctx, `
+		select account_handle, script_name, expiry_time_unix from aliases
+		where aliases.name = ?
+	`, name).Scan(&alias.AccountHandle, &alias.ScriptName, &expiryTimeUnix); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	alias.ExpiryTime = time.Unix(expiryTimeUnix, 0)
+
+	return alias, nil
+}
+
+func (s *Store) SetAlias(ctx context.Context, name string, accountHandle []byte, scriptName string, expiry time.Time) error {
+	if strings.ContainsAny(name, "/. ") {
+		return ErrInvalidName
+	}
+
+	if err := s.expireAliases(ctx); err != nil {
+		return nil
+	}
+
+	var r sql.Result
+	var err error
+
+	if accountHandle == nil {
+		r, err = s.db.ExecContext(ctx, `
+			delete from aliases
+			where name = ?
+		`, name)
+	} else {
+		r, err = s.db.ExecContext(ctx, `
+			insert or replace into aliases (name, account_handle, script_name, expiry_time_unix)
+			values (?, ?, ?, ?)
+		`, name, accountHandle, scriptName, expiry.Unix())
+	}
+
+	if err != nil {
+		return err
+	}
+
+	n, err := r.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if n == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (s *Store) Aliases(ctx context.Context) ([]*Alias, error) {
+	if err := s.expireAliases(ctx); err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		select name, account_handle, script_name, expiry_time_unix
+		from aliases
+	`)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	aliases := make([]*Alias, 0)
+
+	for rows.Next() {
+		alias := &Alias{}
+		var expiryTimeUnix int64
+
+		if err := rows.Scan(&alias.Name, &alias.AccountHandle, &alias.ScriptName, &expiryTimeUnix); err != nil {
+			return nil, err
+		}
+		alias.ExpiryTime = time.Unix(expiryTimeUnix, 0)
+		aliases = append(aliases, alias)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return aliases, nil
 }

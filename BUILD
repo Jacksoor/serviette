@@ -34,6 +34,7 @@ pkg_tar(
         "//clients",
         "//discordbridge",
         "//executor",
+        "//executor/scripts:schema.sql",
         "//webbridge",
         "//webbridge/static",
         "//webbridge/templates",

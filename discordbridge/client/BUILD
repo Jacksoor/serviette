@@ -11,7 +11,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//bank/accountsservice/v1pb:go_default_library",
-        "//bank/deedsservice/v1pb:go_default_library",
         "//bank/moneyservice/v1pb:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "@com_github_bwmarrin_discordgo//:go_default_library",

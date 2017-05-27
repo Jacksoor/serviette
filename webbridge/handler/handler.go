@@ -17,7 +17,6 @@ import (
 	"google.golang.org/grpc/codes"
 
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
-	deedspb "github.com/porpoises/kobun4/bank/deedsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
@@ -32,23 +31,29 @@ type Handler struct {
 	staticPath   string
 	templatePath string
 
+	aliasCost     int64
+	aliasDuration time.Duration
+
 	accountsClient accountspb.AccountsClient
-	deedsClient    deedspb.DeedsClient
 	moneyClient    moneypb.MoneyClient
 	scriptsClient  scriptspb.ScriptsClient
 }
 
 var funcMap template.FuncMap = template.FuncMap{
-	"prettyDuration": func(seconds int64) string {
-		return durafmt.Parse(time.Duration(seconds) * time.Second).String()
+	"prettyDuration": func(dur time.Duration) string {
+		return durafmt.Parse(dur).String()
 	},
 
 	"prettyTime": func(unixSeconds int64) string {
 		return durafmt.Parse(time.Unix(unixSeconds, 0).Sub(time.Now())).String()
 	},
+
+	"eq": func(a interface{}, b interface{}) bool {
+		return a == b
+	},
 }
 
-func New(staticPath string, templatePath string, accountsClient accountspb.AccountsClient, deedsClient deedspb.DeedsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (http.Handler, error) {
+func New(staticPath string, templatePath string, aliasCost int64, aliasDuration time.Duration, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (http.Handler, error) {
 	router := httprouter.New()
 
 	h := &Handler{
@@ -57,8 +62,10 @@ func New(staticPath string, templatePath string, accountsClient accountspb.Accou
 		staticPath:   staticPath,
 		templatePath: templatePath,
 
+		aliasCost:     aliasCost,
+		aliasDuration: aliasDuration,
+
 		accountsClient: accountsClient,
-		deedsClient:    deedsClient,
 		moneyClient:    moneyClient,
 		scriptsClient:  scriptsClient,
 	}
@@ -72,10 +79,10 @@ func New(staticPath string, templatePath string, accountsClient accountspb.Accou
 	router.GET("/scripts/:scriptAccountHandle/:scriptName", h.scriptGet)
 	router.POST("/scripts/:scriptAccountHandle/:scriptName", h.scriptUpdate)
 	router.POST("/scripts/:scriptAccountHandle/:scriptName/delete", h.scriptDelete)
-	router.POST("/deeds", h.deedCreate)
-	router.POST("/deeds/:deedType/:deedName", h.deedUpdate)
-	router.POST("/deeds/:deedType/:deedName/renew", h.deedRenew)
-	router.POST("/deeds/:deedType/:deedName/delete", h.deedDelete)
+	router.POST("/aliases", h.aliasCreate)
+	router.POST("/aliases/:aliasName", h.aliasUpdate)
+	router.POST("/aliases/:aliasName/renew", h.aliasRenew)
+	router.POST("/aliases/:aliasName/delete", h.aliasDelete)
 
 	return h, nil
 }
@@ -134,11 +141,6 @@ func (h *Handler) renderTemplate(w http.ResponseWriter, files []string, data int
 	}
 }
 
-type deedDetails struct {
-	Info    *deedspb.Info
-	Content string
-}
-
 func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	accountHandle, accountKey, err := h.authenticate(w, r)
 	if err != nil {
@@ -163,40 +165,20 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		return
 	}
 
-	deedTypesResp, err := h.deedsClient.GetTypes(r.Context(), &deedspb.GetTypesRequest{})
+	aliasesListResp, err := h.scriptsClient.ListAliases(r.Context(), &scriptspb.ListAliasesRequest{})
 	if err != nil {
-		glog.Errorf("Failed to get deed types: %v", err)
+		glog.Errorf("Failed to list aliases: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	deedsListResp, err := h.deedsClient.List(r.Context(), &deedspb.ListRequest{})
-	if err != nil {
-		glog.Errorf("Failed to list deeds: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	deeds := make([]*deedDetails, 0)
-	for _, info := range deedsListResp.Info {
-		if string(info.OwnerAccountHandle) != string(accountHandle) {
+	aliases := make([]*scriptspb.ListAliasesResponse_Entry, 0)
+	for _, entry := range aliasesListResp.Entry {
+		if string(entry.AccountHandle) != string(accountHandle) {
 			continue
 		}
 
-		contentResp, err := h.deedsClient.GetContent(r.Context(), &deedspb.GetContentRequest{
-			Type: info.Type,
-			Name: info.Name,
-		})
-		if err != nil {
-			glog.Errorf("Failed to get deed content: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		deeds = append(deeds, &deedDetails{
-			Info:    info,
-			Content: string(contentResp.Content),
-		})
+		aliases = append(aliases, entry)
 	}
 
 	h.renderTemplate(w, []string{"_layout", "home"}, struct {
@@ -204,21 +186,20 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		AccountKey    string
 		Balance       int64
 		ScriptNames   []string
-		DeedTypes     []*deedspb.TypeDefinition
-		Deeds         []*deedDetails
+		Aliases       []*scriptspb.ListAliasesResponse_Entry
+
+		AliasCost     int64
+		AliasDuration time.Duration
 	}{
 		base64.RawURLEncoding.EncodeToString(accountHandle),
 		base64.RawURLEncoding.EncodeToString(accountKey),
 		balanceResp.Balance[0],
 		scriptsListResp.Name,
-		deedTypesResp.Definition,
-		deeds,
-	})
-}
+		aliases,
 
-type accountScriptDetails struct {
-	AccountHandle string
-	Names         []string
+		h.aliasCost,
+		h.aliasDuration,
+	})
 }
 
 func (h *Handler) scriptsIndex(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -229,10 +210,8 @@ func (h *Handler) scriptsIndex(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	accountScripts := make([]accountScriptDetails, len(listResp.AccountHandle))
-	for i, accountHandle := range listResp.AccountHandle {
-		details := &accountScripts[i]
-		details.AccountHandle = base64.RawURLEncoding.EncodeToString(accountHandle)
+	accountScripts := make(map[string][]string, len(listResp.AccountHandle))
+	for _, accountHandle := range listResp.AccountHandle {
 		listResp, err := h.scriptsClient.List(r.Context(), &scriptspb.ListRequest{
 			AccountHandle: accountHandle,
 		})
@@ -241,11 +220,11 @@ func (h *Handler) scriptsIndex(w http.ResponseWriter, r *http.Request, ps httpro
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-		details.Names = listResp.Name
+		accountScripts[base64.RawURLEncoding.EncodeToString(accountHandle)] = listResp.Name
 	}
 
 	h.renderTemplate(w, []string{"_layout", "scriptindex"}, struct {
-		AccountScripts []accountScriptDetails
+		AccountScripts map[string][]string
 	}{
 		accountScripts,
 	})
@@ -497,7 +476,93 @@ func (h *Handler) scriptDelete(w http.ResponseWriter, r *http.Request, ps httpro
 	http.Redirect(w, r, "/", http.StatusMovedPermanently)
 }
 
-func (h *Handler) deedCreate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (h *Handler) aliasCreate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	accountHandle, _, err := h.authenticate(w, r)
+	if err != nil {
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	now := time.Now()
+
+	periods, err := strconv.ParseInt(r.Form.Get("periods"), 10, 64)
+	if err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	balanceResp, err := h.moneyClient.GetBalance(r.Context(), &moneypb.GetBalanceRequest{
+		AccountHandle: [][]byte{accountHandle},
+	})
+	if err != nil {
+		glog.Errorf("Failed to get balance: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if balanceResp.Balance[0] < periods*h.aliasCost {
+		http.Error(w, "Forbidden: insufficient funds", http.StatusForbidden)
+		return
+	}
+
+	if _, err := h.scriptsClient.SetAlias(r.Context(), &scriptspb.SetAliasRequest{
+		Name:           r.Form.Get("name"),
+		AccountHandle:  accountHandle,
+		ScriptName:     r.Form.Get("script_name"),
+		ExpiryTimeUnix: now.Add(time.Duration(periods) * h.aliasDuration).Unix(),
+	}); err != nil {
+		glog.Errorf("Failed to set alias: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/", http.StatusMovedPermanently)
+}
+
+func (h *Handler) aliasUpdate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	accountHandle, _, err := h.authenticate(w, r)
+	if err != nil {
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	resolveResp, err := h.scriptsClient.ResolveAlias(r.Context(), &scriptspb.ResolveAliasRequest{
+		Name: ps.ByName("aliasName"),
+	})
+	if err != nil {
+		glog.Errorf("Failed to resolve alias: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if string(accountHandle) != string(resolveResp.AccountHandle) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	if _, err := h.scriptsClient.SetAlias(r.Context(), &scriptspb.SetAliasRequest{
+		Name:           ps.ByName("aliasName"),
+		AccountHandle:  accountHandle,
+		ScriptName:     r.Form.Get("script_name"),
+		ExpiryTimeUnix: resolveResp.ExpiryTimeUnix,
+	}); err != nil {
+		glog.Errorf("Failed to set alias: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/", http.StatusMovedPermanently)
+}
+
+func (h *Handler) aliasRenew(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	accountHandle, _, err := h.authenticate(w, r)
 	if err != nil {
 		return
@@ -514,14 +579,41 @@ func (h *Handler) deedCreate(w http.ResponseWriter, r *http.Request, ps httprout
 		return
 	}
 
-	if _, err := h.deedsClient.Buy(r.Context(), &deedspb.BuyRequest{
-		AccountHandle: accountHandle,
-		Type:          r.Form.Get("type"),
-		Name:          r.Form.Get("name"),
-		Periods:       periods,
-		Content:       []byte(r.Form.Get("content")),
+	resolveResp, err := h.scriptsClient.ResolveAlias(r.Context(), &scriptspb.ResolveAliasRequest{
+		Name: ps.ByName("aliasName"),
+	})
+	if err != nil {
+		glog.Errorf("Failed to resolve alias: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if string(accountHandle) != string(resolveResp.AccountHandle) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	balanceResp, err := h.moneyClient.GetBalance(r.Context(), &moneypb.GetBalanceRequest{
+		AccountHandle: [][]byte{accountHandle},
+	})
+	if err != nil {
+		glog.Errorf("Failed to get balance: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if balanceResp.Balance[0] < periods*h.aliasCost {
+		http.Error(w, "Forbidden: insufficient funds", http.StatusForbidden)
+		return
+	}
+
+	if _, err := h.scriptsClient.SetAlias(r.Context(), &scriptspb.SetAliasRequest{
+		Name:           ps.ByName("aliasName"),
+		AccountHandle:  accountHandle,
+		ScriptName:     r.Form.Get("script_name"),
+		ExpiryTimeUnix: time.Unix(resolveResp.ExpiryTimeUnix, 0).Add(time.Duration(periods) * h.aliasDuration).Unix(),
 	}); err != nil {
-		glog.Errorf("Failed to buy deed: %v", err)
+		glog.Errorf("Failed to set alias: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -529,131 +621,36 @@ func (h *Handler) deedCreate(w http.ResponseWriter, r *http.Request, ps httprout
 	http.Redirect(w, r, "/", http.StatusMovedPermanently)
 }
 
-func (h *Handler) deedUpdate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (h *Handler) aliasDelete(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	accountHandle, _, err := h.authenticate(w, r)
 	if err != nil {
 		return
 	}
 
-	infoResp, err := h.deedsClient.GetInfo(r.Context(), &deedspb.GetInfoRequest{
-		Type: ps.ByName("deedType"),
-		Name: ps.ByName("deedName"),
+	resolveResp, err := h.scriptsClient.ResolveAlias(r.Context(), &scriptspb.ResolveAliasRequest{
+		Name: ps.ByName("aliasName"),
 	})
 	if err != nil {
-		glog.Errorf("Failed to get deed info: %v", err)
+		glog.Errorf("Failed to resolve alias: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	if string(accountHandle) != string(infoResp.Info.OwnerAccountHandle) {
+	if string(accountHandle) != string(resolveResp.AccountHandle) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
-	if _, err := h.deedsClient.Update(r.Context(), &deedspb.UpdateRequest{
-		Type:    infoResp.Info.Type,
-		Name:    infoResp.Info.Name,
-		Content: []byte(r.Form.Get("content")),
+	if _, err := h.scriptsClient.SetAlias(r.Context(), &scriptspb.SetAliasRequest{
+		Name:           r.Form.Get("name"),
+		AccountHandle:  nil,
+		ScriptName:     "",
+		ExpiryTimeUnix: 0,
 	}); err != nil {
-		glog.Errorf("Failed to update deed: %v", err)
+		glog.Errorf("Failed to set alias: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-
-	_ = accountHandle
-
-	http.Redirect(w, r, "/", http.StatusMovedPermanently)
-}
-
-func (h *Handler) deedRenew(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	accountHandle, _, err := h.authenticate(w, r)
-	if err != nil {
-		return
-	}
-
-	infoResp, err := h.deedsClient.GetInfo(r.Context(), &deedspb.GetInfoRequest{
-		Type: ps.ByName("deedType"),
-		Name: ps.ByName("deedName"),
-	})
-	if err != nil {
-		glog.Errorf("Failed to get deed info: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if string(accountHandle) != string(infoResp.Info.OwnerAccountHandle) {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
-	periods, err := strconv.ParseInt(r.Form.Get("periods"), 10, 64)
-	if err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
-	if _, err := h.deedsClient.Renew(r.Context(), &deedspb.RenewRequest{
-		AccountHandle: accountHandle,
-		Type:          infoResp.Info.Type,
-		Name:          infoResp.Info.Name,
-		Periods:       periods,
-	}); err != nil {
-		glog.Errorf("Failed to renew deed: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	_ = accountHandle
-
-	http.Redirect(w, r, "/", http.StatusMovedPermanently)
-}
-
-func (h *Handler) deedDelete(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	accountHandle, _, err := h.authenticate(w, r)
-	if err != nil {
-		return
-	}
-
-	infoResp, err := h.deedsClient.GetInfo(r.Context(), &deedspb.GetInfoRequest{
-		Type: ps.ByName("deedType"),
-		Name: ps.ByName("deedName"),
-	})
-	if err != nil {
-		glog.Errorf("Failed to get deed info: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if string(accountHandle) != string(infoResp.Info.OwnerAccountHandle) {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
-	if _, err := h.deedsClient.Delete(r.Context(), &deedspb.DeleteRequest{
-		Type: infoResp.Info.Type,
-		Name: infoResp.Info.Name,
-	}); err != nil {
-		glog.Errorf("Failed to delete deed: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	_ = accountHandle
 
 	http.Redirect(w, r, "/", http.StatusMovedPermanently)
 }

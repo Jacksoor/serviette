@@ -23,8 +23,6 @@ import (
 
 	"github.com/porpoises/kobun4/bank/accountsservice"
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
-	"github.com/porpoises/kobun4/bank/deedsservice"
-	deedspb "github.com/porpoises/kobun4/bank/deedsservice/v1pb"
 	"github.com/porpoises/kobun4/bank/moneyservice"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
 )
@@ -32,7 +30,8 @@ import (
 var (
 	socketPath      = flag.String("socket_path", "/tmp/kobun4-bank.socket", "Bind path for socket")
 	debugSocketPath = flag.String("debug_socket_path", "/tmp/kobun4-bank.debug.socket", "Bind path for socket")
-	sqliteDBPath    = flag.String("sqlite_db_path", "bank.db", "Path to SQLite database")
+
+	sqliteDBPath = flag.String("sqlite_db_path", "bank.db", "Path to SQLite database")
 )
 
 func main() {
@@ -61,7 +60,6 @@ func main() {
 
 	s := grpc.NewServer()
 	accountspb.RegisterAccountsServer(s, accountsservice.New(accountsStore))
-	deedspb.RegisterDeedsServer(s, deedsservice.New(accountsStore))
 	moneypb.RegisterMoneyServer(s, moneyservice.New(accountsStore))
 
 	reflection.Register(s)

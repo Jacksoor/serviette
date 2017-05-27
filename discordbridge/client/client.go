@@ -14,7 +14,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
-	deedspb "github.com/porpoises/kobun4/bank/deedsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
@@ -35,12 +34,11 @@ type Client struct {
 	session *discordgo.Session
 
 	accountsClient accountspb.AccountsClient
-	deedsClient    deedspb.DeedsClient
 	moneyClient    moneypb.MoneyClient
 	scriptsClient  scriptspb.ScriptsClient
 }
 
-func New(token string, opts *Options, accountsClient accountspb.AccountsClient, deedsClient deedspb.DeedsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
+func New(token string, opts *Options, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 	if err != nil {
 		return nil, err
@@ -52,7 +50,6 @@ func New(token string, opts *Options, accountsClient accountspb.AccountsClient, 
 		session: session,
 
 		accountsClient: accountsClient,
-		deedsClient:    deedsClient,
 		moneyClient:    moneyClient,
 		scriptsClient:  scriptsClient,
 	}
@@ -225,9 +222,6 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		switch err {
 		case errNotFound:
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I don't know what the `%s` command is.", m.Author.ID, commandName))
-			return nil
-		case errMisconfiguredCommand:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, the owner of the `%s` command hasn't configured their command correctly.", m.Author.ID, commandName))
 			return nil
 		}
 		return err
