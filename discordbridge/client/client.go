@@ -392,10 +392,10 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 
 **If you want to allow this, please run the following command:**
 `+"```"+`
-$setcaps %s %s
+%ssetcaps %s %s
 `+"```"+`
 If you have your granted capabilities to this command before, **it has been changed from the last time you ran it.**`,
-			m.Author.ID, commandName, strings.Join(prettyCaps, "\n"), commandName, strings.Join(capSettings, " ")))
+			m.Author.ID, commandName, strings.Join(prettyCaps, "\n"), c.bankCommandPrefix(channel.GuildID), commandName, strings.Join(capSettings, " ")))
 		return nil
 	}
 

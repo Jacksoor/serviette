@@ -115,13 +115,13 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	parts := strings.SplitN(rest, " ", 2)
 
 	if len(parts) != 2 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand that. Please use `$pay @mention/handle amount` to pay someone.", m.Author.ID))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand that. Please use `%spay @mention/handle amount` to pay someone.", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
 		return nil
 	}
 
 	amount, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand the amount you wanted to pay. Please use `$pay @mention/handle amount` to pay someone.", m.Author.ID))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand the amount you wanted to pay. Please use `%spay @mention/handle amount` to pay someone.", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
 		return nil
 	}
 
@@ -268,7 +268,7 @@ func bankSetcaps(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 	parts := strings.SplitN(rest, " ", 2)
 
 	if len(parts) != 2 && len(parts) != 1 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand that. Please use `$setcaps command capabilities` to set command capabilities.", m.Author.ID))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand that. Please use `%ssetcaps command capabilities` to set command capabilities.", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
 		return nil
 	}
 
@@ -276,7 +276,7 @@ func bankSetcaps(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 	capabilities := &scriptspb.Capabilities{}
 	if len(parts) == 2 {
 		if err := proto.UnmarshalText(parts[1], capabilities); err != nil {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand the capabilities you wanted to set. Please use `$setcaps command capabilities` to set command capabilities.", m.Author.ID))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, I didn't understand the capabilities you wanted to set. Please use `%ssetcaps command capabilities` to set command capabilities.", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
 			return nil
 		}
 	}
