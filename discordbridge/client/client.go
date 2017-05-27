@@ -77,7 +77,11 @@ func (c *Client) Close() {
 
 func (c *Client) ready(s *discordgo.Session, r *discordgo.Ready) {
 	glog.Info("Discord ready.")
-	s.UpdateStatus(0, c.opts.Status)
+	status := c.opts.Status
+	if status == "" {
+		status = "Hi!"
+	}
+	s.UpdateStatus(0, fmt.Sprintf("%s | $help | Shard %d/%d", status, s.ShardID+1, s.ShardCount))
 }
 
 func (c *Client) guildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
