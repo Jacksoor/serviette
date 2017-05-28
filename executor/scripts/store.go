@@ -144,7 +144,7 @@ func (s *Store) LoadAlias(ctx context.Context, name string) (*Alias, error) {
 
 	if err := s.db.QueryRowContext(ctx, `
 		select account_handle, script_name, expiry_time_unix from aliases
-		where aliases.name = ?
+		where name = ?
 	`, name).Scan(&alias.AccountHandle, &alias.ScriptName, &expiryTimeUnix); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
@@ -205,6 +205,7 @@ func (s *Store) Aliases(ctx context.Context) ([]*Alias, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		select name, account_handle, script_name, expiry_time_unix
 		from aliases
+		order by name asc
 	`)
 
 	if err != nil {

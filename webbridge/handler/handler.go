@@ -662,7 +662,7 @@ func (h *Handler) aliasRenew(w http.ResponseWriter, r *http.Request, ps httprout
 	if _, err := h.scriptsClient.SetAlias(r.Context(), &scriptspb.SetAliasRequest{
 		Name:           ps.ByName("aliasName"),
 		AccountHandle:  accountHandle,
-		ScriptName:     r.Form.Get("script_name"),
+		ScriptName:     resolveResp.ScriptName,
 		ExpiryTimeUnix: time.Unix(resolveResp.ExpiryTimeUnix, 0).Add(time.Duration(periods) * h.aliasDuration).Unix(),
 	}); err != nil {
 		glog.Errorf("Failed to set alias: %v", err)
