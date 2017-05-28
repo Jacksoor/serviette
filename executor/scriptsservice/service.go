@@ -272,8 +272,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	return &pb.ExecuteResponse{
 		Context:    contextService.Context(),
-		Ok:         r.ProcessState.Success(),
-		Killed:     r.ProcessState.Sys().(syscall.WaitStatus).Signal() == syscall.SIGKILL,
+		WaitStatus: uint32(r.ProcessState.Sys().(syscall.WaitStatus)),
 		Stdout:     r.Stdout,
 		Stderr:     r.Stderr,
 		UsageCost:  usageCost,

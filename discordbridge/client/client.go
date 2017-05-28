@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/golang/glog"
@@ -250,24 +251,27 @@ type outputFormatter func(c *Client, s *discordgo.Session, m *discordgo.Message,
 
 var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 	"text": func(c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, requestedCapabilities *scriptspb.Capabilities, r *scriptspb.ExecuteResponse) error {
+		color := 0x009100
+		if syscall.WaitStatus(r.WaitStatus).ExitStatus() != 0 {
+			color = 0xb50000
+		}
+
 		stdout := r.Stdout
 		if len(stdout) > 1500 {
 			stdout = stdout[:1500]
 		}
 
+		embed := discordgo.MessageEmbed{
+			Color:       color,
+			Description: string(stdout),
+			Fields:      []*discordgo.MessageEmbedField{},
+		}
+
+		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
+
 		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>, here's the result of your command.", m.Author.ID),
-			Embed: &discordgo.MessageEmbed{
-				Color:       0x009100,
-				Description: string(stdout),
-				Fields: []*discordgo.MessageEmbedField{
-					{
-						Name:   "Billing details",
-						Value:  c.prettyBillingDetails(requestedCapabilities, channel, r),
-						Inline: true,
-					},
-				},
-			},
+			Content: strings.TrimSpace(fmt.Sprintf("<@!%s>, here's the result of your command. %s", m.Author.ID, billingDetails)),
+			Embed:   &embed,
 		}); err != nil {
 			return err
 		}
@@ -281,15 +285,10 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 			return err
 		}
 
-		embed.Color = 0x009100
-		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name:   "Billing details",
-			Value:  c.prettyBillingDetails(requestedCapabilities, channel, r),
-			Inline: true,
-		})
+		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
 
 		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>, here's the result of your command.", m.Author.ID),
+			Content: strings.TrimSpace(fmt.Sprintf("<@!%s>, here's the result of your command. %s", m.Author.ID, billingDetails)),
 			Embed:   &embed,
 		}); err != nil {
 			return err
@@ -299,16 +298,14 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 }
 
 func (c *Client) prettyBillingDetails(requestedCapabilities *scriptspb.Capabilities, channel *discordgo.Channel, r *scriptspb.ExecuteResponse) string {
+	var usageDetails string
+	if r.UsageCost > 0 && requestedCapabilities.BillUsageToExecutingAccount {
+		usageDetails = fmt.Sprintf("%d %s was billed as usage to you.", r.UsageCost, c.currencyName(channel.GuildID))
+	}
+
 	withdrawalDetails := make([]string, len(r.Withdrawal))
 	for i, withdrawal := range r.Withdrawal {
 		withdrawalDetails[i] = fmt.Sprintf("%d %s to `%s`", withdrawal.Amount, c.currencyName(channel.GuildID), base64.RawURLEncoding.EncodeToString(withdrawal.TargetAccountHandle))
-	}
-
-	var usageDetails string
-	if requestedCapabilities.BillUsageToExecutingAccount {
-		usageDetails = fmt.Sprintf("%d %s was billed as usage to you", r.UsageCost, c.currencyName(channel.GuildID))
-	} else {
-		usageDetails = fmt.Sprintf("%d %s was billed as usage to the command's owner.", r.UsageCost, c.currencyName(channel.GuildID))
 	}
 
 	var billingDetails string
@@ -408,6 +405,10 @@ If you have your granted capabilities to this command before, **it has been chan
 		Context: &scriptspb.Context{
 			BridgeName:   "discord",
 			Mention:      fmt.Sprintf("<@!%s>", m.Author.ID),
+			Source:       m.Author.ID,
+			Server:       channel.GuildID,
+			Channel:      m.ChannelID,
+			IsPrivate:    channel.IsPrivate,
 			OutputFormat: "text",
 		},
 	})
@@ -424,7 +425,9 @@ If you have your granted capabilities to this command before, **it has been chan
 		return err
 	}
 
-	if resp.Ok {
+	waitStatus := syscall.WaitStatus(resp.WaitStatus)
+
+	if waitStatus.ExitStatus() == 0 || waitStatus.ExitStatus() == 1 {
 		outputFormatter, ok := outputFormatters[resp.Context.OutputFormat]
 		if !ok {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, it looks like the command didn't output anything I could understand (I don't know what the output format `%s` is). %s", m.Author.ID, resp.Context.OutputFormat, c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)))
@@ -435,29 +438,27 @@ If you have your granted capabilities to this command before, **it has been chan
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, it looks like the command didn't manage to send its output to Discord. %s", m.Author.ID, c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)))
 			return nil
 		}
+	} else if waitStatus.Signal() == syscall.SIGKILL {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, it looks like the command took too long to run. %s", m.Author.ID, c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)))
 	} else {
-		if resp.Killed {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, it looks like the command took too long to run. %s", m.Author.ID, c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)))
-		} else {
-			stderr := resp.Stderr
-			if len(stderr) > 1500 {
-				stderr = stderr[:1500]
-			}
-			s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-				Content: fmt.Sprintf("<@!%s>, that command ran into an error.", m.Author.ID),
-				Embed: &discordgo.MessageEmbed{
-					Color:       0xb50000,
-					Description: fmt.Sprintf("```%s```", string(stderr)),
-					Fields: []*discordgo.MessageEmbedField{
-						{
-							Name:   "Billing details",
-							Value:  c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp),
-							Inline: true,
-						},
+		stderr := resp.Stderr
+		if len(stderr) > 1500 {
+			stderr = stderr[:1500]
+		}
+		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+			Content: fmt.Sprintf("<@!%s>, that command ran into an error.", m.Author.ID),
+			Embed: &discordgo.MessageEmbed{
+				Color:       0xb50000,
+				Description: fmt.Sprintf("```%s```", string(stderr)),
+				Fields: []*discordgo.MessageEmbedField{
+					{
+						Name:   "Billing details",
+						Value:  c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp),
+						Inline: true,
 					},
 				},
-			})
-		}
+			},
+		})
 	}
 
 	return nil
