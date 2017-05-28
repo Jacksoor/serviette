@@ -250,8 +250,9 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	dur := endTime.Sub(startTime)
 	usageCost := int64(dur / s.durationPerUnitCost)
+	waitStatus := r.ProcessState.Sys().(syscall.WaitStatus)
 
-	glog.Infof("Script execution result: %s, time: %s, cost: %d", string(r.Stderr), dur, usageCost)
+	glog.Infof("Script execution result: %s, time: %s, cost: %d, wait status: %v", string(r.Stderr), dur, usageCost, waitStatus)
 
 	if _, err := s.moneyClient.Add(ctx, &moneypb.AddRequest{
 		AccountHandle: billingAccountHandle,
@@ -272,7 +273,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	return &pb.ExecuteResponse{
 		Context:    contextService.Context(),
-		WaitStatus: uint32(r.ProcessState.Sys().(syscall.WaitStatus)),
+		WaitStatus: uint32(waitStatus),
 		Stdout:     r.Stdout,
 		Stderr:     r.Stderr,
 		UsageCost:  usageCost,
@@ -417,6 +418,9 @@ func (s *Service) ensureAndMountAccountDisk(scriptAccountHandle []byte) (string,
 	}
 
 	if err := exec.Command("ntfs-3g", imagePath, mountPath).Run(); err != nil {
+		if err := os.Remove(mountPath); err != nil {
+			panic(err)
+		}
 		if eErr, ok := err.(*exec.ExitError); ok {
 			return "", fmt.Errorf("ntfs-3g %v: %v", eErr, string(eErr.Stderr))
 		}

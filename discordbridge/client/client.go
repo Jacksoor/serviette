@@ -270,7 +270,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
 
 		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: strings.TrimSpace(fmt.Sprintf("<@!%s>, here's the result of your command. %s", m.Author.ID, billingDetails)),
+			Content: fmt.Sprintf("<@!%s>, here's the result of your command. %s", m.Author.ID, billingDetails),
 			Embed:   &embed,
 		}); err != nil {
 			return err
@@ -288,7 +288,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
 
 		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: strings.TrimSpace(fmt.Sprintf("<@!%s>, here's the result of your command. %s", m.Author.ID, billingDetails)),
+			Content: fmt.Sprintf("<@!%s>, here's the result of your command. %s", m.Author.ID, billingDetails),
 			Embed:   &embed,
 		}); err != nil {
 			return err
@@ -427,7 +427,7 @@ If you have your granted capabilities to this command before, **it has been chan
 
 	waitStatus := syscall.WaitStatus(resp.WaitStatus)
 
-	if waitStatus.ExitStatus() == 0 || waitStatus.ExitStatus() == 1 {
+	if waitStatus.ExitStatus() == 0 || waitStatus.ExitStatus() == 2 {
 		outputFormatter, ok := outputFormatters[resp.Context.OutputFormat]
 		if !ok {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Sorry <@!%s>, it looks like the command didn't output anything I could understand (I don't know what the output format `%s` is). %s", m.Author.ID, resp.Context.OutputFormat, c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)))
@@ -445,18 +445,14 @@ If you have your granted capabilities to this command before, **it has been chan
 		if len(stderr) > 1500 {
 			stderr = stderr[:1500]
 		}
+
+		billingDetails := c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)
+
 		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>, that command ran into an error.", m.Author.ID),
+			Content: fmt.Sprintf("Sorry <@!%s>, that command ran into an error. %s", m.Author.ID, billingDetails),
 			Embed: &discordgo.MessageEmbed{
 				Color:       0xb50000,
 				Description: fmt.Sprintf("```%s```", string(stderr)),
-				Fields: []*discordgo.MessageEmbedField{
-					{
-						Name:   "Billing details",
-						Value:  c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp),
-						Inline: true,
-					},
-				},
 			},
 		})
 	}
