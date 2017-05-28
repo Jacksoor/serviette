@@ -39,7 +39,7 @@ function Client:call(method, req)
     self:_sendall(json.encode({
         id = reqId,
         method = method,
-        params = {setmetatable({unpack(req)}, {__jsontype = "object"})},
+        params = {setmetatable(req, {__jsontype = "object"})},
     }) .. "\n")
     self._id = self._id + 1
 

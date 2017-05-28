@@ -293,6 +293,7 @@ This is an example script using Python.
 """
 
 import sys
+sys.path.insert(0, '/usr/lib/k4')
 
 # Import the k4 library.
 import k4
