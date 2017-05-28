@@ -1,13 +1,7 @@
 package scriptsservice
 
 import (
-	"encoding/base64"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"sync"
 	"syscall"
 	"time"
 
@@ -31,12 +25,7 @@ import (
 
 type Service struct {
 	scripts *scripts.Store
-
-	imagesRoot string
-	imageSize  int64
-
-	mountsRoot string
-	mountsMu   sync.Mutex
+	mounter *scripts.Mounter
 
 	moneyClient    moneypb.MoneyClient
 	accountsClient accountspb.AccountsClient
@@ -46,19 +35,10 @@ type Service struct {
 	supervisor *worker.Supervisor
 }
 
-func New(scripts *scripts.Store, imagesRoot string, imageSize int64, moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, durationPerUnitCost time.Duration, supervisor *worker.Supervisor) (*Service, error) {
-	mountsRoot, err := ioutil.TempDir("", "kobun4-mounts-")
-	if err != nil {
-		return nil, err
-	}
-
+func New(scripts *scripts.Store, mounter *scripts.Mounter, moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, durationPerUnitCost time.Duration, supervisor *worker.Supervisor) *Service {
 	return &Service{
 		scripts: scripts,
-
-		imagesRoot: imagesRoot,
-		imageSize:  imageSize,
-
-		mountsRoot: mountsRoot,
+		mounter: mounter,
 
 		moneyClient:    moneyClient,
 		accountsClient: accountsClient,
@@ -66,30 +46,6 @@ func New(scripts *scripts.Store, imagesRoot string, imageSize int64, moneyClient
 		durationPerUnitCost: durationPerUnitCost,
 
 		supervisor: supervisor,
-	}, nil
-}
-
-func (s *Service) Stop() {
-	files, err := ioutil.ReadDir(s.mountsRoot)
-	if err != nil {
-		glog.Errorf("Failed to read mount root %s: %v", s.mountsRoot, err)
-		return
-	}
-
-	for _, file := range files {
-		mountPoint := filepath.Join(s.mountsRoot, file.Name())
-		glog.Infof("Unmounting %s", mountPoint)
-		if err := exec.Command("fusermount", "-u", mountPoint).Run(); err != nil {
-			glog.Errorf("Failed to unmount %s: %v", mountPoint, err)
-		} else {
-			if err := os.Remove(mountPoint); err != nil {
-				glog.Errorf("Failed to remove %s: %v", mountPoint, err)
-			}
-		}
-	}
-
-	if err := os.Remove(s.mountsRoot); err != nil {
-		glog.Errorf("Failed to delete root %s: %v", s.mountsRoot, err)
 	}
 }
 
@@ -199,7 +155,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 
 	// Ensure disk and mount it.
-	mountPath, err := s.ensureAndMountAccountDisk(req.ScriptAccountHandle)
+	mountPath, err := s.mounter.Mount(req.ScriptAccountHandle)
 	if err != nil {
 		glog.Errorf("Failed to ensure and mount disk: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
@@ -376,58 +332,6 @@ func (s *Service) SetAccountCapabilities(ctx context.Context, req *pb.SetAccount
 	}
 
 	return &pb.SetAccountCapabilitiesResponse{}, nil
-}
-
-func (s *Service) ensureAndMountAccountDisk(scriptAccountHandle []byte) (string, error) {
-	s.mountsMu.Lock()
-	defer s.mountsMu.Unlock()
-
-	encodedHandle := base64.RawURLEncoding.EncodeToString(scriptAccountHandle)
-
-	mountPath := filepath.Join(s.mountsRoot, encodedHandle)
-	if err := os.Mkdir(mountPath, 0700); err != nil {
-		if !os.IsExist(err) {
-			return "", err
-		}
-		return mountPath, nil
-	}
-
-	imagePath := filepath.Join(s.imagesRoot, encodedHandle)
-	if _, err := os.Stat(imagePath); err != nil {
-		if !os.IsNotExist(err) {
-			return "", err
-		}
-
-		f, err := os.Create(imagePath)
-		if err != nil {
-			return "", err
-		}
-
-		if err := f.Truncate(s.imageSize); err != nil {
-			f.Close()
-			return "", err
-		}
-		f.Close()
-
-		if err := exec.Command("mkfs.ntfs", "-F", imagePath).Run(); err != nil {
-			if eErr, ok := err.(*exec.ExitError); ok {
-				return "", fmt.Errorf("mkfs.ntfs %v: %v", eErr, string(eErr.Stderr))
-			}
-			return "", fmt.Errorf("mkfs.ntfs: %v", err)
-		}
-	}
-
-	if err := exec.Command("ntfs-3g", imagePath, mountPath).Run(); err != nil {
-		if err := os.Remove(mountPath); err != nil {
-			panic(err)
-		}
-		if eErr, ok := err.(*exec.ExitError); ok {
-			return "", fmt.Errorf("ntfs-3g %v: %v", eErr, string(eErr.Stderr))
-		}
-		return "", fmt.Errorf("ntfs-3g: %v", err)
-	}
-
-	return mountPath, nil
 }
 
 func (s *Service) ResolveAlias(ctx context.Context, req *pb.ResolveAliasRequest) (*pb.ResolveAliasResponse, error) {

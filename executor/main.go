@@ -21,6 +21,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/porpoises/kobun4/executor/scripts"
+	"github.com/porpoises/kobun4/executor/webdav"
 	"github.com/porpoises/kobun4/executor/worker"
 
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
@@ -31,8 +32,9 @@ import (
 )
 
 var (
-	socketPath      = flag.String("socket_path", "/tmp/kobun4-executor.socket", "Bind path for socket")
-	debugSocketPath = flag.String("debug_socket_path", "/tmp/kobun4-executor.debug.socket", "Bind path for socket")
+	socketPath       = flag.String("socket_path", "/tmp/kobun4-executor.socket", "Bind path for socket")
+	webdavSocketPath = flag.String("webdav_socket_path", "/tmp/kobun4-executor.webdav.socket", "Bind path for WebDAV socket")
+	debugSocketPath  = flag.String("debug_socket_path", "/tmp/kobun4-executor.debug.socket", "Bind path for socket")
 
 	sqliteDBPath = flag.String("sqlite_db_path", "executor.db", "Path to SQLite database")
 
@@ -81,20 +83,26 @@ func main() {
 	}
 	defer bankConn.Close()
 
+	accountsClient := accountspb.NewAccountsClient(bankConn)
+
 	supervisor := worker.NewSupervisor(&worker.WorkerOptions{
 		K4LibraryPath: *k4LibraryPath,
 		TimeLimit:     *timeLimit,
 		MemoryLimit:   *memoryLimit,
 	})
 
-	scriptsService, err := scriptsservice.New(scripts.NewStore(*scriptsRootPath, db), *imagesRootPath, *imageSize, moneypb.NewMoneyClient(bankConn), accountspb.NewAccountsClient(bankConn), *durationPerUnitCost, supervisor)
+	mounter, err := scripts.NewMounter(*imagesRootPath, *imageSize)
 	if err != nil {
 		glog.Fatalf("could not create scripts service: %v", err)
 	}
-	defer scriptsService.Stop()
+	defer func() {
+		if err := mounter.Close(); err != nil {
+			glog.Errorf("failed to close mounter: %v", err)
+		}
+	}()
 
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsService)
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scripts.NewStore(*scriptsRootPath, db), mounter, moneypb.NewMoneyClient(bankConn), accountsClient, *durationPerUnitCost, supervisor))
 	reflection.Register(s)
 
 	signalChan := make(chan os.Signal, 1)
@@ -110,6 +118,25 @@ func main() {
 	errChan := make(chan error)
 	go func() {
 		errChan <- s.Serve(lis)
+	}()
+
+	webdavLis, err := net.Listen("unix", *webdavSocketPath)
+	if err != nil {
+		glog.Fatalf("failed to listen: %v", err)
+	}
+	defer webdavLis.Close()
+
+	if err := os.Chmod(*webdavSocketPath, 0777); err != nil {
+		glog.Fatalf("failed to chmod listener: %v", err)
+	}
+
+	glog.Infof("WebDAV listening on: %s", webdavLis.Addr())
+
+	httpServer := &http.Server{
+		Handler: webdav.NewHandler(mounter, accountsClient),
+	}
+	go func() {
+		errChan <- httpServer.Serve(webdavLis)
 	}()
 
 	select {

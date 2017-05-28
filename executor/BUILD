@@ -13,6 +13,7 @@ go_library(
         "//executor/scripts:go_default_library",
         "//executor/scriptsservice:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
+        "//executor/webdav:go_default_library",
         "//executor/worker:go_default_library",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_mattn_go_sqlite3//:go_default_library",
