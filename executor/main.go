@@ -42,6 +42,8 @@ var (
 
 	k4LibraryPath = flag.String("k4_library_path", "clients", "Path to library root")
 
+	chrootPath = flag.String("chroot_path", "chroot", "Path to chroot")
+
 	scriptsRootPath = flag.String("scripts_root_path", "scripts", "Path to script root")
 
 	imagesRootPath = flag.String("images_root_path", "images", "Path to image root")
@@ -85,12 +87,6 @@ func main() {
 
 	accountsClient := accountspb.NewAccountsClient(bankConn)
 
-	supervisor := worker.NewSupervisor(&worker.WorkerOptions{
-		K4LibraryPath: *k4LibraryPath,
-		TimeLimit:     *timeLimit,
-		MemoryLimit:   *memoryLimit,
-	})
-
 	mounter, err := scripts.NewMounter(*imagesRootPath, *imageSize)
 	if err != nil {
 		glog.Fatalf("could not create scripts service: %v", err)
@@ -100,6 +96,15 @@ func main() {
 			glog.Errorf("failed to close mounter: %v", err)
 		}
 	}()
+
+	supervisor := worker.NewSupervisor(&worker.WorkerOptions{
+		K4LibraryPath: *k4LibraryPath,
+		TimeLimit:     *timeLimit,
+		MemoryLimit:   *memoryLimit,
+		Chroot:        *chrootPath,
+		ScriptsRoot:   *scriptsRootPath,
+		MountsRoot:    mounter.MountsRoot(),
+	})
 
 	s := grpc.NewServer()
 	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scripts.NewStore(*scriptsRootPath, db), mounter, moneypb.NewMoneyClient(bankConn), accountsClient, *durationPerUnitCost, supervisor))

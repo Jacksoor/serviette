@@ -161,7 +161,6 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
 
-	nsjailArgs := []string{}
 	getBalanceResp, err := s.moneyClient.GetBalance(ctx, &moneypb.GetBalanceRequest{
 		AccountHandle: [][]byte{billingAccountHandle},
 	})
@@ -174,11 +173,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.FailedPrecondition, "the executing account does not have enough funds")
 	}
 
-	nsjailArgs = []string{
-		"--bindmount", fmt.Sprintf("%s:/mnt/storage", mountPath),
-	}
-
-	worker := s.supervisor.Spawn(script.Path(), []string{}, []byte(req.Rest))
+	worker := s.supervisor.Spawn(script.QualifiedName(), []string{}, []byte(req.Rest))
 
 	accountsService := accountsservice.New(s.accountsClient)
 	worker.RegisterService("Accounts", accountsService)
@@ -197,7 +192,10 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	defer workerCancel()
 
 	startTime := time.Now()
-	r, err := worker.Run(workerCtx, nsjailArgs)
+	r, err := worker.Run(workerCtx, []string{
+		"--bindmount", fmt.Sprintf("%s:/mnt/storage", mountPath),
+		"--cwd", "/mnt/storage",
+	})
 	if r == nil {
 		glog.Errorf("Failed to run worker: %v", err)
 		return nil, err

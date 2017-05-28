@@ -41,8 +41,12 @@ type Script struct {
 	name          string
 }
 
+func (s *Script) QualifiedName() string {
+	return filepath.Join(base64.RawURLEncoding.EncodeToString(s.accountHandle), s.name)
+}
+
 func (s *Script) Path() string {
-	return filepath.Join(s.rootPath, base64.RawURLEncoding.EncodeToString(s.accountHandle), s.name)
+	return filepath.Join(s.rootPath, s.QualifiedName())
 }
 
 func (s *Script) AccountHandle() []byte {

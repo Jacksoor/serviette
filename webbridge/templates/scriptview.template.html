@@ -65,6 +65,18 @@
         mode: 'null',
         lineNumbers: true,
         viewportMargin: Infinity,
+        indentUnit: 4,
+        tabSize: 4,
+        indentWithTabs: false,
+        extraKeys: {
+            Tab: function (cm) {
+                if (cm.somethingSelected()) {
+                    cm.indentSelection("add");
+                } else {
+                    cm.replaceSelection(cm.getOption("indentWithTabs") ? "\t" : Array(cm.getOption("indentUnit") + 1).join(" "), "end", "+input");
+                }
+            }
+        }
     });
 
     var modesSelect = document.getElementById("modes");

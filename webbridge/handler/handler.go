@@ -286,7 +286,7 @@ func (h *Handler) scriptAccountIndex(w http.ResponseWriter, r *http.Request, ps 
 	})
 }
 
-var newScriptTemplate string = `#!/usr/bin/python3 -S
+var newScriptTemplate string = `#!/usr/bin/python3
 
 """
 This is an example script using Python.

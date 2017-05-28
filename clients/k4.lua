@@ -1,5 +1,5 @@
-socket = require('posix.sys.socket')
 json = require('dkjson')
+socket = require('posix.sys.socket')
 
 Client = {}
 Client.__index = Client

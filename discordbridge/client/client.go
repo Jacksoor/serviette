@@ -447,13 +447,17 @@ If you have your granted capabilities to this command before, **it has been chan
 		}
 
 		billingDetails := c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)
+		var embed discordgo.MessageEmbed
+		embed.Color = 0xb50000
+		if len(stderr) > 0 {
+			embed.Description = fmt.Sprintf("```%s```", string(stderr))
+		} else {
+			embed.Description = "(stderr was empty)"
+		}
 
 		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Content: fmt.Sprintf("Sorry <@!%s>, that command ran into an error. %s", m.Author.ID, billingDetails),
-			Embed: &discordgo.MessageEmbed{
-				Color:       0xb50000,
-				Description: fmt.Sprintf("```%s```", string(stderr)),
-			},
+			Embed:   &embed,
 		})
 	}
 

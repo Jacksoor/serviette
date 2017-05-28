@@ -35,6 +35,10 @@ func NewMounter(imagesRoot string, imageSize int64) (*Mounter, error) {
 	}, nil
 }
 
+func (m* Mounter) MountsRoot() string {
+	return m.mountsRoot
+}
+
 func (m *Mounter) Mount(scriptAccountHandle []byte) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

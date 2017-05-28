@@ -8,6 +8,7 @@ import (
 	"net/rpc/jsonrpc"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -30,6 +31,9 @@ type WorkerOptions struct {
 	K4LibraryPath string
 	TimeLimit     time.Duration
 	MemoryLimit   int64
+	Chroot        string
+	MountsRoot    string
+	ScriptsRoot   string
 }
 
 type WorkerResult struct {
@@ -62,6 +66,11 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
+	if deadline, ok := ctx.Deadline(); ok {
+		nsjailArgs = append(nsjailArgs,
+			"--rlimit_cpu", fmt.Sprintf("%d", time.Until(deadline)/time.Second))
+	}
+
 	cmd := exec.CommandContext(
 		ctx, "nsjail",
 		append(append(nsjailArgs,
@@ -71,24 +80,14 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 			"--user", "nobody",
 			"--group", "nogroup",
 			"--hostname", "kobun4",
-			"--enable_clone_newcgroup",
 			"--disable_clone_newnet",
 			"--cgroup_mem_max", fmt.Sprintf("%d", f.opts.MemoryLimit),
-			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4", f.opts.K4LibraryPath),
-			"--bindmount_ro", fmt.Sprintf("%s:/opt/k4/_work", f.arg0),
-			"--bindmount_ro", "/etc/alternatives",
-			"--bindmount_ro", "/dev/urandom",
-			"--bindmount_ro", "/bin",
-			"--bindmount_ro", "/sbin",
-			"--bindmount_ro", "/etc/ssl/certs",
-			"--bindmount_ro", "/etc/resolv.conf",
-			"--bindmount_ro", "/usr",
-			"--bindmount_ro", "/lib",
-			"--bindmount_ro", "/lib64",
+			"--chroot", f.opts.Chroot,
+			"--bindmount_ro", fmt.Sprintf("%s:/usr/lib/k4", f.opts.K4LibraryPath),
+			"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", f.opts.ScriptsRoot),
 			"--tmpfsmount", "/tmp",
-			"--cwd", "/opt/k4",
 			"--",
-			"/opt/k4/_work"),
+			filepath.Join("/mnt/scripts", f.arg0)),
 			f.argv...)...)
 	cmd.Stdin = f.stdin
 	cmd.Stdout = limio.LimitWriter(&stdout, maxBufferSize)
