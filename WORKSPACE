@@ -100,3 +100,9 @@ new_go_repository(
     commit = "81a3204d823f2cb127fd516387fab63abe1017f3",
     importpath = "github.com/djherbis/buffer",
 )
+
+new_go_repository(
+    name = "com_github_kballard_go_shellquote",
+    commit = "d8ec1a69a250a17bb0e419c386eac1f3711dc142",
+    importpath = "github.com/kballard/go-shellquote",
+)

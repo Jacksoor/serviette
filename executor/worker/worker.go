@@ -31,6 +31,7 @@ type WorkerOptions struct {
 	K4LibraryPath string
 	TimeLimit     time.Duration
 	MemoryLimit   int64
+	NsjailArgs    []string
 	Chroot        string
 	MountsRoot    string
 	ScriptsRoot   string
@@ -66,29 +67,33 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
+	nsjailArgs = append(nsjailArgs, f.opts.NsjailArgs...)
+
 	if deadline, ok := ctx.Deadline(); ok {
+		timeLimit := time.Until(deadline) / time.Second
 		nsjailArgs = append(nsjailArgs,
-			"--rlimit_cpu", fmt.Sprintf("%d", time.Until(deadline)/time.Second))
+			"--rlimit_cpu", fmt.Sprintf("%d", timeLimit),
+			"--time_limit", fmt.Sprintf("%d", timeLimit),
+		)
 	}
 
+	nsjailArgs = append(nsjailArgs,
+		"--mode", "o",
+		"--log", "/proc/self/fd/4",
+		"--pass_fd", "3",
+		"--user", "nobody",
+		"--group", "nogroup",
+		"--hostname", "kobun4",
+		"--cgroup_mem_max", fmt.Sprintf("%d", f.opts.MemoryLimit),
+		"--chroot", f.opts.Chroot,
+		"--bindmount_ro", fmt.Sprintf("%s:/usr/lib/k4", f.opts.K4LibraryPath),
+		"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", f.opts.ScriptsRoot),
+		"--tmpfsmount", "/tmp",
+		"--",
+		filepath.Join("/mnt/scripts", f.arg0))
+
 	cmd := exec.CommandContext(
-		ctx, "nsjail",
-		append(append(nsjailArgs,
-			"--mode", "o",
-			"--log", "/proc/self/fd/4",
-			"--pass_fd", "3",
-			"--user", "nobody",
-			"--group", "nogroup",
-			"--hostname", "kobun4",
-			"--disable_clone_newnet",
-			"--cgroup_mem_max", fmt.Sprintf("%d", f.opts.MemoryLimit),
-			"--chroot", f.opts.Chroot,
-			"--bindmount_ro", fmt.Sprintf("%s:/usr/lib/k4", f.opts.K4LibraryPath),
-			"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", f.opts.ScriptsRoot),
-			"--tmpfsmount", "/tmp",
-			"--",
-			filepath.Join("/mnt/scripts", f.arg0)),
-			f.argv...)...)
+		ctx, "nsjail", append(nsjailArgs, f.argv...)...)
 	cmd.Stdin = f.stdin
 	cmd.Stdout = limio.LimitWriter(&stdout, maxBufferSize)
 	cmd.Stderr = limio.LimitWriter(&stderr, maxBufferSize)

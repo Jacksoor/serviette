@@ -18,6 +18,7 @@ import (
 	_ "google.golang.org/grpc/grpclog/glogger"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/kballard/go-shellquote"
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/porpoises/kobun4/executor/scripts"
@@ -38,13 +39,11 @@ var (
 
 	sqliteDBPath = flag.String("sqlite_db_path", "executor.db", "Path to SQLite database")
 
-	bankTarget = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
-
-	k4LibraryPath = flag.String("k4_library_path", "clients", "Path to library root")
-
-	chrootPath = flag.String("chroot_path", "chroot", "Path to chroot")
-
+	bankTarget      = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
+	k4LibraryPath   = flag.String("k4_library_path", "clients", "Path to library root")
+	chrootPath      = flag.String("chroot_path", "chroot", "Path to chroot")
 	scriptsRootPath = flag.String("scripts_root_path", "scripts", "Path to script root")
+	nsjailArgs      = flag.String("nsjail_args", "", "Additional args to nsjail")
 
 	imagesRootPath = flag.String("images_root_path", "images", "Path to image root")
 	imageSize      = flag.Int64("image_size", 20*1024*1024, "Image size for new images")
@@ -97,10 +96,16 @@ func main() {
 		}
 	}()
 
+	splitNsjailArgs, err := shellquote.Split(*nsjailArgs)
+	if err != nil {
+		glog.Fatalf("failed to parse nsjail args: %v", err)
+	}
+
 	supervisor := worker.NewSupervisor(&worker.WorkerOptions{
 		K4LibraryPath: *k4LibraryPath,
 		TimeLimit:     *timeLimit,
 		MemoryLimit:   *memoryLimit,
+		NsjailArgs:    splitNsjailArgs,
 		Chroot:        *chrootPath,
 		ScriptsRoot:   *scriptsRootPath,
 		MountsRoot:    mounter.MountsRoot(),

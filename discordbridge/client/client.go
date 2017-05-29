@@ -1,8 +1,10 @@
 package client
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"syscall"
@@ -19,6 +21,8 @@ import (
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
+
+var errInvalidOutput = errors.New("invalid output")
 
 type command func(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error
 
@@ -248,9 +252,13 @@ type outputFormatter func(c *Client, s *discordgo.Session, m *discordgo.Message,
 
 var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 	"text": func(c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, requestedCapabilities *scriptspb.Capabilities, r *scriptspb.ExecuteResponse) error {
-		color := 0x009100
+		embed := discordgo.MessageEmbed{
+			Color:  0x009100,
+			Fields: []*discordgo.MessageEmbedField{},
+		}
+
 		if syscall.WaitStatus(r.WaitStatus).ExitStatus() != 0 {
-			color = 0xb50000
+			embed.Color = 0xb50000
 		}
 
 		stdout := r.Stdout
@@ -258,11 +266,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 			stdout = stdout[:1500]
 		}
 
-		embed := discordgo.MessageEmbed{
-			Color:       color,
-			Description: string(stdout),
-			Fields:      []*discordgo.MessageEmbedField{},
-		}
+		embed.Description = string(stdout)
 
 		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
 
@@ -279,7 +283,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		var embed discordgo.MessageEmbed
 
 		if err := json.Unmarshal(r.Stdout, &embed); err != nil {
-			return err
+			return errInvalidOutput
 		}
 
 		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
@@ -287,6 +291,26 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Content: fmt.Sprintf("<@!%s>: ✅%s", m.Author.ID, billingDetails),
 			Embed:   &embed,
+		}); err != nil {
+			return err
+		}
+		return nil
+	},
+
+	"discord.file": func(c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, requestedCapabilities *scriptspb.Capabilities, r *scriptspb.ExecuteResponse) error {
+		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
+
+		nulPosition := bytes.IndexByte(r.Stdout, byte(0))
+		if nulPosition == -1 {
+			return errInvalidOutput
+		}
+
+		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+			Content: fmt.Sprintf("<@!%s>: ✅%s", m.Author.ID, billingDetails),
+			File: &discordgo.File{
+				Name:   string(r.Stdout[:nulPosition]),
+				Reader: bytes.NewBuffer(r.Stdout[nulPosition+1:]),
+			},
 		}); err != nil {
 			return err
 		}
@@ -434,9 +458,11 @@ If you have your granted capabilities to this command before, **it has been chan
 			return nil
 		}
 		if err := outputFormatter(c, s, m, channel, getRequestedCapsResp.Capabilities, resp); err != nil {
-			glog.Errorf("Failed to format output: %v", err)
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Failed to send output to Discord**%s", m.Author.ID, c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)))
-			return nil
+			if err == errInvalidOutput {
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Command output was invalid**%s", m.Author.ID, c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)))
+				return nil
+			}
+			return err
 		}
 	} else if waitStatus.Signal() == syscall.SIGKILL {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Took too long**%s", m.Author.ID, c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)))
@@ -456,7 +482,7 @@ If you have your granted capabilities to this command before, **it has been chan
 		}
 
 		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>: ❗ Error occurred%s", m.Author.ID, billingDetails),
+			Content: fmt.Sprintf("<@!%s>: ❗ **Error occurred**%s", m.Author.ID, billingDetails),
 			Embed:   &embed,
 		})
 	}

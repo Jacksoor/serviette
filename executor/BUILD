@@ -16,6 +16,7 @@ go_library(
         "//executor/webdav:go_default_library",
         "//executor/worker:go_default_library",
         "@com_github_golang_glog//:go_default_library",
+        "@com_github_kballard_go_shellquote//:go_default_library",
         "@com_github_mattn_go_sqlite3//:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//grpclog/glogger:go_default_library",
