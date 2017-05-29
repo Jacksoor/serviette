@@ -257,8 +257,13 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 			Fields: []*discordgo.MessageEmbedField{},
 		}
 
+		var sigil string
 		if syscall.WaitStatus(r.WaitStatus).ExitStatus() != 0 {
 			embed.Color = 0xb50000
+			sigil = "❎"
+		} else {
+			embed.Color = 0x009100
+			sigil = "✅"
 		}
 
 		stdout := r.Stdout
@@ -271,7 +276,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
 
 		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>: ✅%s", m.Author.ID, billingDetails),
+			Content: fmt.Sprintf("<@!%s>: %s%s", m.Author.ID, sigil, billingDetails),
 			Embed:   &embed,
 		}); err != nil {
 			return err
@@ -282,6 +287,13 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 	"discord.embed": func(c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, requestedCapabilities *scriptspb.Capabilities, r *scriptspb.ExecuteResponse) error {
 		var embed discordgo.MessageEmbed
 
+		var sigil string
+		if syscall.WaitStatus(r.WaitStatus).ExitStatus() != 0 {
+			sigil = "❎"
+		} else {
+			sigil = "✅"
+		}
+
 		if err := json.Unmarshal(r.Stdout, &embed); err != nil {
 			return errInvalidOutput
 		}
@@ -289,7 +301,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
 
 		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>: ✅%s", m.Author.ID, billingDetails),
+			Content: fmt.Sprintf("<@!%s>: %s%s", sigil, m.Author.ID, billingDetails),
 			Embed:   &embed,
 		}); err != nil {
 			return err
@@ -298,6 +310,13 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 	},
 
 	"discord.file": func(c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, requestedCapabilities *scriptspb.Capabilities, r *scriptspb.ExecuteResponse) error {
+		var sigil string
+		if syscall.WaitStatus(r.WaitStatus).ExitStatus() != 0 {
+			sigil = "❎"
+		} else {
+			sigil = "✅"
+		}
+
 		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
 
 		nulPosition := bytes.IndexByte(r.Stdout, byte(0))
@@ -306,7 +325,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		}
 
 		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>: ✅%s", m.Author.ID, billingDetails),
+			Content: fmt.Sprintf("<@!%s>: %s%s", sigil, m.Author.ID, billingDetails),
 			File: &discordgo.File{
 				Name:   string(r.Stdout[:nulPosition]),
 				Reader: bytes.NewBuffer(r.Stdout[nulPosition+1:]),
