@@ -118,3 +118,28 @@ func (s *Service) Transfer(req *TransferRequest, resp *TransferResponse) error {
 
 	return nil
 }
+
+type GetBalanceRequest struct {
+	AccountHandle string `json:"accountHandle"`
+}
+
+type GetBalanceResponse struct {
+	Balance int64 `json:"balance"`
+}
+
+func (s *Service) GetBalance(req *GetBalanceRequest, resp *GetBalanceResponse) error {
+	accountHandle, err := base64.RawURLEncoding.DecodeString(req.AccountHandle)
+	if err != nil {
+		return err
+	}
+
+	getBalanceResp, err := s.moneyClient.GetBalance(context.Background(), &moneypb.GetBalanceRequest{
+		AccountHandle: accountHandle,
+	})
+	if err != nil {
+		return err
+	}
+
+	resp.Balance = getBalanceResp.Balance
+	return nil
+}

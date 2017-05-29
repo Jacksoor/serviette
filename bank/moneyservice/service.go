@@ -53,37 +53,31 @@ func (s *Service) Add(ctx context.Context, req *pb.AddRequest) (*pb.AddResponse,
 }
 
 func (s *Service) GetBalance(ctx context.Context, req *pb.GetBalanceRequest) (*pb.GetBalanceResponse, error) {
-	balances := make([]int64, len(req.AccountHandle))
+	tx, err := s.accounts.BeginTx(ctx)
+	defer tx.Rollback()
 
-	for i, accountHandle := range req.AccountHandle {
-		tx, err := s.accounts.BeginTx(ctx)
-		defer tx.Rollback()
+	if err != nil {
+		glog.Errorf("Failed to start transaction: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to start transaction")
+	}
 
-		if err != nil {
-			glog.Errorf("Failed to start transaction: %v", err)
-			return nil, grpc.Errorf(codes.Internal, "failed to start transaction")
+	account, err := s.accounts.Load(ctx, tx, req.AccountHandle)
+	if err != nil {
+		if err == accounts.ErrNotFound {
+			return nil, grpc.Errorf(codes.NotFound, "account not found")
 		}
+		glog.Errorf("Failed to load account: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load account")
+	}
 
-		account, err := s.accounts.Load(ctx, tx, accountHandle)
-		if err != nil {
-			if err == accounts.ErrNotFound {
-				continue
-			}
-			glog.Errorf("Failed to load account: %v", err)
-			return nil, grpc.Errorf(codes.Internal, "failed to load account")
-		}
-
-		balance, err := account.Balance(ctx, tx)
-		if err != nil {
-			glog.Errorf("Failed to get balance: %v", err)
-			return nil, grpc.Errorf(codes.Internal, "failed to get balance")
-		}
-
-		balances[i] = balance
+	balance, err := account.Balance(ctx, tx)
+	if err != nil {
+		glog.Errorf("Failed to get balance: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to get balance")
 	}
 
 	return &pb.GetBalanceResponse{
-		Balance: balances,
+		Balance: balance,
 	}, nil
 }
 

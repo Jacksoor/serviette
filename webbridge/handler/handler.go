@@ -155,7 +155,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	}
 
 	balanceResp, err := h.moneyClient.GetBalance(r.Context(), &moneypb.GetBalanceRequest{
-		AccountHandle: [][]byte{accountHandle},
+		AccountHandle: accountHandle,
 	})
 	if err != nil {
 		glog.Errorf("Failed to get balance: %v", err)
@@ -205,7 +205,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	}{
 		base64.RawURLEncoding.EncodeToString(accountHandle),
 		base64.RawURLEncoding.EncodeToString(accountKey),
-		balanceResp.Balance[0],
+		balanceResp.Balance,
 		scriptsListResp.Name,
 		aliases,
 
@@ -227,6 +227,11 @@ func (h *Handler) scriptIndex(w http.ResponseWriter, r *http.Request, ps httprou
 		listResp, err := h.scriptsClient.List(r.Context(), &scriptspb.ListRequest{
 			AccountHandle: accountHandle,
 		})
+
+		if len(listResp.Name) == 0 {
+			continue
+		}
+
 		if err != nil {
 			glog.Errorf("Failed to get script names: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -528,7 +533,7 @@ func (h *Handler) aliasCreate(w http.ResponseWriter, r *http.Request, ps httprou
 	}
 
 	balanceResp, err := h.moneyClient.GetBalance(r.Context(), &moneypb.GetBalanceRequest{
-		AccountHandle: [][]byte{accountHandle},
+		AccountHandle: accountHandle,
 	})
 	if err != nil {
 		glog.Errorf("Failed to get balance: %v", err)
@@ -537,7 +542,7 @@ func (h *Handler) aliasCreate(w http.ResponseWriter, r *http.Request, ps httprou
 	}
 
 	cost := periods * h.aliasCost
-	if balanceResp.Balance[0] < cost {
+	if balanceResp.Balance < cost {
 		http.Error(w, "Forbidden: insufficient funds", http.StatusForbidden)
 		return
 	}
@@ -636,7 +641,7 @@ func (h *Handler) aliasRenew(w http.ResponseWriter, r *http.Request, ps httprout
 	}
 
 	balanceResp, err := h.moneyClient.GetBalance(r.Context(), &moneypb.GetBalanceRequest{
-		AccountHandle: [][]byte{accountHandle},
+		AccountHandle: accountHandle,
 	})
 	if err != nil {
 		glog.Errorf("Failed to get balance: %v", err)
@@ -645,7 +650,7 @@ func (h *Handler) aliasRenew(w http.ResponseWriter, r *http.Request, ps httprout
 	}
 
 	cost := periods * h.aliasCost
-	if balanceResp.Balance[0] < cost {
+	if balanceResp.Balance < cost {
 		http.Error(w, "Forbidden: insufficient funds", http.StatusForbidden)
 		return
 	}

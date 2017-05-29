@@ -162,14 +162,13 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 
 	getBalanceResp, err := s.moneyClient.GetBalance(ctx, &moneypb.GetBalanceRequest{
-		AccountHandle: [][]byte{billingAccountHandle},
+		AccountHandle: billingAccountHandle,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	balance := getBalanceResp.Balance[0]
-	if balance <= 0 {
+	if getBalanceResp.Balance <= 0 {
 		return nil, grpc.Errorf(codes.FailedPrecondition, "the executing account does not have enough funds")
 	}
 
@@ -188,7 +187,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	contextService := contextservice.New(req.Context)
 	worker.RegisterService("Context", contextService)
 
-	workerCtx, workerCancel := context.WithTimeout(ctx, time.Duration(balance)*s.durationPerUnitCost)
+	workerCtx, workerCancel := context.WithTimeout(ctx, time.Duration(getBalanceResp.Balance)*s.durationPerUnitCost)
 	defer workerCancel()
 
 	startTime := time.Now()

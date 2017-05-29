@@ -62,17 +62,20 @@ func bankBalance(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 	}
 
 	resp, err := c.moneyClient.GetBalance(ctx, &moneypb.GetBalanceRequest{
-		AccountHandle: [][]byte{accountHandle},
+		AccountHandle: accountHandle,
 	})
 	if err != nil {
-		return err
+		if grpc.Code(err) == codes.NotFound {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Account `%s` not found**", m.Author.ID, base64.RawURLEncoding.EncodeToString(accountHandle)))
+			return nil
+		}
 	}
 
 	if target[0] != '<' {
 		target = "`" + target + "`"
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **%s's balance:** %d %s", m.Author.ID, target, resp.Balance[0], c.currencyName(channel.GuildID)))
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **%s's balance:** %d %s", m.Author.ID, target, resp.Balance, c.currencyName(channel.GuildID)))
 	return nil
 }
 
@@ -97,17 +100,20 @@ func bankAccount(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 	}
 
 	resp, err := c.moneyClient.GetBalance(ctx, &moneypb.GetBalanceRequest{
-		AccountHandle: [][]byte{accountHandle},
+		AccountHandle: accountHandle,
 	})
 	if err != nil {
-		return err
+		if grpc.Code(err) == codes.NotFound {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Account `%s` not found**", m.Author.ID, base64.RawURLEncoding.EncodeToString(accountHandle)))
+			return nil
+		}
 	}
 
 	if target[0] != '<' {
 		target = "`" + target + "`"
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **%s (`%s`)'s balance:** %d %s", m.Author.ID, target, base64.RawURLEncoding.EncodeToString(accountHandle), resp.Balance[0], c.currencyName(channel.GuildID)))
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **%s (`%s`)'s balance:** %d %s", m.Author.ID, target, base64.RawURLEncoding.EncodeToString(accountHandle), resp.Balance, c.currencyName(channel.GuildID)))
 	return nil
 }
 
@@ -152,10 +158,11 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		Amount:              amount,
 	})
 	if err != nil {
-		if grpc.Code(err) == codes.FailedPrecondition {
+		switch grpc.Code(err) {
+		case codes.FailedPrecondition:
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Not enough funds**", m.Author.ID))
 			return nil
-		} else if grpc.Code(err) == codes.InvalidArgument {
+		case codes.InvalidArgument:
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Invalid transfer amount**", m.Author.ID))
 			return nil
 		}

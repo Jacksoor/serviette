@@ -301,7 +301,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
 
 		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>: %s%s", sigil, m.Author.ID, billingDetails),
+			Content: fmt.Sprintf("<@!%s>: %s%s", m.Author.ID, sigil, billingDetails),
 			Embed:   &embed,
 		}); err != nil {
 			return err
@@ -325,7 +325,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		}
 
 		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>: %s%s", sigil, m.Author.ID, billingDetails),
+			Content: fmt.Sprintf("<@!%s>: %s%s", m.Author.ID, sigil, billingDetails),
 			File: &discordgo.File{
 				Name:   string(r.Stdout[:nulPosition]),
 				Reader: bytes.NewBuffer(r.Stdout[nulPosition+1:]),
