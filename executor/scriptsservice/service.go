@@ -204,6 +204,10 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	dur := endTime.Sub(startTime)
 	usageCost := int64(dur / s.durationPerUnitCost)
+	if usageCost == 0 {
+		// Charge a minimum of 1.
+		usageCost = 1
+	}
 	waitStatus := r.ProcessState.Sys().(syscall.WaitStatus)
 
 	glog.Infof("Script execution result: %s, time: %s, cost: %d, wait status: %v", string(r.Stderr), dur, usageCost, waitStatus)
