@@ -235,6 +235,8 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ‼ **Internal error**", m.Author.ID))
 			return
 		}
+
+		return
 	}
 
 	if err := c.payForMessage(ctx, m.Message); err != nil {
@@ -313,7 +315,7 @@ func (c *Client) prettyBillingDetails(requestedCapabilities *scriptspb.Capabilit
 	if billingDetails == "" {
 		return ""
 	}
-	return "| " + billingDetails
+	return " | " + billingDetails
 }
 
 func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, commandName string, rest string) error {
@@ -390,7 +392,7 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 %ssetcaps %s %s
 `+"```"+`
 If you have your granted capabilities to this command before, **it has been changed from the last time you ran it.**`,
-			m.Author.ID, commandName, strings.Join(prettyCaps, "\n"), c.bankCommandPrefix(channel.GuildID), commandName, strings.Join(capSettings, " ")))
+			m.Author.ID, strings.Join(prettyCaps, "\n"), c.bankCommandPrefix(channel.GuildID), commandName, strings.Join(capSettings, " ")))
 		return nil
 	}
 
