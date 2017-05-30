@@ -5,12 +5,11 @@ package kobun4.executor.scripts.v1;
 option go_package = "v1pb";
 
 message Requirements {
-    bool bill_usage_to_executing_account = 1;
+    bool bill_usage_to_owner = 1;
 }
 
 message Grants {
-    bool bill_usage_to_executing_account = 1;
-    int64 withdrawal_limit = 2;
+    int64 withdrawal_limit = 1;
 }
 
 message Context {
@@ -27,6 +26,8 @@ message Context {
     string executing_account_handle = 10;
 
     string currency_name = 11;
+    string script_command_prefix = 12;
+    string bank_command_prefix = 13;
 
     map<string, string> extra = 1000;
 }

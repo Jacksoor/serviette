@@ -1,5 +1,5 @@
 package client
 
-func explainBillUsageToExecutingAccount(c *Client) string {
-	return "bill usage to the executing account"
+func explainBillUsageToOwner(c *Client) string {
+	return "bill usage to the command's owner"
 }

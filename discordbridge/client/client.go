@@ -307,7 +307,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 func (c *Client) prettyBillingDetails(commandName string, requirements *scriptspb.Requirements, grants *scriptspb.Grants, channel *discordgo.Channel, r *scriptspb.ExecuteResponse) string {
 	parts := []string{}
 
-	if requirements.BillUsageToExecutingAccount {
+	if !requirements.BillUsageToOwner {
 		parts = append(parts, fmt.Sprintf("**Usage cost:** %d %s", r.UsageCost, c.currencyName(channel.GuildID)))
 	} else {
 		// Leave top line empty.
@@ -388,28 +388,6 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 	}
 	grants := getGrantsResp.Grants
 
-	prettyGrants := make([]string, 0)
-	if requirements.BillUsageToExecutingAccount {
-		if !grants.BillUsageToExecutingAccount {
-			prettyGrants = append(prettyGrants, " - "+explainBillUsageToExecutingAccount(c)+" (you!)")
-		}
-		grants.BillUsageToExecutingAccount = true
-	}
-
-	if len(prettyGrants) > 0 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(`<@!%s>: ⚠ **Requirements not met:**
-
-%s
-
-**If you want to allow this, please run the following command:**
-`+"```"+`
-%sgrant %s %s
-`+"```"+`
-If you have bestowed grants on this command before, **it has been changed from the last time you ran it.**`,
-			m.Author.ID, strings.Join(prettyGrants, "\n"), c.bankCommandPrefix(channel.GuildID), commandName, textMarshaler.Text(grants)))
-		return nil
-	}
-
 	resp, err := c.scriptsClient.Execute(ctx, &scriptspb.ExecuteRequest{
 		ExecutingAccountHandle: resolveResp.AccountHandle,
 		ExecutingAccountKey:    resolveResp.AccountKey,
@@ -425,13 +403,15 @@ If you have bestowed grants on this command before, **it has been changed from t
 			IsPrivate:    channel.IsPrivate,
 			OutputFormat: "text",
 
-			CurrencyName: c.currencyName(channel.GuildID),
+			CurrencyName:        c.currencyName(channel.GuildID),
+			ScriptCommandPrefix: c.scriptCommandPrefix(channel.GuildID),
+			BankCommandPrefix:   c.bankCommandPrefix(channel.GuildID),
 		},
 	})
 
 	if err != nil {
 		if grpc.Code(err) == codes.FailedPrecondition {
-			if requirements.BillUsageToExecutingAccount {
+			if requirements.BillUsageToOwner {
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Command owner does not have enough funds**", m.Author.ID))
 			} else {
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Not enough funds**", m.Author.ID))
@@ -446,14 +426,14 @@ If you have bestowed grants on this command before, **it has been changed from t
 	if waitStatus.ExitStatus() == 0 || waitStatus.ExitStatus() == 2 {
 		outputFormatter, ok := outputFormatters[resp.Context.OutputFormat]
 		if !ok {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Output format `%s` unknown**%s", m.Author.ID, resp.Context.OutputFormat, c.prettyBillingDetails(commandName, requirements, grants, channel, resp)))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Output format `%s` unknown!** %s", m.Author.ID, resp.Context.OutputFormat, c.prettyBillingDetails(commandName, requirements, grants, channel, resp)))
 			return nil
 		}
 
 		messageSend, err := outputFormatter(resp)
 		if err != nil {
 			if err == errInvalidOutput {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Command output was invalid**%s", m.Author.ID, c.prettyBillingDetails(commandName, requirements, grants, channel, resp)))
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Command output was invalid!** %s", m.Author.ID, c.prettyBillingDetails(commandName, requirements, grants, channel, resp)))
 				return nil
 			}
 			return err
@@ -466,14 +446,14 @@ If you have bestowed grants on this command before, **it has been changed from t
 			sigil = "✅"
 		}
 
-		messageSend.Content = fmt.Sprintf("<@!%s>: %s%s", m.Author.ID, sigil, c.prettyBillingDetails(commandName, requirements, grants, channel, resp))
+		messageSend.Content = fmt.Sprintf("<@!%s>: %s %s", m.Author.ID, sigil, c.prettyBillingDetails(commandName, requirements, grants, channel, resp))
 
 		if _, err := s.ChannelMessageSendComplex(m.ChannelID, messageSend); err != nil {
 			return err
 		}
 		return nil
 	} else if waitStatus.Signal() == syscall.SIGKILL {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Took too long**%s", m.Author.ID, c.prettyBillingDetails(commandName, requirements, grants, channel, resp)))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Took too long!** %s", m.Author.ID, c.prettyBillingDetails(commandName, requirements, grants, channel, resp)))
 	} else {
 		stderr := resp.Stderr
 		if len(stderr) > 1500 {
@@ -490,7 +470,7 @@ If you have bestowed grants on this command before, **it has been changed from t
 		}
 
 		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>: ❗ **Error occurred**%s", m.Author.ID, billingDetails),
+			Content: fmt.Sprintf("<@!%s>: ❗ **Error occurred!** %s", m.Author.ID, billingDetails),
 			Embed:   &embed,
 		})
 	}

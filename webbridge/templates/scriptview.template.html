@@ -22,16 +22,9 @@
 
     <h2>Requirements</h2>
     <p>
-        Requirements impose certain conditions that the executing account must explicitly agree to. A script will fail to start if any requirements are not met (no usage costs will be incurred).
-    </p>
-    <p>
-        <strong>NOTE:</strong> All grants from accounts will be removed on save and must be granted again each time.
-    </p>
-
-    <p>
         <label>
-            <input type="checkbox" name="bill_usage_to_executing_account" {{if .Requirements.BillUsageToExecutingAccount}}checked{{end}}> <strong>Bill usage to executing account?</strong><br>
-            If checked, all usage costs that would usually be billed to the owner of the script will be billed to the executor. The executor must grant their capability to be billed.
+            <input type="checkbox" name="bill_usage_to_owner" {{if .Requirements.BillUsageToOwner}}checked{{end}}> <strong>Bill usage to owner?</strong><br>
+            If checked, all usage costs that would usually be billed to the executor of the script will be billed to the owner (you!).
         </label>
     </p>
 

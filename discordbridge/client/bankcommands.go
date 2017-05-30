@@ -219,8 +219,8 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	}
 
 	prettyRequirements := make([]string, 0)
-	if getRequirements.Requirements.BillUsageToExecutingAccount {
-		prettyRequirements = append(prettyRequirements, " - "+explainBillUsageToExecutingAccount(c))
+	if getRequirements.Requirements.BillUsageToOwner {
+		prettyRequirements = append(prettyRequirements, " - "+explainBillUsageToOwner(c))
 	}
 
 	var prettyRequirementDetails string
@@ -240,10 +240,6 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	}
 
 	prettyGrants := make([]string, 0)
-	if getGrantsResp.Grants.BillUsageToExecutingAccount {
-		prettyGrants = append(prettyGrants, " - "+explainBillUsageToExecutingAccount(c)+" (you!)")
-	}
-
 	if getGrantsResp.Grants.WithdrawalLimit > 0 {
 		prettyGrants = append(prettyGrants, fmt.Sprintf(" - maximum withdrawal limit of %d %s", getGrantsResp.Grants.WithdrawalLimit, c.currencyName(channel.GuildID)))
 	}
@@ -309,10 +305,6 @@ func bankGrant(ctx context.Context, c *Client, s *discordgo.Session, m *discordg
 	}
 
 	prettyGrants := make([]string, 0)
-	if grants.BillUsageToExecutingAccount {
-		prettyGrants = append(prettyGrants, " - "+explainBillUsageToExecutingAccount(c)+" (you!)")
-	}
-
 	if grants.WithdrawalLimit > 0 {
 		prettyGrants = append(prettyGrants, fmt.Sprintf(" - maximum withdrawal limit of %d %s", grants.WithdrawalLimit, c.currencyName(channel.GuildID)))
 	}

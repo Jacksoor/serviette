@@ -143,12 +143,9 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
 
-	billingAccountHandle := req.ScriptAccountHandle
-	if requirements.BillUsageToExecutingAccount {
-		if !grants.BillUsageToExecutingAccount {
-			return nil, grpc.Errorf(codes.PermissionDenied, "the executing account does not allow usage of the script to be billed to them")
-		}
-		billingAccountHandle = req.ExecutingAccountHandle
+	billingAccountHandle := req.ExecutingAccountHandle
+	if requirements.BillUsageToOwner {
+		billingAccountHandle = req.ScriptAccountHandle
 	}
 
 	// Ensure disk and mount it.
