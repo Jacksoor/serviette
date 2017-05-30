@@ -356,8 +356,8 @@ func (h *Handler) scriptCreate(w http.ResponseWriter, r *http.Request, ps httpro
 	if _, err := h.scriptsClient.Create(r.Context(), &scriptspb.CreateRequest{
 		AccountHandle: scriptAccountHandle,
 		Name:          scriptName,
-		RequestedCapabilities: &scriptspb.Capabilities{},
-		Content:               []byte(newScriptTemplate),
+		Requirements:  &scriptspb.Requirements{},
+		Content:       []byte(newScriptTemplate),
 	}); err != nil {
 		glog.Errorf("Failed to create script: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -390,26 +390,26 @@ func (h *Handler) scriptGet(w http.ResponseWriter, r *http.Request, ps httproute
 		return
 	}
 
-	getRequestedCapsResp, err := h.scriptsClient.GetRequestedCapabilities(r.Context(), &scriptspb.GetRequestedCapabilitiesRequest{
+	getRequirementsResp, err := h.scriptsClient.GetRequirements(r.Context(), &scriptspb.GetRequirementsRequest{
 		AccountHandle: scriptAccountHandle,
 		Name:          scriptName,
 	})
 	if err != nil {
-		glog.Errorf("Failed to get script requested capabilities: %v", err)
+		glog.Errorf("Failed to get script requirements: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	h.renderTemplate(w, []string{"_layout", "scriptview"}, struct {
-		ScriptAccountHandle   string
-		ScriptName            string
-		ScriptContent         string
-		RequestedCapabilities *scriptspb.Capabilities
+		ScriptAccountHandle string
+		ScriptName          string
+		ScriptContent       string
+		Requirements        *scriptspb.Requirements
 	}{
 		base64.RawURLEncoding.EncodeToString(scriptAccountHandle),
 		scriptName,
 		string(contentResp.Content),
-		getRequestedCapsResp.Capabilities,
+		getRequirementsResp.Requirements,
 	})
 }
 
@@ -450,18 +450,11 @@ func (h *Handler) scriptUpdate(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	withdrawalLimit, err := strconv.ParseInt(r.Form.Get("withdrawal_limit"), 10, 64)
-	if err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
 	if _, err := h.scriptsClient.Create(r.Context(), &scriptspb.CreateRequest{
 		AccountHandle: scriptAccountHandle,
 		Name:          scriptName,
-		RequestedCapabilities: &scriptspb.Capabilities{
+		Requirements: &scriptspb.Requirements{
 			BillUsageToExecutingAccount: r.Form.Get("bill_usage_to_executing_account") == "on",
-			WithdrawalLimit:             withdrawalLimit,
 		},
 		Content: []byte(strings.Replace(r.Form.Get("content"), "\r", "", -1)),
 	}); err != nil {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/golang/protobuf/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -23,6 +24,10 @@ import (
 )
 
 var errInvalidOutput = errors.New("invalid output")
+
+var textMarshaler = &proto.TextMarshaler{
+	Compact: true,
+}
 
 type command func(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error
 
@@ -248,22 +253,18 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 	}
 }
 
-type outputFormatter func(c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, requestedCapabilities *scriptspb.Capabilities, r *scriptspb.ExecuteResponse) error
+type outputFormatter func(r *scriptspb.ExecuteResponse) (*discordgo.MessageSend, error)
 
 var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
-	"text": func(c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, requestedCapabilities *scriptspb.Capabilities, r *scriptspb.ExecuteResponse) error {
-		embed := discordgo.MessageEmbed{
-			Color:  0x009100,
+	"text": func(r *scriptspb.ExecuteResponse) (*discordgo.MessageSend, error) {
+		embed := &discordgo.MessageEmbed{
 			Fields: []*discordgo.MessageEmbedField{},
 		}
 
-		var sigil string
 		if syscall.WaitStatus(r.WaitStatus).ExitStatus() != 0 {
 			embed.Color = 0xb50000
-			sigil = "❎"
 		} else {
 			embed.Color = 0x009100
-			sigil = "✅"
 		}
 
 		stdout := r.Stdout
@@ -273,74 +274,58 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 
 		embed.Description = string(stdout)
 
-		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
-
-		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>: %s%s", m.Author.ID, sigil, billingDetails),
-			Embed:   &embed,
-		}); err != nil {
-			return err
-		}
-		return nil
+		return &discordgo.MessageSend{Embed: embed}, nil
 	},
 
-	"discord.embed": func(c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, requestedCapabilities *scriptspb.Capabilities, r *scriptspb.ExecuteResponse) error {
-		var embed discordgo.MessageEmbed
-
-		var sigil string
-		if syscall.WaitStatus(r.WaitStatus).ExitStatus() != 0 {
-			sigil = "❎"
-		} else {
-			sigil = "✅"
-		}
+	"discord.embed": func(r *scriptspb.ExecuteResponse) (*discordgo.MessageSend, error) {
+		embed := &discordgo.MessageEmbed{}
 
 		if err := json.Unmarshal(r.Stdout, &embed); err != nil {
-			return errInvalidOutput
+			return nil, errInvalidOutput
 		}
 
-		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
-
-		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>: %s%s", m.Author.ID, sigil, billingDetails),
-			Embed:   &embed,
-		}); err != nil {
-			return err
-		}
-		return nil
+		return &discordgo.MessageSend{
+			Embed: embed,
+		}, nil
 	},
 
-	"discord.file": func(c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, requestedCapabilities *scriptspb.Capabilities, r *scriptspb.ExecuteResponse) error {
-		var sigil string
-		if syscall.WaitStatus(r.WaitStatus).ExitStatus() != 0 {
-			sigil = "❎"
-		} else {
-			sigil = "✅"
-		}
-
-		billingDetails := c.prettyBillingDetails(requestedCapabilities, channel, r)
-
+	"discord.file": func(r *scriptspb.ExecuteResponse) (*discordgo.MessageSend, error) {
 		nulPosition := bytes.IndexByte(r.Stdout, byte(0))
 		if nulPosition == -1 {
-			return errInvalidOutput
+			return nil, errInvalidOutput
 		}
 
-		if _, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>: %s%s", m.Author.ID, sigil, billingDetails),
+		return &discordgo.MessageSend{
 			File: &discordgo.File{
 				Name:   string(r.Stdout[:nulPosition]),
 				Reader: bytes.NewBuffer(r.Stdout[nulPosition+1:]),
 			},
-		}); err != nil {
-			return err
-		}
-		return nil
+		}, nil
 	},
 }
 
-func (c *Client) prettyBillingDetails(requestedCapabilities *scriptspb.Capabilities, channel *discordgo.Channel, r *scriptspb.ExecuteResponse) string {
-	var usageDetails string
-	if requestedCapabilities.BillUsageToExecutingAccount {
-		usageDetails = fmt.Sprintf("**Usage cost:** %d %s", r.UsageCost, c.currencyName(channel.GuildID))
+func (c *Client) prettyBillingDetails(commandName string, requirements *scriptspb.Requirements, grants *scriptspb.Grants, channel *discordgo.Channel, r *scriptspb.ExecuteResponse) string {
+	parts := []string{}
+
+	if requirements.BillUsageToExecutingAccount {
+		parts = append(parts, fmt.Sprintf("**Usage cost:** %d %s", r.UsageCost, c.currencyName(channel.GuildID)))
+	} else {
+		// Leave top line empty.
+		parts = append(parts, "")
+	}
+
+	if r.WithdrawalLimit < 0 {
+		grants.WithdrawalLimit += -r.WithdrawalLimit
+
+		parts = append(parts, fmt.Sprintf(`⚠ **Withdrawal limit too low:**
+
+The command requested to withdraw %d %s more than your withdrawal limit.
+
+**If you want to allow this, please run the following command:**
+`+"```"+`
+%sgrant %s %s
+`+"```"+`
+If you have bestowed grants on this command before, **it has been changed from the last time you ran it.**`, -r.WithdrawalLimit, c.currencyName(channel.GuildID), c.bankCommandPrefix(channel.GuildID), commandName, textMarshaler.Text(grants)))
 	}
 
 	withdrawalDetails := make([]string, len(r.Withdrawal))
@@ -348,17 +333,11 @@ func (c *Client) prettyBillingDetails(requestedCapabilities *scriptspb.Capabilit
 		withdrawalDetails[i] = fmt.Sprintf("%d %s to `%s`", withdrawal.Amount, c.currencyName(channel.GuildID), base64.RawURLEncoding.EncodeToString(withdrawal.TargetAccountHandle))
 	}
 
-	var billingDetails string
 	if len(r.Withdrawal) > 0 {
-		billingDetails = fmt.Sprintf("%s\n\n**Withdrawals:**\n%s", usageDetails, strings.Join(withdrawalDetails, "\n"))
-	} else {
-		billingDetails = usageDetails
+		parts = append(parts, fmt.Sprintf("ℹ **Withdrawals:**\n%s", strings.Join(withdrawalDetails, "\n")))
 	}
 
-	if billingDetails == "" {
-		return ""
-	}
-	return " | " + billingDetails
+	return strings.Join(parts, "\n\n")
 }
 
 func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, commandName string, rest string) error {
@@ -379,7 +358,7 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		return err
 	}
 
-	getRequestedCapsResp, err := c.scriptsClient.GetRequestedCapabilities(ctx, &scriptspb.GetRequestedCapabilitiesRequest{
+	getRequirementsResp, err := c.scriptsClient.GetRequirements(ctx, &scriptspb.GetRequirementsRequest{
 		AccountHandle: scriptAccountHandle,
 		Name:          scriptName,
 	})
@@ -397,8 +376,9 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		}
 		return err
 	}
+	requirements := getRequirementsResp.Requirements
 
-	getAccountCapsResp, err := c.scriptsClient.GetAccountCapabilities(ctx, &scriptspb.GetAccountCapabilitiesRequest{
+	getGrantsResp, err := c.scriptsClient.GetGrants(ctx, &scriptspb.GetGrantsRequest{
 		ExecutingAccountHandle: resolveResp.AccountHandle,
 		ScriptAccountHandle:    scriptAccountHandle,
 		ScriptName:             scriptName,
@@ -406,36 +386,27 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 	if err != nil {
 		return err
 	}
+	grants := getGrantsResp.Grants
 
-	prettyCaps := make([]string, 0)
-	capSettings := make([]string, 0)
-	if getRequestedCapsResp.Capabilities.BillUsageToExecutingAccount {
-		if !getAccountCapsResp.Capabilities.BillUsageToExecutingAccount {
-			prettyCaps = append(prettyCaps, " - "+explainBillUsageToExecutingAccount(c)+" (you!)")
+	prettyGrants := make([]string, 0)
+	if requirements.BillUsageToExecutingAccount {
+		if !grants.BillUsageToExecutingAccount {
+			prettyGrants = append(prettyGrants, " - "+explainBillUsageToExecutingAccount(c)+" (you!)")
 		}
-		capSettings = append(capSettings, "bill_usage_to_executing_account:true")
+		grants.BillUsageToExecutingAccount = true
 	}
 
-	if getRequestedCapsResp.Capabilities.WithdrawalLimit > 0 {
-		if getAccountCapsResp.Capabilities.WithdrawalLimit <= 0 {
-			prettyCaps = append(prettyCaps, " - "+explainWithdrawalLimit(c, channel, getRequestedCapsResp.Capabilities.WithdrawalLimit)+" (you may set this lower)")
-			capSettings = append(capSettings, fmt.Sprintf("withdrawal_limit:%d", getRequestedCapsResp.Capabilities.WithdrawalLimit))
-		} else {
-			capSettings = append(capSettings, fmt.Sprintf("withdrawal_limit:%d", getAccountCapsResp.Capabilities.WithdrawalLimit))
-		}
-	}
-
-	if len(prettyCaps) > 0 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(`<@!%s>: ❓ **Additional capabilities required:**
+	if len(prettyGrants) > 0 {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(`<@!%s>: ⚠ **Requirements not met:**
 
 %s
 
 **If you want to allow this, please run the following command:**
 `+"```"+`
-%ssetcaps %s %s
+%sgrant %s %s
 `+"```"+`
-If you have your granted capabilities to this command before, **it has been changed from the last time you ran it.**`,
-			m.Author.ID, strings.Join(prettyCaps, "\n"), c.bankCommandPrefix(channel.GuildID), commandName, strings.Join(capSettings, " ")))
+If you have bestowed grants on this command before, **it has been changed from the last time you ran it.**`,
+			m.Author.ID, strings.Join(prettyGrants, "\n"), c.bankCommandPrefix(channel.GuildID), commandName, textMarshaler.Text(grants)))
 		return nil
 	}
 
@@ -453,12 +424,14 @@ If you have your granted capabilities to this command before, **it has been chan
 			Channel:      m.ChannelID,
 			IsPrivate:    channel.IsPrivate,
 			OutputFormat: "text",
+
+			CurrencyName: c.currencyName(channel.GuildID),
 		},
 	})
 
 	if err != nil {
 		if grpc.Code(err) == codes.FailedPrecondition {
-			if getRequestedCapsResp.Capabilities.BillUsageToExecutingAccount {
+			if requirements.BillUsageToExecutingAccount {
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Command owner does not have enough funds**", m.Author.ID))
 			} else {
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Not enough funds**", m.Author.ID))
@@ -473,25 +446,41 @@ If you have your granted capabilities to this command before, **it has been chan
 	if waitStatus.ExitStatus() == 0 || waitStatus.ExitStatus() == 2 {
 		outputFormatter, ok := outputFormatters[resp.Context.OutputFormat]
 		if !ok {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Output format `%s` unknown**%s", m.Author.ID, resp.Context.OutputFormat, c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Output format `%s` unknown**%s", m.Author.ID, resp.Context.OutputFormat, c.prettyBillingDetails(commandName, requirements, grants, channel, resp)))
 			return nil
 		}
-		if err := outputFormatter(c, s, m, channel, getRequestedCapsResp.Capabilities, resp); err != nil {
+
+		messageSend, err := outputFormatter(resp)
+		if err != nil {
 			if err == errInvalidOutput {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Command output was invalid**%s", m.Author.ID, c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)))
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Command output was invalid**%s", m.Author.ID, c.prettyBillingDetails(commandName, requirements, grants, channel, resp)))
 				return nil
 			}
 			return err
 		}
+
+		var sigil string
+		if syscall.WaitStatus(resp.WaitStatus).ExitStatus() != 0 {
+			sigil = "❎"
+		} else {
+			sigil = "✅"
+		}
+
+		messageSend.Content = fmt.Sprintf("<@!%s>: %s%s", m.Author.ID, sigil, c.prettyBillingDetails(commandName, requirements, grants, channel, resp))
+
+		if _, err := s.ChannelMessageSendComplex(m.ChannelID, messageSend); err != nil {
+			return err
+		}
+		return nil
 	} else if waitStatus.Signal() == syscall.SIGKILL {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Took too long**%s", m.Author.ID, c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Took too long**%s", m.Author.ID, c.prettyBillingDetails(commandName, requirements, grants, channel, resp)))
 	} else {
 		stderr := resp.Stderr
 		if len(stderr) > 1500 {
 			stderr = stderr[:1500]
 		}
 
-		billingDetails := c.prettyBillingDetails(getRequestedCapsResp.Capabilities, channel, resp)
+		billingDetails := c.prettyBillingDetails(commandName, requirements, grants, channel, resp)
 		var embed discordgo.MessageEmbed
 		embed.Color = 0xb50000
 		if len(stderr) > 0 {

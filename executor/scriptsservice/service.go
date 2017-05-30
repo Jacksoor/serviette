@@ -69,7 +69,7 @@ func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.Create
 		return nil, grpc.Errorf(codes.Internal, "failed to create script")
 	}
 
-	if err := script.SetRequestedCapabilities(req.RequestedCapabilities); err != nil {
+	if err := script.SetRequirements(req.Requirements); err != nil {
 		script.Delete()
 		glog.Errorf("Failed to set xattr on file: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to create script")
@@ -131,25 +131,21 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
-	requestedCapabilities, err := script.RequestedCapabilities()
+	requirements, err := script.Requirements()
 	if err != nil {
-		glog.Errorf("Failed to get requested capabilities: %v", err)
+		glog.Errorf("Failed to get requested grants: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
 
-	accountCapabilities, err := script.AccountCapabilities(req.ExecutingAccountHandle)
+	grants, err := script.Grants(req.ExecutingAccountHandle)
 	if err != nil {
-		glog.Errorf("Failed to get account capabilities: %v", err)
+		glog.Errorf("Failed to get account grants: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
-	}
-
-	if requestedCapabilities.WithdrawalLimit > 0 && accountCapabilities.WithdrawalLimit <= 0 {
-		return nil, grpc.Errorf(codes.PermissionDenied, "a withdrawal limit was requested but the executing account does not allow withdrawals")
 	}
 
 	billingAccountHandle := req.ScriptAccountHandle
-	if requestedCapabilities.BillUsageToExecutingAccount {
-		if !accountCapabilities.BillUsageToExecutingAccount {
+	if requirements.BillUsageToExecutingAccount {
+		if !grants.BillUsageToExecutingAccount {
 			return nil, grpc.Errorf(codes.PermissionDenied, "the executing account does not allow usage of the script to be billed to them")
 		}
 		billingAccountHandle = req.ExecutingAccountHandle
@@ -178,11 +174,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	accountsService := accountsservice.New(s.accountsClient)
 	worker.RegisterService("Accounts", accountsService)
 
-	withdrawalLimit := requestedCapabilities.WithdrawalLimit
-	if accountCapabilities.WithdrawalLimit < withdrawalLimit {
-		withdrawalLimit = accountCapabilities.WithdrawalLimit
-	}
-	moneyService := moneyservice.New(s.moneyClient, s.accountsClient, req.ExecutingAccountHandle, req.ExecutingAccountKey, withdrawalLimit)
+	moneyService := moneyservice.New(s.moneyClient, s.accountsClient, req.ScriptAccountHandle, req.ExecutingAccountHandle, grants.WithdrawalLimit)
 	worker.RegisterService("Money", moneyService)
 
 	scriptContext := req.Context
@@ -235,12 +227,16 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 
 	return &pb.ExecuteResponse{
-		Context:    contextService.Context(),
+		Context: contextService.Context(),
+
 		WaitStatus: uint32(waitStatus),
 		Stdout:     r.Stdout,
 		Stderr:     r.Stderr,
-		UsageCost:  usageCost,
-		Withdrawal: withdrawals,
+
+		UsageCost: usageCost,
+
+		Withdrawal:      withdrawals,
+		WithdrawalLimit: moneyService.WithdrawalLimit(),
 	}, nil
 }
 
@@ -269,7 +265,7 @@ func (s *Service) GetContent(ctx context.Context, req *pb.GetContentRequest) (*p
 	}, nil
 }
 
-func (s *Service) GetRequestedCapabilities(ctx context.Context, req *pb.GetRequestedCapabilitiesRequest) (*pb.GetRequestedCapabilitiesResponse, error) {
+func (s *Service) GetRequirements(ctx context.Context, req *pb.GetRequirementsRequest) (*pb.GetRequirementsResponse, error) {
 	script, err := s.scripts.Open(ctx, req.AccountHandle, req.Name)
 
 	if err != nil {
@@ -283,18 +279,18 @@ func (s *Service) GetRequestedCapabilities(ctx context.Context, req *pb.GetReque
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
-	caps, err := script.RequestedCapabilities()
+	reqs, err := script.Requirements()
 	if err != nil {
-		glog.Errorf("Failed to get requested capabilities: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to get requested capabilities")
+		glog.Errorf("Failed to get requested grants: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to get requested grants")
 	}
 
-	return &pb.GetRequestedCapabilitiesResponse{
-		Capabilities: caps,
+	return &pb.GetRequirementsResponse{
+		Requirements: reqs,
 	}, nil
 }
 
-func (s *Service) GetAccountCapabilities(ctx context.Context, req *pb.GetAccountCapabilitiesRequest) (*pb.GetAccountCapabilitiesResponse, error) {
+func (s *Service) GetGrants(ctx context.Context, req *pb.GetGrantsRequest) (*pb.GetGrantsResponse, error) {
 	script, err := s.scripts.Open(ctx, req.ScriptAccountHandle, req.ScriptName)
 
 	if err != nil {
@@ -308,18 +304,18 @@ func (s *Service) GetAccountCapabilities(ctx context.Context, req *pb.GetAccount
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
-	caps, err := script.AccountCapabilities(req.ExecutingAccountHandle)
+	grants, err := script.Grants(req.ExecutingAccountHandle)
 	if err != nil {
-		glog.Errorf("Failed to get requested capabilities: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to get account capabilities")
+		glog.Errorf("Failed to get requested grants: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to get account grants")
 	}
 
-	return &pb.GetAccountCapabilitiesResponse{
-		Capabilities: caps,
+	return &pb.GetGrantsResponse{
+		Grants: grants,
 	}, nil
 }
 
-func (s *Service) SetAccountCapabilities(ctx context.Context, req *pb.SetAccountCapabilitiesRequest) (*pb.SetAccountCapabilitiesResponse, error) {
+func (s *Service) SetGrants(ctx context.Context, req *pb.SetGrantsRequest) (*pb.SetGrantsResponse, error) {
 	script, err := s.scripts.Open(ctx, req.ScriptAccountHandle, req.ScriptName)
 
 	if err != nil {
@@ -333,12 +329,12 @@ func (s *Service) SetAccountCapabilities(ctx context.Context, req *pb.SetAccount
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
-	if err := script.SetAccountCapabilities(req.ExecutingAccountHandle, req.Capabilities); err != nil {
-		glog.Errorf("Failed to get account capabilities: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to set account capabilities")
+	if err := script.SetGrants(req.ExecutingAccountHandle, req.Grants); err != nil {
+		glog.Errorf("Failed to get account grants: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to set account grants")
 	}
 
-	return &pb.SetAccountCapabilitiesResponse{}, nil
+	return &pb.SetGrantsResponse{}, nil
 }
 
 func (s *Service) ResolveAlias(ctx context.Context, req *pb.ResolveAliasRequest) (*pb.ResolveAliasResponse, error) {

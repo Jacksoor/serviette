@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	requestedCapabilitiesXattrName string = "user.kobun4.executor.capabilities.requested"
-	accountCapabilitiesXattrPrefix        = "user.kobun4.executor.capabilities.account."
+	requirementsXattrName string = "user.kobun4.executor.requirements"
+	grantsXattrPrefix            = "user.kobun4.executor.grants."
 )
 
 func getxattr(path, name string) ([]byte, error) {
@@ -65,58 +65,58 @@ func (s *Script) SetContent(content []byte) error {
 	return ioutil.WriteFile(s.Path(), content, 0755)
 }
 
-func (s *Script) RequestedCapabilities() (*scriptspb.Capabilities, error) {
-	caps := &scriptspb.Capabilities{}
+func (s *Script) Requirements() (*scriptspb.Requirements, error) {
+	reqs := &scriptspb.Requirements{}
 
-	rawCaps, err := getxattr(s.Path(), requestedCapabilitiesXattrName)
+	rawReqs, err := getxattr(s.Path(), requirementsXattrName)
 	if err != nil {
 		return nil, err
 	}
 
-	if rawCaps == nil {
-		return caps, nil
+	if rawReqs == nil {
+		return reqs, nil
 	}
 
-	if err := proto.Unmarshal(rawCaps, caps); err != nil {
+	if err := proto.Unmarshal(rawReqs, reqs); err != nil {
 		return nil, err
 	}
 
-	return caps, nil
+	return reqs, nil
 }
 
-func (s *Script) SetRequestedCapabilities(caps *scriptspb.Capabilities) error {
-	rawCaps, err := proto.Marshal(caps)
+func (s *Script) SetRequirements(reqs *scriptspb.Requirements) error {
+	rawReqs, err := proto.Marshal(reqs)
 	if err != nil {
 		return err
 	}
-	return syscall.Setxattr(s.Path(), requestedCapabilitiesXattrName, rawCaps, 0)
+	return syscall.Setxattr(s.Path(), requirementsXattrName, rawReqs, 0)
 }
 
-func (s *Script) AccountCapabilities(accountHandle []byte) (*scriptspb.Capabilities, error) {
-	caps := &scriptspb.Capabilities{}
+func (s *Script) Grants(accountHandle []byte) (*scriptspb.Grants, error) {
+	grants := &scriptspb.Grants{}
 
-	rawCaps, err := getxattr(s.Path(), accountCapabilitiesXattrPrefix+base64.RawURLEncoding.EncodeToString(accountHandle))
+	rawGrants, err := getxattr(s.Path(), grantsXattrPrefix+base64.RawURLEncoding.EncodeToString(accountHandle))
 	if err != nil {
 		return nil, err
 	}
 
-	if rawCaps == nil {
-		return caps, nil
+	if rawGrants == nil {
+		return grants, nil
 	}
 
-	if err := proto.Unmarshal(rawCaps, caps); err != nil {
+	if err := proto.Unmarshal(rawGrants, grants); err != nil {
 		return nil, err
 	}
 
-	return caps, nil
+	return grants, nil
 }
 
-func (s *Script) SetAccountCapabilities(accountHandle []byte, caps *scriptspb.Capabilities) error {
-	rawCaps, err := proto.Marshal(caps)
+func (s *Script) SetGrants(accountHandle []byte, grants *scriptspb.Grants) error {
+	rawGrants, err := proto.Marshal(grants)
 	if err != nil {
 		return err
 	}
-	return syscall.Setxattr(s.Path(), accountCapabilitiesXattrPrefix+base64.RawURLEncoding.EncodeToString(accountHandle), rawCaps, 0)
+	return syscall.Setxattr(s.Path(), grantsXattrPrefix+base64.RawURLEncoding.EncodeToString(accountHandle), rawGrants, 0)
 }
 
 func (s *Script) Delete() error {

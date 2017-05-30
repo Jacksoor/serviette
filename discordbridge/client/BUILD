@@ -4,8 +4,8 @@ go_library(
     name = "go_default_library",
     srcs = [
         "bankcommands.go",
-        "capinfo.go",
         "client.go",
+        "reqsinfo.go",
         "resolve.go",
     ],
     visibility = ["//visibility:public"],

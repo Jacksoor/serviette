@@ -31,7 +31,7 @@ var bankCommands map[string]command = map[string]command{
 
 	"cmd": bankCmd,
 
-	"setcaps": bankSetcaps,
+	"grant": bankGrant,
 
 	"key": bankKey,
 
@@ -162,6 +162,9 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		Amount:              amount,
 	}); err != nil {
 		switch grpc.Code(err) {
+		case codes.NotFound:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Account not found**", m.Author.ID))
+			return nil
 		case codes.FailedPrecondition:
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Not enough funds**", m.Author.ID))
 			return nil
@@ -199,7 +202,7 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		return err
 	}
 
-	getRequestedCapsResp, err := c.scriptsClient.GetRequestedCapabilities(ctx, &scriptspb.GetRequestedCapabilitiesRequest{
+	getRequirements, err := c.scriptsClient.GetRequirements(ctx, &scriptspb.GetRequirementsRequest{
 		AccountHandle: scriptAccountHandle,
 		Name:          scriptName,
 	})
@@ -215,23 +218,19 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		return err
 	}
 
-	prettyRequestedCaps := make([]string, 0)
-	if getRequestedCapsResp.Capabilities.BillUsageToExecutingAccount {
-		prettyRequestedCaps = append(prettyRequestedCaps, " - "+explainBillUsageToExecutingAccount(c))
+	prettyRequirements := make([]string, 0)
+	if getRequirements.Requirements.BillUsageToExecutingAccount {
+		prettyRequirements = append(prettyRequirements, " - "+explainBillUsageToExecutingAccount(c))
 	}
 
-	if getRequestedCapsResp.Capabilities.WithdrawalLimit > 0 {
-		prettyRequestedCaps = append(prettyRequestedCaps, " - "+explainWithdrawalLimit(c, channel, getRequestedCapsResp.Capabilities.WithdrawalLimit))
-	}
-
-	var prettyRequestedCapDetails string
-	if len(prettyRequestedCaps) > 0 {
-		prettyRequestedCapDetails = fmt.Sprintf("**Capabilities requested:**\n%s", strings.Join(prettyRequestedCaps, "\n"))
+	var prettyRequirementDetails string
+	if len(prettyRequirements) > 0 {
+		prettyRequirementDetails = fmt.Sprintf("**Requirements:**\n%s", strings.Join(prettyRequirements, "\n"))
 	} else {
-		prettyRequestedCapDetails = fmt.Sprintf("**No capabilities requested.**")
+		prettyRequirementDetails = fmt.Sprintf("**No requirements imposed.**")
 	}
 
-	getAccountCapsResp, err := c.scriptsClient.GetAccountCapabilities(ctx, &scriptspb.GetAccountCapabilitiesRequest{
+	getGrantsResp, err := c.scriptsClient.GetGrants(ctx, &scriptspb.GetGrantsRequest{
 		ExecutingAccountHandle: sourceResolveResp.AccountHandle,
 		ScriptAccountHandle:    scriptAccountHandle,
 		ScriptName:             scriptName,
@@ -240,20 +239,20 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		return err
 	}
 
-	prettyAccountCaps := make([]string, 0)
-	if getAccountCapsResp.Capabilities.BillUsageToExecutingAccount {
-		prettyAccountCaps = append(prettyAccountCaps, " - "+explainBillUsageToExecutingAccount(c)+" (you!)")
+	prettyGrants := make([]string, 0)
+	if getGrantsResp.Grants.BillUsageToExecutingAccount {
+		prettyGrants = append(prettyGrants, " - "+explainBillUsageToExecutingAccount(c)+" (you!)")
 	}
 
-	if getAccountCapsResp.Capabilities.WithdrawalLimit > 0 {
-		prettyAccountCaps = append(prettyAccountCaps, " - "+explainWithdrawalLimit(c, channel, getAccountCapsResp.Capabilities.WithdrawalLimit))
+	if getGrantsResp.Grants.WithdrawalLimit > 0 {
+		prettyGrants = append(prettyGrants, fmt.Sprintf(" - maximum withdrawal limit of %d %s", getGrantsResp.Grants.WithdrawalLimit, c.currencyName(channel.GuildID)))
 	}
 
-	var prettyAccountCapDetails string
-	if len(prettyAccountCaps) > 0 {
-		prettyAccountCapDetails = fmt.Sprintf("**Capabilities granted:**\n%s", strings.Join(prettyAccountCaps, "\n"))
+	var prettyGrantsDetails string
+	if len(prettyGrants) > 0 {
+		prettyGrantsDetails = fmt.Sprintf("**Grants:**\n%s", strings.Join(prettyGrants, "\n"))
 	} else {
-		prettyAccountCapDetails = fmt.Sprintf("**No capabilities granted.**")
+		prettyGrantsDetails = fmt.Sprintf("**No grants bestowed.**")
 	}
 
 	var preamble string
@@ -263,11 +262,11 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		preamble = fmt.Sprintf("`%s/%s`", base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName)
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Command information for %s:**\n\n%s\n\n%s", m.Author.ID, preamble, prettyRequestedCapDetails, prettyAccountCapDetails))
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Command information for %s:**\n\n%s\n\n%s", m.Author.ID, preamble, prettyRequirementDetails, prettyGrantsDetails))
 	return nil
 }
 
-func bankSetcaps(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+func bankGrant(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	sourceResolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
 		Name: aliasName(m.Author.ID),
 	})
@@ -278,15 +277,15 @@ func bankSetcaps(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 	parts := strings.SplitN(rest, " ", 2)
 
 	if len(parts) != 2 && len(parts) != 1 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%ssetcaps command capabilities`**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%sgrant command grants`**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
 		return nil
 	}
 
 	commandName := parts[0]
-	capabilities := &scriptspb.Capabilities{}
+	grants := &scriptspb.Grants{}
 	if len(parts) == 2 {
-		if err := proto.UnmarshalText(parts[1], capabilities); err != nil {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Invalid capabilities**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
+		if err := proto.UnmarshalText(parts[1], grants); err != nil {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Invalid grants specified**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
 			return nil
 		}
 	}
@@ -300,28 +299,28 @@ func bankSetcaps(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 		return err
 	}
 
-	if _, err := c.scriptsClient.SetAccountCapabilities(ctx, &scriptspb.SetAccountCapabilitiesRequest{
+	if _, err := c.scriptsClient.SetGrants(ctx, &scriptspb.SetGrantsRequest{
 		ExecutingAccountHandle: sourceResolveResp.AccountHandle,
 		ScriptAccountHandle:    scriptAccountHandle,
 		ScriptName:             scriptName,
-		Capabilities:           capabilities,
+		Grants:                 grants,
 	}); err != nil {
 		return err
 	}
 
-	prettyAccountCaps := make([]string, 0)
-	if capabilities.BillUsageToExecutingAccount {
-		prettyAccountCaps = append(prettyAccountCaps, " - "+explainBillUsageToExecutingAccount(c)+" (you!)")
+	prettyGrants := make([]string, 0)
+	if grants.BillUsageToExecutingAccount {
+		prettyGrants = append(prettyGrants, " - "+explainBillUsageToExecutingAccount(c)+" (you!)")
 	}
 
-	if capabilities.WithdrawalLimit > 0 {
-		prettyAccountCaps = append(prettyAccountCaps, " - "+explainWithdrawalLimit(c, channel, capabilities.WithdrawalLimit))
+	if grants.WithdrawalLimit > 0 {
+		prettyGrants = append(prettyGrants, fmt.Sprintf(" - maximum withdrawal limit of %d %s", grants.WithdrawalLimit, c.currencyName(channel.GuildID)))
 	}
 
-	if len(prettyAccountCaps) > 0 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Capabilities granted to `%s`:**\n%s", m.Author.ID, commandName, strings.Join(prettyAccountCaps, "\n")))
+	if len(prettyGrants) > 0 {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Grants bestowed on `%s`:**\n%s", m.Author.ID, commandName, strings.Join(prettyGrants, "\n")))
 	} else {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Capabilities revoked from `%s`**", m.Author.ID, commandName))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **All grants revoked from `%s`**", m.Author.ID, commandName))
 	}
 
 	return nil
@@ -429,6 +428,9 @@ func bankTransfer(ctx context.Context, c *Client, s *discordgo.Session, m *disco
 		Amount:              amount,
 	}); err != nil {
 		switch grpc.Code(err) {
+		case codes.NotFound:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Account not found**", m.Author.ID))
+			return nil
 		case codes.FailedPrecondition:
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Not enough funds**", m.Author.ID))
 			return nil
@@ -468,8 +470,8 @@ Pay a user from your account into their account.
 `+"`"+`cmd command`+"`"+`
 Get information on a command.
 
-`+"`"+`setcaps command [capabilities]`+"`"+`
-Set your capabilities on a command. If capabilities are left empty, all capabilities you have previously granted are revoked.
+`+"`"+`grant command [grants]`+"`"+`
+Set your grants on a command. If grants are left empty, all grants you have previously granted are revoked.
 
 **I will only respond to the following commands in private:**
 

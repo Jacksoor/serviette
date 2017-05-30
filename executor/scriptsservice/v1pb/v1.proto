@@ -4,7 +4,11 @@ package kobun4.executor.scripts.v1;
 
 option go_package = "v1pb";
 
-message Capabilities {
+message Requirements {
+    bool bill_usage_to_executing_account = 1;
+}
+
+message Grants {
     bool bill_usage_to_executing_account = 1;
     int64 withdrawal_limit = 2;
 }
@@ -22,13 +26,15 @@ message Context {
     string billing_account_handle = 9;
     string executing_account_handle = 10;
 
+    string currency_name = 11;
+
     map<string, string> extra = 1000;
 }
 
 message CreateRequest {
     bytes account_handle = 1;
     string name = 2;
-    Capabilities requested_capabilities = 3;
+    Requirements requirements = 3;
     bytes content = 4;
 }
 
@@ -69,11 +75,15 @@ message ExecuteResponse {
     }
 
     Context context = 1;
+
     uint32 wait_status = 2;
     bytes stdout = 4;
     bytes stderr = 5;
+
     int64 usage_cost = 6;
+
     repeated Withdrawal withdrawal = 7;
+    int64 withdrawal_limit = 8;
 }
 
 message GetContentRequest {
@@ -85,33 +95,33 @@ message GetContentResponse {
     bytes content = 1;
 }
 
-message GetRequestedCapabilitiesRequest {
+message GetRequirementsRequest {
     bytes account_handle = 1;
     string name = 2;
 }
 
-message GetRequestedCapabilitiesResponse {
-    Capabilities capabilities = 1;
+message GetRequirementsResponse {
+    Requirements requirements = 1;
 }
 
-message SetAccountCapabilitiesRequest {
+message SetGrantsRequest {
     bytes executing_account_handle = 1;
     bytes script_account_handle = 2;
     string script_name = 3;
-    Capabilities capabilities = 4;
+    Grants grants = 4;
 }
 
-message SetAccountCapabilitiesResponse {
+message SetGrantsResponse {
 }
 
-message GetAccountCapabilitiesRequest {
+message GetGrantsRequest {
     bytes executing_account_handle = 1;
     bytes script_account_handle = 2;
     string script_name = 3;
 }
 
-message GetAccountCapabilitiesResponse {
-    Capabilities capabilities = 1;
+message GetGrantsResponse {
+    Grants grants = 1;
 }
 
 message ResolveAliasRequest {
@@ -156,10 +166,10 @@ service Scripts {
 
     rpc GetContent(GetContentRequest) returns (GetContentResponse) { }
 
-    rpc GetRequestedCapabilities(GetRequestedCapabilitiesRequest) returns (GetRequestedCapabilitiesResponse) { }
+    rpc GetRequirements(GetRequirementsRequest) returns (GetRequirementsResponse) { }
 
-    rpc SetAccountCapabilities(SetAccountCapabilitiesRequest) returns (SetAccountCapabilitiesResponse) { }
-    rpc GetAccountCapabilities(GetAccountCapabilitiesRequest) returns (GetAccountCapabilitiesResponse) { }
+    rpc SetGrants(SetGrantsRequest) returns (SetGrantsResponse) { }
+    rpc GetGrants(GetGrantsRequest) returns (GetGrantsResponse) { }
 
     rpc ResolveAlias(ResolveAliasRequest) returns (ResolveAliasResponse) { }
     rpc SetAlias(SetAliasRequest) returns (SetAliasResponse) { }
