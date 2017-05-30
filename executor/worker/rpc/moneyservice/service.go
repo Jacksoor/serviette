@@ -17,12 +17,12 @@ type Service struct {
 	scriptAccountHandle    []byte
 	executingAccountHandle []byte
 
-	withdrawalLimit int64
+	escrowedFunds int64
 
-	withdrawals map[string]int64
+	charges map[string]int64
 }
 
-func New(moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, scriptAccountHandle []byte, executingAccountHandle []byte, withdrawalLimit int64) *Service {
+func New(moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, scriptAccountHandle []byte, executingAccountHandle []byte, escrowedFunds int64) *Service {
 	return &Service{
 		moneyClient:    moneyClient,
 		accountsClient: accountsClient,
@@ -30,18 +30,18 @@ func New(moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClie
 		scriptAccountHandle:    scriptAccountHandle,
 		executingAccountHandle: executingAccountHandle,
 
-		withdrawalLimit: withdrawalLimit,
+		escrowedFunds: escrowedFunds,
 
-		withdrawals: make(map[string]int64, 0),
+		charges: make(map[string]int64, 0),
 	}
 }
 
-func (s *Service) Withdrawals() map[string]int64 {
-	return s.withdrawals
+func (s *Service) Charges() map[string]int64 {
+	return s.charges
 }
 
-func (s *Service) WithdrawalLimit() int64 {
-	return s.withdrawalLimit
+func (s *Service) EscrowedFunds() int64 {
+	return s.escrowedFunds
 }
 
 type ChargeRequest struct {
@@ -51,12 +51,12 @@ type ChargeRequest struct {
 
 type ChargeResponse struct{}
 
-// Charge transfers money from the executing account into a target account.
+// Charge transfers money from the executing account's escrowed funds into a target account.
 func (s *Service) Charge(req *ChargeRequest, resp *ChargeResponse) error {
-	s.withdrawalLimit -= req.Amount
+	s.escrowedFunds -= req.Amount
 
-	if s.withdrawalLimit < 0 {
-		return errors.New("transfer would exceed withdrawal limit")
+	if s.escrowedFunds < 0 {
+		return errors.New("charge would exceed the amount of escrowed funds")
 	}
 
 	targetAccountHandle, err := base64.RawURLEncoding.DecodeString(req.TargetAccountHandle)
@@ -72,7 +72,7 @@ func (s *Service) Charge(req *ChargeRequest, resp *ChargeResponse) error {
 		return err
 	}
 
-	s.withdrawals[string(targetAccountHandle)] += req.Amount
+	s.charges[string(targetAccountHandle)] += req.Amount
 
 	return nil
 }

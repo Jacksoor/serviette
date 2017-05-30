@@ -14,7 +14,6 @@ import (
 
 var (
 	requirementsXattrName string = "user.kobun4.executor.requirements"
-	grantsXattrPrefix            = "user.kobun4.executor.grants."
 )
 
 func getxattr(path, name string) ([]byte, error) {
@@ -90,33 +89,6 @@ func (s *Script) SetRequirements(reqs *scriptspb.Requirements) error {
 		return err
 	}
 	return syscall.Setxattr(s.Path(), requirementsXattrName, rawReqs, 0)
-}
-
-func (s *Script) Grants(accountHandle []byte) (*scriptspb.Grants, error) {
-	grants := &scriptspb.Grants{}
-
-	rawGrants, err := getxattr(s.Path(), grantsXattrPrefix+base64.RawURLEncoding.EncodeToString(accountHandle))
-	if err != nil {
-		return nil, err
-	}
-
-	if rawGrants == nil {
-		return grants, nil
-	}
-
-	if err := proto.Unmarshal(rawGrants, grants); err != nil {
-		return nil, err
-	}
-
-	return grants, nil
-}
-
-func (s *Script) SetGrants(accountHandle []byte, grants *scriptspb.Grants) error {
-	rawGrants, err := proto.Marshal(grants)
-	if err != nil {
-		return err
-	}
-	return syscall.Setxattr(s.Path(), grantsXattrPrefix+base64.RawURLEncoding.EncodeToString(accountHandle), rawGrants, 0)
 }
 
 func (s *Script) Delete() error {

@@ -133,13 +133,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	requirements, err := script.Requirements()
 	if err != nil {
-		glog.Errorf("Failed to get requested grants: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to run script")
-	}
-
-	grants, err := script.Grants(req.ExecutingAccountHandle)
-	if err != nil {
-		glog.Errorf("Failed to get account grants: %v", err)
+		glog.Errorf("Failed to get requirements: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
 
@@ -171,7 +165,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	accountsService := accountsservice.New(s.accountsClient)
 	worker.RegisterService("Accounts", accountsService)
 
-	moneyService := moneyservice.New(s.moneyClient, s.accountsClient, req.ScriptAccountHandle, req.ExecutingAccountHandle, grants.WithdrawalLimit)
+	moneyService := moneyservice.New(s.moneyClient, s.accountsClient, req.ScriptAccountHandle, req.ExecutingAccountHandle, req.Context.EscrowedFunds)
 	worker.RegisterService("Money", moneyService)
 
 	scriptContext := req.Context
@@ -213,11 +207,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, err
 	}
 
-	withdrawalMap := moneyService.Withdrawals()
-	withdrawals := make([]*pb.ExecuteResponse_Withdrawal, 0, len(withdrawalMap))
+	chargesMap := moneyService.Charges()
+	charges := make([]*pb.ExecuteResponse_Charge, 0, len(chargesMap))
 
-	for target, amount := range withdrawalMap {
-		withdrawals = append(withdrawals, &pb.ExecuteResponse_Withdrawal{
+	for target, amount := range chargesMap {
+		charges = append(charges, &pb.ExecuteResponse_Charge{
 			TargetAccountHandle: []byte(target),
 			Amount:              amount,
 		})
@@ -232,8 +226,8 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 		UsageCost: usageCost,
 
-		Withdrawal:      withdrawals,
-		WithdrawalLimit: moneyService.WithdrawalLimit(),
+		Charge:        charges,
+		EscrowedFunds: moneyService.EscrowedFunds(),
 	}, nil
 }
 
@@ -278,60 +272,13 @@ func (s *Service) GetRequirements(ctx context.Context, req *pb.GetRequirementsRe
 
 	reqs, err := script.Requirements()
 	if err != nil {
-		glog.Errorf("Failed to get requested grants: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to get requested grants")
+		glog.Errorf("Failed to get requirements: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to get requirements")
 	}
 
 	return &pb.GetRequirementsResponse{
 		Requirements: reqs,
 	}, nil
-}
-
-func (s *Service) GetGrants(ctx context.Context, req *pb.GetGrantsRequest) (*pb.GetGrantsResponse, error) {
-	script, err := s.scripts.Open(ctx, req.ScriptAccountHandle, req.ScriptName)
-
-	if err != nil {
-		switch err {
-		case scripts.ErrInvalidName:
-			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
-		case scripts.ErrNotFound:
-			return nil, grpc.Errorf(codes.NotFound, "script not found")
-		}
-		glog.Errorf("Failed to get load script: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load script")
-	}
-
-	grants, err := script.Grants(req.ExecutingAccountHandle)
-	if err != nil {
-		glog.Errorf("Failed to get requested grants: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to get account grants")
-	}
-
-	return &pb.GetGrantsResponse{
-		Grants: grants,
-	}, nil
-}
-
-func (s *Service) SetGrants(ctx context.Context, req *pb.SetGrantsRequest) (*pb.SetGrantsResponse, error) {
-	script, err := s.scripts.Open(ctx, req.ScriptAccountHandle, req.ScriptName)
-
-	if err != nil {
-		switch err {
-		case scripts.ErrInvalidName:
-			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
-		case scripts.ErrNotFound:
-			return nil, grpc.Errorf(codes.NotFound, "script not found")
-		}
-		glog.Errorf("Failed to get load script: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to load script")
-	}
-
-	if err := script.SetGrants(req.ExecutingAccountHandle, req.Grants); err != nil {
-		glog.Errorf("Failed to get account grants: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to set account grants")
-	}
-
-	return &pb.SetGrantsResponse{}, nil
 }
 
 func (s *Service) ResolveAlias(ctx context.Context, req *pb.ResolveAliasRequest) (*pb.ResolveAliasResponse, error) {

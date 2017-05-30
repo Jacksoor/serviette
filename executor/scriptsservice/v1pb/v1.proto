@@ -8,10 +8,6 @@ message Requirements {
     bool bill_usage_to_owner = 1;
 }
 
-message Grants {
-    int64 withdrawal_limit = 1;
-}
-
 message Context {
     string bridge_name = 1;
     string mention = 2;
@@ -28,6 +24,8 @@ message Context {
     string currency_name = 11;
     string script_command_prefix = 12;
     string bank_command_prefix = 13;
+
+    int64 escrowed_funds = 14;
 
     map<string, string> extra = 1000;
 }
@@ -70,7 +68,7 @@ message ExecuteRequest {
 }
 
 message ExecuteResponse {
-    message Withdrawal {
+    message Charge {
         bytes target_account_handle = 1;
         int64 amount = 2;
     }
@@ -83,8 +81,8 @@ message ExecuteResponse {
 
     int64 usage_cost = 6;
 
-    repeated Withdrawal withdrawal = 7;
-    int64 withdrawal_limit = 8;
+    repeated Charge charge = 7;
+    int64 escrowed_funds = 8;
 }
 
 message GetContentRequest {
@@ -103,26 +101,6 @@ message GetRequirementsRequest {
 
 message GetRequirementsResponse {
     Requirements requirements = 1;
-}
-
-message SetGrantsRequest {
-    bytes executing_account_handle = 1;
-    bytes script_account_handle = 2;
-    string script_name = 3;
-    Grants grants = 4;
-}
-
-message SetGrantsResponse {
-}
-
-message GetGrantsRequest {
-    bytes executing_account_handle = 1;
-    bytes script_account_handle = 2;
-    string script_name = 3;
-}
-
-message GetGrantsResponse {
-    Grants grants = 1;
 }
 
 message ResolveAliasRequest {
@@ -168,9 +146,6 @@ service Scripts {
     rpc GetContent(GetContentRequest) returns (GetContentResponse) { }
 
     rpc GetRequirements(GetRequirementsRequest) returns (GetRequirementsResponse) { }
-
-    rpc SetGrants(SetGrantsRequest) returns (SetGrantsResponse) { }
-    rpc GetGrants(GetGrantsRequest) returns (GetGrantsResponse) { }
 
     rpc ResolveAlias(ResolveAliasRequest) returns (ResolveAliasResponse) { }
     rpc SetAlias(SetAliasRequest) returns (SetAliasResponse) { }

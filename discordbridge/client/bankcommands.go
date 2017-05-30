@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/golang/protobuf/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -31,7 +30,7 @@ var bankCommands map[string]command = map[string]command{
 
 	"cmd": bankCmd,
 
-	"grant": bankGrant,
+	"escrow": bankEscrow,
 
 	"key": bankKey,
 
@@ -184,13 +183,6 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 }
 
 func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
-	sourceResolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
-		Name: aliasName(m.Author.ID),
-	})
-	if err != nil {
-		return err
-	}
-
 	commandName := rest
 
 	scriptAccountHandle, scriptName, aliased, err := resolveScriptName(ctx, c, commandName)
@@ -230,27 +222,6 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		prettyRequirementDetails = fmt.Sprintf("**No requirements imposed.**")
 	}
 
-	getGrantsResp, err := c.scriptsClient.GetGrants(ctx, &scriptspb.GetGrantsRequest{
-		ExecutingAccountHandle: sourceResolveResp.AccountHandle,
-		ScriptAccountHandle:    scriptAccountHandle,
-		ScriptName:             scriptName,
-	})
-	if err != nil {
-		return err
-	}
-
-	prettyGrants := make([]string, 0)
-	if getGrantsResp.Grants.WithdrawalLimit > 0 {
-		prettyGrants = append(prettyGrants, fmt.Sprintf(" - maximum withdrawal limit of %d %s", getGrantsResp.Grants.WithdrawalLimit, c.currencyName(channel.GuildID)))
-	}
-
-	var prettyGrantsDetails string
-	if len(prettyGrants) > 0 {
-		prettyGrantsDetails = fmt.Sprintf("**Grants:**\n%s", strings.Join(prettyGrants, "\n"))
-	} else {
-		prettyGrantsDetails = fmt.Sprintf("**No grants bestowed.**")
-	}
-
 	var preamble string
 	if aliased {
 		preamble = fmt.Sprintf("`%s` (`%s/%s`)", commandName, base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName)
@@ -258,64 +229,37 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		preamble = fmt.Sprintf("`%s/%s`", base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName)
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Command information for %s:**\n\n%s\n\n%s", m.Author.ID, preamble, prettyRequirementDetails, prettyGrantsDetails))
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Command information for %s:**\n\n%s", m.Author.ID, preamble, prettyRequirementDetails))
 	return nil
 }
 
-func bankGrant(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
-	sourceResolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
-		Name: aliasName(m.Author.ID),
-	})
-	if err != nil {
-		return err
-	}
-
+func bankEscrow(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	parts := strings.SplitN(rest, " ", 2)
 
-	if len(parts) != 2 && len(parts) != 1 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%sgrant command grants`**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
+	if len(parts) != 2 {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%eescrow amount command [arg]`**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
 		return nil
 	}
 
-	commandName := parts[0]
-	grants := &scriptspb.Grants{}
-	if len(parts) == 2 {
-		if err := proto.UnmarshalText(parts[1], grants); err != nil {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Invalid grants specified**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
-			return nil
-		}
-	}
-
-	scriptAccountHandle, scriptName, _, err := resolveScriptName(ctx, c, commandName)
+	amount, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
-		if err == errNotFound {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Command `%s` not found**", m.Author.ID, commandName))
-			return nil
-		}
-		return err
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting numeric amount**", m.Author.ID))
+		return nil
 	}
 
-	if _, err := c.scriptsClient.SetGrants(ctx, &scriptspb.SetGrantsRequest{
-		ExecutingAccountHandle: sourceResolveResp.AccountHandle,
-		ScriptAccountHandle:    scriptAccountHandle,
-		ScriptName:             scriptName,
-		Grants:                 grants,
-	}); err != nil {
-		return err
-	}
+	cmdRest := parts[1]
+	firstSpaceIndex := strings.Index(cmdRest, " ")
 
-	prettyGrants := make([]string, 0)
-	if grants.WithdrawalLimit > 0 {
-		prettyGrants = append(prettyGrants, fmt.Sprintf(" - maximum withdrawal limit of %d %s", grants.WithdrawalLimit, c.currencyName(channel.GuildID)))
-	}
-
-	if len(prettyGrants) > 0 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Grants bestowed on `%s`:**\n%s", m.Author.ID, commandName, strings.Join(prettyGrants, "\n")))
+	var commandName string
+	if firstSpaceIndex == -1 {
+		commandName = cmdRest
+		cmdRest = ""
 	} else {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **All grants revoked from `%s`**", m.Author.ID, commandName))
+		commandName = cmdRest[:firstSpaceIndex]
+		cmdRest = strings.TrimSpace(cmdRest[firstSpaceIndex+1:])
 	}
 
-	return nil
+	return c.runScriptCommand(ctx, s, m, channel, amount, commandName, cmdRest)
 }
 
 func bankKey(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
@@ -462,8 +406,8 @@ Pay a user from your account into their account.
 `+"`"+`cmd command`+"`"+`
 Get information on a command.
 
-`+"`"+`grant command [grants]`+"`"+`
-Set your grants on a command. If grants are left empty, all grants you have previously granted are revoked.
+`+"`"+`escrow amount command [arg]`+"`"+`
+Runs a command with the specified amount of money escrowed.
 
 **I will only respond to the following commands in private:**
 

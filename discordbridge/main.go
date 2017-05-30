@@ -29,7 +29,7 @@ var (
 	discordToken = flag.String("discord_token", "", "Token for Discord.")
 	status       = flag.String("status", "", "Status to show.")
 
-	flavors = flag.String("flavors", `{"": {"bankCommandPrefix": "$", "scriptCommandPrefix": "!", "currencyName": "coins"}}`, "Per-guild flavors")
+	flavors = flag.String("flavors", `{"": {"bankCommandPrefix": "$", "scriptCommandPrefix": "!", "currencyName": "coins", "quiet": false}}`, "Per-guild flavors")
 
 	bankCommandPrefix   = flag.String("bank_command_prefix", "$", "Bank command prefix")
 	scriptCommandPrefix = flag.String("script_command_prefix", "!", "Script command prefix")
