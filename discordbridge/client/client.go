@@ -40,25 +40,29 @@ type Options struct {
 }
 
 type Client struct {
+	session *discordgo.Session
+
 	opts *Options
 
-	session *discordgo.Session
+	bridgeServiceTarget string
 
 	accountsClient accountspb.AccountsClient
 	moneyClient    moneypb.MoneyClient
 	scriptsClient  scriptspb.ScriptsClient
 }
 
-func New(token string, opts *Options, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
+func New(token string, opts *Options, bridgeServiceTarget string, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 	if err != nil {
 		return nil, err
 	}
 
 	client := &Client{
+		session: session,
+
 		opts: opts,
 
-		session: session,
+		bridgeServiceTarget: bridgeServiceTarget,
 
 		accountsClient: accountsClient,
 		moneyClient:    moneyClient,
@@ -105,6 +109,10 @@ func (c *Client) currencyName(guildID string) string {
 
 func (c *Client) Close() {
 	c.session.Close()
+}
+
+func (c *Client) Session() *discordgo.Session {
+	return c.session
 }
 
 func (c *Client) ready(s *discordgo.Session, r *discordgo.Ready) {
@@ -371,12 +379,11 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		Name:                   scriptName,
 		Rest:                   rest,
 		Context: &scriptspb.Context{
-			BridgeName:   "discord",
-			Mention:      fmt.Sprintf("<@!%s>", m.Author.ID),
-			Source:       m.Author.ID,
-			Server:       channel.GuildID,
-			Channel:      m.ChannelID,
-			IsPrivate:    channel.IsPrivate,
+			Mention: fmt.Sprintf("<@!%s>", m.Author.ID),
+			Source:  m.Author.ID,
+			Server:  channel.GuildID,
+			Channel: m.ChannelID,
+
 			OutputFormat: "text",
 
 			CurrencyName:        c.currencyName(channel.GuildID),
@@ -385,6 +392,9 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 
 			EscrowedFunds: escrowedFunds,
 		},
+
+		BridgeName:          "discord",
+		BridgeServiceTarget: c.bridgeServiceTarget,
 	})
 
 	if err != nil {

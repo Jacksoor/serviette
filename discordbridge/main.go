@@ -15,15 +15,20 @@ import (
 
 	"github.com/golang/glog"
 	"google.golang.org/grpc"
+	_ "google.golang.org/grpc/grpclog/glogger"
+	"google.golang.org/grpc/reflection"
 
+	"github.com/porpoises/kobun4/discordbridge/bridgeservice"
 	"github.com/porpoises/kobun4/discordbridge/client"
 
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
+	bridgepb "github.com/porpoises/kobun4/executor/bridgeservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
 var (
+	socketPath      = flag.String("socket_path", "/tmp/kobun4-discordbridge.socket", "Bind path for socket")
 	debugSocketPath = flag.String("debug_socket_path", "/tmp/kobun4-discordbridge.debug.socket", "Bind path for socket")
 
 	discordToken = flag.String("discord_token", "", "Token for Discord.")
@@ -83,7 +88,7 @@ func main() {
 		Status:  *status,
 		Flavors: flavorsMap,
 		WebURL:  *webURL,
-	}, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
+	}, *socketPath, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}
@@ -91,9 +96,29 @@ func main() {
 
 	glog.Info("Connected to Discord.")
 
+	s := grpc.NewServer()
+	bridgepb.RegisterBridgeServer(s, bridgeservice.New(client.Session()))
+	reflection.Register(s)
+
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGTERM)
 
-	s := <-signalChan
-	glog.Infof("Got signal: %s", s)
+	lis, err := net.Listen("unix", *socketPath)
+	if err != nil {
+		glog.Fatalf("failed to listen: %v", err)
+	}
+	defer lis.Close()
+	glog.Infof("Listening on: %s", lis.Addr())
+
+	errChan := make(chan error)
+	go func() {
+		errChan <- s.Serve(lis)
+	}()
+
+	select {
+	case err := <-errChan:
+		glog.Fatalf("failed to serve: %v", err)
+	case s := <-signalChan:
+		glog.Infof("Got signal: %s", s)
+	}
 }

@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package kobun4.executor.bridge.v1;
+
+option go_package = "v1pb";
+
+message GetUserInfoRequest {
+    string user_id = 1;
+}
+
+message GetUserInfoResponse {
+    string name = 1;
+
+    map<string, string> extra = 1000;
+}
+
+message GetChannelInfoRequest {
+    string channel_id = 1;
+}
+
+message GetChannelInfoResponse {
+    string name = 1;
+    bool is_one_on_one = 2;
+
+    map<string, string> extra = 1000;
+}
+
+message GetServerInfoRequest {
+    string server_id = 1;
+}
+
+message GetServerInfoResponse {
+    string name = 1;
+
+    map<string, string> extra = 1000;
+}
+
+service Bridge {
+    rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse) {}
+    rpc GetChannelInfo(GetChannelInfoRequest) returns (GetChannelInfoResponse) {}
+    rpc GetServerInfo(GetServerInfoRequest) returns (GetServerInfoResponse) {}
+}

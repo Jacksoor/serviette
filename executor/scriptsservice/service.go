@@ -3,6 +3,7 @@ package scriptsservice
 import (
 	"encoding/base64"
 	"fmt"
+	"net"
 	"syscall"
 	"time"
 
@@ -14,10 +15,12 @@ import (
 
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
+	bridgepb "github.com/porpoises/kobun4/executor/bridgeservice/v1pb"
 
 	"github.com/porpoises/kobun4/executor/scripts"
 	"github.com/porpoises/kobun4/executor/worker"
 	"github.com/porpoises/kobun4/executor/worker/rpc/accountsservice"
+	"github.com/porpoises/kobun4/executor/worker/rpc/bridgeservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/contextservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/moneyservice"
 
@@ -175,6 +178,17 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	contextService := contextservice.New(scriptContext)
 	worker.RegisterService("Context", contextService)
+
+	bridgeConn, err := grpc.Dial(req.BridgeServiceTarget, grpc.WithInsecure(), grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
+		return net.DialTimeout("unix", addr, timeout)
+	}))
+	if err != nil {
+		return nil, grpc.Errorf(codes.Unavailable, "bridge service unavailable")
+	}
+	defer bridgeConn.Close()
+
+	bridgeService := bridgeservice.New(req.BridgeName, bridgepb.NewBridgeClient(bridgeConn))
+	worker.RegisterService("Bridge", bridgeService)
 
 	workerCtx, workerCancel := context.WithTimeout(ctx, time.Duration(getBalanceResp.Balance)*s.durationPerUnitCost)
 	defer workerCancel()

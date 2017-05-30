@@ -7,10 +7,12 @@ go_library(
     deps = [
         "//bank/accountsservice/v1pb:go_default_library",
         "//bank/moneyservice/v1pb:go_default_library",
+        "//executor/bridgeservice/v1pb:go_default_library",
         "//executor/scripts:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "//executor/worker:go_default_library",
         "//executor/worker/rpc/accountsservice:go_default_library",
+        "//executor/worker/rpc/bridgeservice:go_default_library",
         "//executor/worker/rpc/contextservice:go_default_library",
         "//executor/worker/rpc/moneyservice:go_default_library",
         "@com_github_golang_glog//:go_default_library",

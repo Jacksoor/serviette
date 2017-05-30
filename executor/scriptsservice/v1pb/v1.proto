@@ -9,23 +9,22 @@ message Requirements {
 }
 
 message Context {
-    string bridge_name = 1;
-    string mention = 2;
-    string source = 3;
-    string server = 4;
-    string channel = 5;
-    bool is_private = 6;
-    string output_format = 7;
+    string mention = 1;
+    string source = 2;
+    string server = 3;
+    string channel = 4;
 
-    string script_account_handle = 8;
-    string billing_account_handle = 9;
-    string executing_account_handle = 10;
+    string output_format = 5;
 
-    string currency_name = 11;
-    string script_command_prefix = 12;
-    string bank_command_prefix = 13;
+    string script_account_handle = 11;
+    string billing_account_handle = 12;
+    string executing_account_handle = 13;
 
-    int64 escrowed_funds = 14;
+    string currency_name = 14;
+    string script_command_prefix = 15;
+    string bank_command_prefix = 16;
+
+    int64 escrowed_funds = 21;
 
     map<string, string> extra = 1000;
 }
@@ -65,6 +64,9 @@ message ExecuteRequest {
     string name = 4;
     string rest = 5;
     Context context = 6;
+
+    string bridge_name = 7;
+    string bridge_service_target = 8;
 }
 
 message ExecuteResponse {
