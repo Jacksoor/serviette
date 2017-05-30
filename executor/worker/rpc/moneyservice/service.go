@@ -14,21 +14,21 @@ type Service struct {
 	moneyClient    moneypb.MoneyClient
 	accountsClient accountspb.AccountsClient
 
-	accountHandle []byte
-	accountKey    []byte
+	scriptAccountHandle  []byte
+	billingAccountHandle []byte
 
 	withdrawalLimit int64
 
 	withdrawals map[string]int64
 }
 
-func New(moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, accountHandle []byte, accountKey []byte, withdrawalLimit int64) *Service {
+func New(moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, scriptAccountHandle []byte, billingAccountHandle []byte, withdrawalLimit int64) *Service {
 	return &Service{
 		moneyClient:    moneyClient,
 		accountsClient: accountsClient,
 
-		accountHandle: accountHandle,
-		accountKey:    accountKey,
+		scriptAccountHandle:  scriptAccountHandle,
+		billingAccountHandle: billingAccountHandle,
 
 		withdrawalLimit: withdrawalLimit,
 
@@ -40,15 +40,15 @@ func (s *Service) Withdrawals() map[string]int64 {
 	return s.withdrawals
 }
 
-type PayRequest struct {
+type ChargeRequest struct {
 	TargetAccountHandle string `json:"targetAccountHandle"`
 	Amount              int64  `json:"amount"`
 }
 
-type PayResponse struct{}
+type ChargeResponse struct{}
 
-// Pay transfers money from the executing account into a target account.
-func (s *Service) Pay(req *PayRequest, resp *PayResponse) error {
+// Charge transfers money from the billing account into a target account.
+func (s *Service) Charge(req *ChargeRequest, resp *ChargeResponse) error {
 	if req.Amount > s.withdrawalLimit {
 		return errors.New("transfer would exceed withdrawal limit")
 	}
@@ -59,7 +59,7 @@ func (s *Service) Pay(req *PayRequest, resp *PayResponse) error {
 	}
 
 	if _, err := s.moneyClient.Transfer(context.Background(), &moneypb.TransferRequest{
-		SourceAccountHandle: s.accountHandle,
+		SourceAccountHandle: s.billingAccountHandle,
 		TargetAccountHandle: targetAccountHandle,
 		Amount:              req.Amount,
 	}); err != nil {
@@ -68,6 +68,31 @@ func (s *Service) Pay(req *PayRequest, resp *PayResponse) error {
 
 	s.withdrawals[string(targetAccountHandle)] += req.Amount
 	s.withdrawalLimit -= req.Amount
+
+	return nil
+}
+
+type PayRequest struct {
+	TargetAccountHandle string `json:"targetAccountHandle"`
+	Amount              int64  `json:"amount"`
+}
+
+type PayResponse struct{}
+
+// Pay transfers money from the script account into a target account.
+func (s *Service) Pay(req *PayRequest, resp *PayResponse) error {
+	targetAccountHandle, err := base64.RawURLEncoding.DecodeString(req.TargetAccountHandle)
+	if err != nil {
+		return err
+	}
+
+	if _, err := s.moneyClient.Transfer(context.Background(), &moneypb.TransferRequest{
+		SourceAccountHandle: s.scriptAccountHandle,
+		TargetAccountHandle: targetAccountHandle,
+		Amount:              req.Amount,
+	}); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -112,7 +137,7 @@ func (s *Service) Transfer(req *TransferRequest, resp *TransferResponse) error {
 		return err
 	}
 
-	if string(req.SourceAccountHandle) == string(s.accountHandle) {
+	if string(req.SourceAccountHandle) == string(s.billingAccountHandle) {
 		s.withdrawals[string(req.TargetAccountHandle)] += req.Amount
 	}
 
@@ -128,13 +153,13 @@ type GetBalanceResponse struct {
 }
 
 func (s *Service) GetBalance(req *GetBalanceRequest, resp *GetBalanceResponse) error {
-	accountHandle, err := base64.RawURLEncoding.DecodeString(req.AccountHandle)
+	billingAccountHandle, err := base64.RawURLEncoding.DecodeString(req.AccountHandle)
 	if err != nil {
 		return err
 	}
 
 	getBalanceResp, err := s.moneyClient.GetBalance(context.Background(), &moneypb.GetBalanceRequest{
-		AccountHandle: accountHandle,
+		AccountHandle: billingAccountHandle,
 	})
 	if err != nil {
 		return err

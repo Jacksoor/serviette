@@ -8,15 +8,15 @@ class RPCError(Exception):
     pass
 
 
-class ClientError(Exception):
+class ClientError(RPCError):
     pass
 
 
-class MismatchedIDError(Exception):
+class MismatchedIDError(ClientError):
     pass
 
 
-class ServerError(Exception):
+class ServerError(RPCError):
     pass
 
 

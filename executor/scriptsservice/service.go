@@ -1,6 +1,7 @@
 package scriptsservice
 
 import (
+	"encoding/base64"
 	"fmt"
 	"syscall"
 	"time"
@@ -184,7 +185,12 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	moneyService := moneyservice.New(s.moneyClient, s.accountsClient, req.ExecutingAccountHandle, req.ExecutingAccountKey, withdrawalLimit)
 	worker.RegisterService("Money", moneyService)
 
-	contextService := contextservice.New(req.Context)
+	scriptContext := req.Context
+	scriptContext.ScriptAccountHandle = base64.RawURLEncoding.EncodeToString(req.ScriptAccountHandle)
+	scriptContext.BillingAccountHandle = base64.RawURLEncoding.EncodeToString(billingAccountHandle)
+	scriptContext.ExecutingAccountHandle = base64.RawURLEncoding.EncodeToString(req.ExecutingAccountHandle)
+
+	contextService := contextservice.New(scriptContext)
 	worker.RegisterService("Context", contextService)
 
 	workerCtx, workerCancel := context.WithTimeout(ctx, time.Duration(getBalanceResp.Balance)*s.durationPerUnitCost)

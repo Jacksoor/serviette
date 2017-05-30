@@ -18,6 +18,10 @@ message Context {
     bool is_private = 6;
     string output_format = 7;
 
+    string script_account_handle = 8;
+    string billing_account_handle = 9;
+    string executing_account_handle = 10;
+
     map<string, string> extra = 1000;
 }
 

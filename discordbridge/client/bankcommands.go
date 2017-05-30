@@ -35,6 +35,10 @@ var bankCommands map[string]command = map[string]command{
 
 	"key": bankKey,
 
+	"neworphan": bankNeworphan,
+
+	"transfer": bankTransfer,
+
 	"?":    bankHelp,
 	"help": bankHelp,
 }
@@ -152,12 +156,11 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		return err
 	}
 
-	_, err = c.moneyClient.Transfer(ctx, &moneypb.TransferRequest{
+	if _, err := c.moneyClient.Transfer(ctx, &moneypb.TransferRequest{
 		SourceAccountHandle: sourceResolveResp.AccountHandle,
 		TargetAccountHandle: targetAccountHandle,
 		Amount:              amount,
-	})
-	if err != nil {
+	}); err != nil {
 		switch grpc.Code(err) {
 		case codes.FailedPrecondition:
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Not enough funds**", m.Author.ID))
@@ -341,32 +344,145 @@ func bankKey(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	return nil
 }
 
+func bankNeworphan(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+	if !channel.IsPrivate {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Can only use this command in private**", m.Author.ID))
+		return nil
+	}
+
+	resp, err := c.accountsClient.Create(ctx, &accountspb.CreateRequest{})
+	if err != nil {
+		return err
+	}
+
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Account handle (username):** `%s`,  **Account key (password):** `%s`", m.Author.ID, base64.RawURLEncoding.EncodeToString(resp.AccountHandle), base64.RawURLEncoding.EncodeToString(resp.AccountKey)))
+	return nil
+}
+
+func bankTransfer(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+	if !channel.IsPrivate {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Can only use this command in private**", m.Author.ID))
+		return nil
+	}
+
+	parts := strings.SplitN(rest, " ", 4)
+
+	if len(parts) != 4 {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%stransfer source@mention/sourcehandle sourcekey target@mention/targethandle amount`**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
+		return nil
+	}
+
+	amount, err := strconv.ParseInt(parts[3], 10, 64)
+	if err != nil {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting numeric amount**", m.Author.ID))
+		return nil
+	}
+
+	sourceAccountKey, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting account key**", m.Author.ID))
+		return nil
+	}
+
+	source := parts[0]
+	sourceAccountHandle, err := resolveAccountTarget(ctx, c, source)
+	if err != nil {
+		switch err {
+		case errNotFound:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Source user does not have account**", m.Author.ID))
+			return nil
+		case errBadAccountHandle:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting @mention or account handle**", m.Author.ID))
+			return nil
+		}
+		return err
+	}
+
+	target := parts[2]
+	targetAccountHandle, err := resolveAccountTarget(ctx, c, target)
+	if err != nil {
+		switch err {
+		case errNotFound:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Target user does not have account**", m.Author.ID))
+			return nil
+		case errBadAccountHandle:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting @mention or account handle**", m.Author.ID))
+			return nil
+		}
+		return err
+	}
+
+	if _, err := c.accountsClient.Check(context.Background(), &accountspb.CheckRequest{
+		AccountHandle: sourceAccountHandle,
+		AccountKey:    sourceAccountKey,
+	}); err != nil {
+		if grpc.Code(err) == codes.PermissionDenied {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Not authorized**", m.Author.ID))
+			return nil
+		}
+		return err
+	}
+
+	if _, err := c.moneyClient.Transfer(ctx, &moneypb.TransferRequest{
+		SourceAccountHandle: sourceAccountHandle,
+		TargetAccountHandle: targetAccountHandle,
+		Amount:              amount,
+	}); err != nil {
+		switch grpc.Code(err) {
+		case codes.FailedPrecondition:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Not enough funds**", m.Author.ID))
+			return nil
+		case codes.InvalidArgument:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Invalid transfer amount**", m.Author.ID))
+			return nil
+		}
+		return err
+	}
+
+	if source[0] != '<' {
+		source = "`" + source + "`"
+	}
+
+	if target[0] != '<' {
+		target = "`" + target + "`"
+	}
+
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Transfer from %s to %s:** %d %s", m.Author.ID, source, target, amount, c.currencyName(channel.GuildID)))
+	return nil
+}
+
 func bankHelp(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(`Hi <@!%s>, I understand the following commands:
 
-`+"`"+`$balance [@mention/handle]`+"`"+`
-_Also available as:_ `+"`"+`$`+"`"+`, `+"`"+`$bal`+"`"+`
+`+"`"+`balance [@mention/handle]`+"`"+`
+_Also available as:_ `+"`"+`bal`+"`"+`
 Get a user's balance. Leave out the username to get your own balance.
 
-`+"`"+`$account [@mention/handle]`+"`"+`
-_Also available as:_ `+"`"+`$$`+"`"+`
+`+"`"+`account [@mention/handle]`+"`"+`
+_Also available as:_ `+"`"+`$`+"`"+`
 Get a user's account information. Leave out the username to get your own accounts.
 
-`+"`"+`$pay @mention/handle amount`+"`"+`
+`+"`"+`pay @mention/handle amount`+"`"+`
 Pay a user from your account into their account.
 
-`+"`"+`$cmd command`+"`"+`
+`+"`"+`cmd command`+"`"+`
 Get information on a command.
 
-`+"`"+`$setcaps command [capabilities]`+"`"+`
+`+"`"+`setcaps command [capabilities]`+"`"+`
 Set your capabilities on a command. If capabilities are left empty, all capabilities you have previously granted are revoked.
 
 **I will only respond to the following commands in private:**
 
-`+"`"+`$key`+"`"+`
+`+"`"+`key`+"`"+`
 Gets the key to your account.
 
-**You can also visit me online at %s** For login details, please message me `+"`"+`$key`+"`"+` in private.
+`+"`"+`neworphan`+"`"+`
+Creates a new, empty account.
+
+`+"`"+`transfer source@mention/sourcehandle sourcekey target@mention/targethandle amount`+"`"+`
+Transfer funds directly from the source account into the target account. This requires the key of the source account.
+
+**You can also visit me online at %s** For login details, please use the `+"`"+`key`+"`"+` command in private.
 
 `, m.Author.ID, c.opts.WebURL))
 	return nil
