@@ -8,7 +8,6 @@ import (
 	"net/rpc/jsonrpc"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -28,13 +27,11 @@ type Worker struct {
 }
 
 type WorkerOptions struct {
-	K4LibraryPath string
-	TimeLimit     time.Duration
-	MemoryLimit   int64
-	NsjailArgs    []string
-	Chroot        string
-	MountsRoot    string
-	ScriptsRoot   string
+	TimeLimit   time.Duration
+	MemoryLimit int64
+	TmpfsSize   int64
+	Chroot      string
+	NsjailArgs  []string
 }
 
 type WorkerResult struct {
@@ -86,11 +83,9 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 		"--hostname", "kobun4",
 		"--cgroup_mem_max", fmt.Sprintf("%d", f.opts.MemoryLimit),
 		"--chroot", f.opts.Chroot,
-		"--bindmount_ro", fmt.Sprintf("%s:/usr/lib/k4", f.opts.K4LibraryPath),
-		"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", f.opts.ScriptsRoot),
 		"--tmpfsmount", "/tmp",
-		"--",
-		filepath.Join("/mnt/scripts", f.arg0))
+		"--tmpfs_size", fmt.Sprintf("%d", f.opts.TmpfsSize),
+		"--", f.arg0)
 
 	cmd := exec.CommandContext(
 		ctx, "nsjail", append(nsjailArgs, f.argv...)...)

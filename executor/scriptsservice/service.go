@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -32,6 +33,8 @@ type Service struct {
 	scripts *scripts.Store
 	mounter *scripts.Mounter
 
+	k4LibraryPath string
+
 	moneyClient    moneypb.MoneyClient
 	accountsClient accountspb.AccountsClient
 
@@ -40,10 +43,12 @@ type Service struct {
 	supervisor *worker.Supervisor
 }
 
-func New(scripts *scripts.Store, mounter *scripts.Mounter, moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, durationPerUnitCost time.Duration, supervisor *worker.Supervisor) *Service {
+func New(scripts *scripts.Store, mounter *scripts.Mounter, k4LibraryPath string, moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, durationPerUnitCost time.Duration, supervisor *worker.Supervisor) *Service {
 	return &Service{
 		scripts: scripts,
 		mounter: mounter,
+
+		k4LibraryPath: k4LibraryPath,
 
 		moneyClient:    moneyClient,
 		accountsClient: accountsClient,
@@ -168,7 +173,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.FailedPrecondition, "the executing account does not have enough funds")
 	}
 
-	worker := s.supervisor.Spawn(script.QualifiedName(), []string{}, []byte(req.Rest))
+	worker := s.supervisor.Spawn(filepath.Join("/mnt/scripts", script.QualifiedName()), []string{}, []byte(req.Rest))
 
 	accountsService := accountsservice.New(s.accountsClient)
 	worker.RegisterService("Accounts", accountsService)
@@ -207,6 +212,8 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	startTime := time.Now()
 	r, err := worker.Run(workerCtx, []string{
 		"--bindmount", fmt.Sprintf("%s:/mnt/storage", mountPath),
+		"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", s.scripts.RootPath()),
+		"--bindmount_ro", fmt.Sprintf("%s:/usr/lib/k4", s.k4LibraryPath),
 		"--cwd", "/mnt/storage",
 		"--env", fmt.Sprintf("K4_CONTEXT=%s", rawCtx),
 	})

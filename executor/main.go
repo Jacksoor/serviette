@@ -50,6 +50,7 @@ var (
 
 	timeLimit   = flag.Duration("time_limit", 5*time.Second, "Time limit")
 	memoryLimit = flag.Int64("memory_limit", 20*1024*1024, "Memory limit")
+	tmpfsSize   = flag.Int64("tmpfs_size", 4*1024*1024, "Memory limit")
 
 	durationPerUnitCost = flag.Duration("duration_per_unit_cost", time.Second, "Duration per unit cost")
 )
@@ -102,17 +103,15 @@ func main() {
 	}
 
 	supervisor := worker.NewSupervisor(&worker.WorkerOptions{
-		K4LibraryPath: *k4LibraryPath,
-		TimeLimit:     *timeLimit,
-		MemoryLimit:   *memoryLimit,
-		NsjailArgs:    splitNsjailArgs,
-		Chroot:        *chrootPath,
-		ScriptsRoot:   *scriptsRootPath,
-		MountsRoot:    mounter.MountsRoot(),
+		TimeLimit:   *timeLimit,
+		MemoryLimit: *memoryLimit,
+		TmpfsSize:   *tmpfsSize,
+		NsjailArgs:  splitNsjailArgs,
+		Chroot:      *chrootPath,
 	})
 
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scripts.NewStore(*scriptsRootPath, db), mounter, moneypb.NewMoneyClient(bankConn), accountsClient, *durationPerUnitCost, supervisor))
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scripts.NewStore(*scriptsRootPath, db), mounter, *k4LibraryPath, moneypb.NewMoneyClient(bankConn), accountsClient, *durationPerUnitCost, supervisor))
 	reflection.Register(s)
 
 	signalChan := make(chan os.Signal, 1)

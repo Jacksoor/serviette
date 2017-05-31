@@ -52,6 +52,10 @@ func (s *Store) load(ctx context.Context, accountHandle []byte, name string) (*S
 	}, nil
 }
 
+func (s *Store) RootPath() string {
+	return s.rootPath
+}
+
 func (s *Store) Create(ctx context.Context, accountHandle []byte, name string) (*Script, error) {
 	script, err := s.load(ctx, accountHandle, name)
 	if err != nil {
