@@ -22,3 +22,17 @@ All members of the :ref:`context <context>` are exposed via ``client.context``.
 .. code-block:: python
 
    user_name = client.Bridge.GetUserInfo(id=...).name
+
+Lua
+---
+
+.. code-block:: lua
+
+   package.path = '/usr/lib/k4/?.lua;' .. package.path
+   k4 = require('k4')
+
+   client = k4.Client.new()
+
+The Lua client is experimental and currently not supported.
+
+All members of the :ref:`context <context>` are exposed via ``client.context``.
