@@ -10,6 +10,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/golang/glog"
+	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -21,8 +22,8 @@ import (
 	"github.com/porpoises/kobun4/executor/worker"
 	"github.com/porpoises/kobun4/executor/worker/rpc/accountsservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/bridgeservice"
-	"github.com/porpoises/kobun4/executor/worker/rpc/contextservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/moneyservice"
+	"github.com/porpoises/kobun4/executor/worker/rpc/outputservice"
 
 	pb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
@@ -120,6 +121,10 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 	return &pb.DeleteResponse{}, nil
 }
 
+var marshaler = jsonpb.Marshaler{
+	EmitDefaults: true,
+}
+
 func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
 	script, err := s.scripts.Open(ctx, req.ScriptAccountHandle, req.Name)
 
@@ -168,7 +173,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	accountsService := accountsservice.New(s.accountsClient)
 	worker.RegisterService("Accounts", accountsService)
 
-	moneyService := moneyservice.New(s.moneyClient, s.accountsClient, req.ScriptAccountHandle, req.ExecutingAccountHandle, req.Context.EscrowedFunds)
+	moneyService := moneyservice.New(s.moneyClient, s.accountsClient, req.ScriptAccountHandle, req.ExecutingAccountHandle, req.EscrowedFunds)
 	worker.RegisterService("Money", moneyService)
 
 	scriptContext := req.Context
@@ -176,8 +181,8 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	scriptContext.BillingAccountHandle = base64.RawURLEncoding.EncodeToString(billingAccountHandle)
 	scriptContext.ExecutingAccountHandle = base64.RawURLEncoding.EncodeToString(req.ExecutingAccountHandle)
 
-	contextService := contextservice.New(scriptContext)
-	worker.RegisterService("Context", contextService)
+	outputService := outputservice.New("text")
+	worker.RegisterService("Output", outputService)
 
 	bridgeConn, err := grpc.Dial(req.BridgeServiceTarget, grpc.WithInsecure(), grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
 		return net.DialTimeout("unix", addr, timeout)
@@ -187,16 +192,23 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 	defer bridgeConn.Close()
 
-	bridgeService := bridgeservice.New(req.BridgeName, bridgepb.NewBridgeClient(bridgeConn))
+	bridgeService := bridgeservice.New(bridgepb.NewBridgeClient(bridgeConn))
 	worker.RegisterService("Bridge", bridgeService)
 
 	workerCtx, workerCancel := context.WithTimeout(ctx, time.Duration(getBalanceResp.Balance)*s.durationPerUnitCost)
 	defer workerCancel()
 
+	rawCtx, err := marshaler.MarshalToString(req.Context)
+	if err != nil {
+		glog.Errorf("Failed to marshal context: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+
 	startTime := time.Now()
 	r, err := worker.Run(workerCtx, []string{
 		"--bindmount", fmt.Sprintf("%s:/mnt/storage", mountPath),
 		"--cwd", "/mnt/storage",
+		"--env", fmt.Sprintf("K4_CONTEXT=%s", rawCtx),
 	})
 	if r == nil {
 		glog.Errorf("Failed to run worker: %v", err)
@@ -232,8 +244,6 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 
 	return &pb.ExecuteResponse{
-		Context: contextService.Context(),
-
 		WaitStatus: uint32(waitStatus),
 		Stdout:     r.Stdout,
 		Stderr:     r.Stderr,
@@ -242,6 +252,8 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 		Charge:        charges,
 		EscrowedFunds: moneyService.EscrowedFunds(),
+
+		OutputFormat: outputService.Format(),
 	}, nil
 }
 

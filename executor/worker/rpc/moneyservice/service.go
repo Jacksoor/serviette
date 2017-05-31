@@ -44,15 +44,16 @@ func (s *Service) EscrowedFunds() int64 {
 	return s.escrowedFunds
 }
 
-type ChargeRequest struct {
-	TargetAccountHandle string `json:"targetAccountHandle"`
-	Amount              int64  `json:"amount"`
+func (s *Service) GetEscrowedFunds(req *struct{}, resp *int64) error {
+	*resp = s.escrowedFunds
+	return nil
 }
 
-type ChargeResponse struct{}
-
 // Charge transfers money from the executing account's escrowed funds into a target account.
-func (s *Service) Charge(req *ChargeRequest, resp *ChargeResponse) error {
+func (s *Service) Charge(req *struct {
+	TargetAccountHandle string `json:"targetAccountHandle"`
+	Amount              int64  `json:"amount"`
+}, resp *struct{}) error {
 	s.escrowedFunds -= req.Amount
 
 	if s.escrowedFunds < 0 {
@@ -77,15 +78,11 @@ func (s *Service) Charge(req *ChargeRequest, resp *ChargeResponse) error {
 	return nil
 }
 
-type PayRequest struct {
+// Pay transfers money from the script account into a target account.
+func (s *Service) Pay(req *struct {
 	TargetAccountHandle string `json:"targetAccountHandle"`
 	Amount              int64  `json:"amount"`
-}
-
-type PayResponse struct{}
-
-// Pay transfers money from the script account into a target account.
-func (s *Service) Pay(req *PayRequest, resp *PayResponse) error {
+}, resp *struct{}) error {
 	targetAccountHandle, err := base64.RawURLEncoding.DecodeString(req.TargetAccountHandle)
 	if err != nil {
 		return err
@@ -102,16 +99,12 @@ func (s *Service) Pay(req *PayRequest, resp *PayResponse) error {
 	return nil
 }
 
-type TransferRequest struct {
+func (s *Service) Transfer(req *struct {
 	SourceAccountHandle string `json:"sourceAccountHandle"`
 	SourceAccountKey    string `json:"sourceAccountKey"`
 	TargetAccountHandle string `json:"targetAccountHandle"`
 	Amount              int64  `json:"amount"`
-}
-
-type TransferResponse struct{}
-
-func (s *Service) Transfer(req *TransferRequest, resp *TransferResponse) error {
+}, resp *struct{}) error {
 	sourceAccountHandle, err := base64.RawURLEncoding.DecodeString(req.SourceAccountHandle)
 	if err != nil {
 		return err
@@ -145,15 +138,9 @@ func (s *Service) Transfer(req *TransferRequest, resp *TransferResponse) error {
 	return nil
 }
 
-type GetBalanceRequest struct {
+func (s *Service) GetBalance(req *struct {
 	AccountHandle string `json:"accountHandle"`
-}
-
-type GetBalanceResponse struct {
-	Balance int64 `json:"balance"`
-}
-
-func (s *Service) GetBalance(req *GetBalanceRequest, resp *GetBalanceResponse) error {
+}, resp *int64) error {
 	accountHandle, err := base64.RawURLEncoding.DecodeString(req.AccountHandle)
 	if err != nil {
 		return err
@@ -166,6 +153,6 @@ func (s *Service) GetBalance(req *GetBalanceRequest, resp *GetBalanceResponse) e
 		return err
 	}
 
-	resp.Balance = getBalanceResp.Balance
+	*resp = getBalanceResp.Balance
 	return nil
 }

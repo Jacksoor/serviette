@@ -9,22 +9,23 @@ message Requirements {
 }
 
 message Context {
-    string mention = 1;
-    string source = 2;
-    string server = 3;
-    string channel = 4;
+    string bridge_name = 1;
 
-    string output_format = 5;
+    // User info.
+    string source = 11;
+    string server = 12;
+    string channel = 13;
+    string mention = 14;
 
-    string script_account_handle = 11;
-    string billing_account_handle = 12;
-    string executing_account_handle = 13;
+    // Accounts.
+    string script_account_handle = 21;
+    string billing_account_handle = 22;
+    string executing_account_handle = 23;
 
-    string currency_name = 14;
-    string script_command_prefix = 15;
-    string bank_command_prefix = 16;
-
-    int64 escrowed_funds = 21;
+    // Flavor.
+    string currency_name = 31;
+    string script_command_prefix = 32;
+    string bank_command_prefix = 33;
 
     map<string, string> extra = 1000;
 }
@@ -65,8 +66,9 @@ message ExecuteRequest {
     string rest = 5;
     Context context = 6;
 
-    string bridge_name = 7;
-    string bridge_service_target = 8;
+    string bridge_service_target = 7;
+
+    int64 escrowed_funds = 8;
 }
 
 message ExecuteResponse {
@@ -75,16 +77,16 @@ message ExecuteResponse {
         int64 amount = 2;
     }
 
-    Context context = 1;
+    uint32 wait_status = 1;
+    bytes stdout = 2;
+    bytes stderr = 3;
 
-    uint32 wait_status = 2;
-    bytes stdout = 4;
-    bytes stderr = 5;
+    int64 usage_cost = 4;
 
-    int64 usage_cost = 6;
+    repeated Charge charge = 5;
+    int64 escrowed_funds = 6;
 
-    repeated Charge charge = 7;
-    int64 escrowed_funds = 8;
+    string output_format = 7;
 }
 
 message GetContentRequest {

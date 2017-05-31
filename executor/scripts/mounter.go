@@ -35,7 +35,7 @@ func NewMounter(imagesRoot string, imageSize int64) (*Mounter, error) {
 	}, nil
 }
 
-func (m* Mounter) MountsRoot() string {
+func (m *Mounter) MountsRoot() string {
 	return m.mountsRoot
 }
 
@@ -70,22 +70,22 @@ func (m *Mounter) Mount(scriptAccountHandle []byte) (string, error) {
 		}
 		f.Close()
 
-		if err := exec.Command("mkfs.ntfs", "-F", imagePath).Run(); err != nil {
+		if err := exec.Command("mkfs.ext4", "-F", imagePath).Run(); err != nil {
 			if eErr, ok := err.(*exec.ExitError); ok {
-				return "", fmt.Errorf("mkfs.ntfs %v: %v", eErr, string(eErr.Stderr))
+				return "", fmt.Errorf("mkfs.ext4 %v: %v", eErr, string(eErr.Stderr))
 			}
-			return "", fmt.Errorf("mkfs.ntfs: %v", err)
+			return "", fmt.Errorf("mkfs.ext4: %v", err)
 		}
 	}
 
-	if err := exec.Command("ntfs-3g", imagePath, mountPath).Run(); err != nil {
+	if err := exec.Command("fuse-ext2", "-o", "rw+", imagePath, mountPath).Run(); err != nil {
 		if err := os.Remove(mountPath); err != nil {
 			panic(err)
 		}
 		if eErr, ok := err.(*exec.ExitError); ok {
-			return "", fmt.Errorf("ntfs-3g %v: %v", eErr, string(eErr.Stderr))
+			return "", fmt.Errorf("fuse-ext2 %v: %v", eErr, string(eErr.Stderr))
 		}
-		return "", fmt.Errorf("ntfs-3g: %v", err)
+		return "", fmt.Errorf("fuse-ext2: %v", err)
 	}
 
 	return mountPath, nil

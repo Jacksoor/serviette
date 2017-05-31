@@ -1,7 +1,18 @@
 import functools
 import json
+import os
 import socket
 import sys
+
+
+class Expando(object):
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+
+def load_expando(s):
+    return json.loads(s, object_hook=lambda d: Expando(**d))
 
 
 class RPCError(Exception):
@@ -32,6 +43,8 @@ class _Stub(object):
 
 class Client(object):
     def __init__(self):
+        self.context = load_expando(os.environ['K4_CONTEXT'])
+
         self._id = 0
         self._f = socket.fromfd(3, socket.AF_UNIX, socket.SOCK_STREAM).makefile(
             'rwb')
@@ -49,22 +62,19 @@ class Client(object):
         self._id += 1
 
         while True:
-            raw = json.loads(self._f.readline().decode('utf-8'))
+            resp = load_expando(self._f.readline().decode('utf-8'))
 
-            resp_id = raw['id']
-            error = raw['error']
-
-            if resp_id < req_id:
+            if resp.id < req_id:
                 continue
 
-            if resp_id > req_id:
+            if resp.id > req_id:
                 raise MismatchedIDError('expected {}, got {}'.format(
-                    req_id, resp_id))
+                    req_id, resp.id))
 
-            if error is not None:
-                raise ServerError(error)
+            if resp.error is not None:
+                raise ServerError(resp.error)
 
-            return raw['result']
+            return resp.result
 
     def __getattr__(self, name):
         return _Stub(self, name)

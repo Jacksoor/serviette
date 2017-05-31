@@ -7,6 +7,11 @@ Client.__index = Client
 function Client.new()
     local self = setmetatable({}, Client)
 
+    local context, _, err = json.decode(os.getenv('K4_CONTEXT'))
+    if err ~= nil then
+        error(err)
+    end
+
     self._id = 0
     self._socket = 3
 

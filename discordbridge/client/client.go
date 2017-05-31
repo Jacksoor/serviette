@@ -379,22 +379,19 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		Name:                   scriptName,
 		Rest:                   rest,
 		Context: &scriptspb.Context{
+			BridgeName: "discord",
+
 			Mention: fmt.Sprintf("<@!%s>", m.Author.ID),
 			Source:  m.Author.ID,
 			Server:  channel.GuildID,
 			Channel: m.ChannelID,
 
-			OutputFormat: "text",
-
 			CurrencyName:        c.currencyName(channel.GuildID),
 			ScriptCommandPrefix: c.scriptCommandPrefix(channel.GuildID),
 			BankCommandPrefix:   c.bankCommandPrefix(channel.GuildID),
-
-			EscrowedFunds: escrowedFunds,
 		},
-
-		BridgeName:          "discord",
 		BridgeServiceTarget: c.bridgeServiceTarget,
+		EscrowedFunds:       escrowedFunds,
 	})
 
 	if err != nil {
@@ -412,9 +409,9 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 	waitStatus := syscall.WaitStatus(resp.WaitStatus)
 
 	if waitStatus.ExitStatus() == 0 || waitStatus.ExitStatus() == 2 {
-		outputFormatter, ok := outputFormatters[resp.Context.OutputFormat]
+		outputFormatter, ok := outputFormatters[resp.OutputFormat]
 		if !ok {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Output format `%s` unknown!** %s", m.Author.ID, resp.Context.OutputFormat, c.prettyBillingDetails(commandName, requirements, channel, resp)))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Output format `%s` unknown!** %s", m.Author.ID, resp.OutputFormat, c.prettyBillingDetails(commandName, requirements, channel, resp)))
 			return nil
 		}
 

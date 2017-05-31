@@ -18,23 +18,17 @@ func New(accountsClient accountspb.AccountsClient) *Service {
 	}
 }
 
-type LookupRequest struct {
-	Name string `json:"name"`
-}
-
-type LookupResponse struct {
-	AccountHandle string `json:"account_handle"`
-}
-
-func (s *Service) Lookup(req *LookupRequest, resp *LookupResponse) error {
+func (s *Service) Lookup(req *struct {
+	UserID string `json:"userID"`
+}, resp *string) error {
 	resolveResp, err := s.accountsClient.ResolveAlias(context.Background(), &accountspb.ResolveAliasRequest{
-		Name: req.Name,
+		Name: req.UserID,
 	})
 
 	if err != nil {
 		return err
 	}
 
-	resp.AccountHandle = base64.RawURLEncoding.EncodeToString(resolveResp.AccountHandle)
+	*resp = base64.RawURLEncoding.EncodeToString(resolveResp.AccountHandle)
 	return nil
 }
