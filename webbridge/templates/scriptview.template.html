@@ -17,7 +17,7 @@
     </p>
 
     <p>
-    <a href="https://kobun4.readthedocs.io/en/latest/scripting/index.html">Documentation reference</a>
+    <a href="https://kobun4.readthedocs.io/en/latest/scripting/index.html" target="docs">Documentation reference</a>
     </p>
 
     <h2>Requirements</h2>
@@ -52,6 +52,14 @@
         '/bin/sh': 'shell',
         '/usr/bin/python3': 'python',
         '/usr/bin/lua': 'lua',
+    };
+
+    var unsaved = false;
+
+    window.onbeforeunload = function () {
+        if (unsaved) {
+            return "You have unsaved changes.";
+        }
     };
 
     var cm = CodeMirror.fromTextArea(document.getElementById("editor"), {
@@ -91,6 +99,8 @@
     guessSyntax();
 
     cm.on("changes", function (cm, changes) {
+        unsaved = true;
+
         if (!changes.some(function (change) {
             return change.from.line == 0;
         })) {
