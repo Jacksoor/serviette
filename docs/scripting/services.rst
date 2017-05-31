@@ -98,6 +98,16 @@ The money service provides scripts to charge and pay the user executing the scri
    :param accountHandle: The account to get the balance of.
    :return: The account's balance.
 
+.. py:function:: Money.GetEscrowedFunds() -> number
+
+   Gets the amount of money that was placed into :ref:`escrow <escrow>`.
+
+   The return value will decrease every time a charge is made. The number will always be monotonically decreasing during a single execution of a script.
+
+   .. note:: This may exceed the balance of the user and the entire amount of escrowed funds may not be chargeable.
+
+   :return: The amount of escrowed funds.
+
 Output
 ------
 
