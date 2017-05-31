@@ -84,7 +84,7 @@ The money service provides scripts to charge and pay the user executing the scri
 
    Initiates a direct transfer of money from the source account.
 
-   .. warning:: Transfers are _direct_ and will bypass the escrow limit. Withdrawals done via transfer will also not be reported.
+   .. warning:: Transfers are **direct** and will bypass the escrow limit. Withdrawals done via transfer will also not be reported.
 
    :param sourceAccountHandle: The account to withdraw from.
    :param sourceAccountKey: The key of the account to withdraw from.

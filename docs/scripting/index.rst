@@ -9,7 +9,7 @@ When a user executes a script (either via ``!command arg`` or ``$escrow amount c
 
  * On exit code 0, the executing entity will report success, along with the contents of stdout (success).
  * On any exit code other than 2, the executing entity will report failure, along with the contents of stderr (script failure).
- * On exit code 2 the executing entity will report failure, along with the contents of stdout (script error).
+ * On exit code 2, the executing entity will report failure, along with the contents of stdout (script error).
 
 Scripts are subject to :ref:`billing <billing>`, but usage may be optionally billed to the owner of the script.
 
