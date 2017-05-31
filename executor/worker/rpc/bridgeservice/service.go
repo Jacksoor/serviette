@@ -23,9 +23,11 @@ var marshaler = jsonpb.Marshaler{
 	EmitDefaults: true,
 }
 
-func (s *Service) GetUserInfo(req *string, resp *map[string]interface{}) error {
+func (s *Service) GetUserInfo(req *struct {
+	ID string `json:"id"`
+}, resp *map[string]interface{}) error {
 	grpcResp, err := s.bridgeClient.GetUserInfo(context.Background(), &bridgepb.GetUserInfoRequest{
-		UserId: *req,
+		UserId: req.ID,
 	})
 	if err != nil {
 		return err
@@ -38,9 +40,11 @@ func (s *Service) GetUserInfo(req *string, resp *map[string]interface{}) error {
 	return json.Unmarshal([]byte(rawResp), resp)
 }
 
-func (s *Service) GetChannelInfo(req *string, resp *map[string]interface{}) error {
+func (s *Service) GetChannelInfo(req *struct {
+	ID string `json:"id"`
+}, resp *map[string]interface{}) error {
 	grpcResp, err := s.bridgeClient.GetChannelInfo(context.Background(), &bridgepb.GetChannelInfoRequest{
-		ChannelId: *req,
+		ChannelId: req.ID,
 	})
 	if err != nil {
 		return err
@@ -53,9 +57,11 @@ func (s *Service) GetChannelInfo(req *string, resp *map[string]interface{}) erro
 	return json.Unmarshal([]byte(rawResp), resp)
 }
 
-func (s *Service) GetServerInfo(req *string, resp *map[string]interface{}) error {
+func (s *Service) GetServerInfo(req *struct {
+	ID string `json:"id"`
+}, resp *map[string]interface{}) error {
 	grpcResp, err := s.bridgeClient.GetServerInfo(context.Background(), &bridgepb.GetServerInfoRequest{
-		ServerId: *req,
+		ServerId: req.ID,
 	})
 	if err != nil {
 		return err

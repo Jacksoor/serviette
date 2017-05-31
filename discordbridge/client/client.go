@@ -184,7 +184,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 	channel, err := s.Channel(m.ChannelID)
 	if err != nil {
 		glog.Errorf("Failed to get channel: %v", err)
-		fail = true
+		return
 	}
 
 	if err := c.ensureAccount(ctx, m.Author.ID); err != nil {
@@ -381,10 +381,9 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		Context: &scriptspb.Context{
 			BridgeName: "discord",
 
-			Mention: fmt.Sprintf("<@!%s>", m.Author.ID),
-			Source:  m.Author.ID,
-			Server:  channel.GuildID,
-			Channel: m.ChannelID,
+			UserId:    m.Author.ID,
+			ChannelId: m.ChannelID,
+			ServerId:  channel.GuildID,
 
 			CurrencyName:        c.currencyName(channel.GuildID),
 			ScriptCommandPrefix: c.scriptCommandPrefix(channel.GuildID),

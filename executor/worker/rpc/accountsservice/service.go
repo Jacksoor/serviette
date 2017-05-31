@@ -19,10 +19,10 @@ func New(accountsClient accountspb.AccountsClient) *Service {
 }
 
 func (s *Service) Lookup(req *struct {
-	UserID string `json:"userID"`
+	Alias string `json:"alias"`
 }, resp *string) error {
 	resolveResp, err := s.accountsClient.ResolveAlias(context.Background(), &accountspb.ResolveAliasRequest{
-		Name: req.UserID,
+		Name: req.Alias,
 	})
 
 	if err != nil {

@@ -12,10 +12,9 @@ message Context {
     string bridge_name = 1;
 
     // User info.
-    string source = 11;
-    string server = 12;
-    string channel = 13;
-    string mention = 14;
+    string user_id = 11;
+    string channel_id = 12;
+    string server_id = 13;
 
     // Accounts.
     string script_account_handle = 21;
