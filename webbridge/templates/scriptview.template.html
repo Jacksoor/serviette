@@ -13,10 +13,6 @@
 <h1>Script: <samp>{{.ScriptAccountHandle}}/{{.ScriptName}}</samp></h1>
 <form method="POST" action="/scripts/{{.ScriptAccountHandle}}/{{.ScriptName}}">
     <p>
-        <label>Highlight as: <select id="modes"></select></label>
-    </p>
-
-    <p>
         <textarea name="content" id="editor">{{.ScriptContent}}</textarea>
     </p>
 
@@ -47,6 +43,13 @@
 
 <script>
 (function() {
+    var KNOWN_SYNTAXES = {
+        '/bin/bash': 'shell',
+        '/bin/sh': 'shell',
+        '/usr/bin/python3': 'python',
+        '/usr/bin/lua': 'lua',
+    };
+
     var cm = CodeMirror.fromTextArea(document.getElementById("editor"), {
         mode: 'null',
         lineNumbers: true,
@@ -65,17 +68,31 @@
         }
     });
 
-    var modesSelect = document.getElementById("modes");
-    Object.keys(CodeMirror.modes).forEach(function (k) {
-        var option = document.createElement('option');
-        option.value = k;
-        option.textContent = k;
-        option.checked = k == cm.getOption('mode');
-        modesSelect.appendChild(option);
-    })
-    modesSelect.onchange = function () {
-        cm.setOption('mode', this.value);
-    };
-})();
-</script>
+    function guessSyntax() {
+        var line1 = cm.getLine(0);
+        if (line1.substring(0, 2) !== '#!') {
+            cm.setOption('mode', null);
+            return;
+        }
+
+        var prog = line1.substring(2);
+        var spaceIndex = line1.indexOf(' ');
+        if (spaceIndex !== -1) {
+            prog = prog.substring(0, spaceIndex);
+        }
+
+        cm.setOption('mode', KNOWN_SYNTAXES[prog] || null);
+    }
+
+    guessSyntax();
+
+    cm.on("changes", function (cm, changes) {
+        if (!changes.some(function (change) {
+            return change.from.line == 0;
+        })) {
+            return;
+        }
+        guessSyntax();
+    });
+})();</script>
 {{end}}
