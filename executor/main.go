@@ -52,7 +52,7 @@ var (
 	memoryLimit = flag.Int64("memory_limit", 20*1024*1024, "Memory limit")
 	tmpfsSize   = flag.Int64("tmpfs_size", 4*1024*1024, "Memory limit")
 
-	durationPerUnitCost = flag.Duration("duration_per_unit_cost", time.Second, "Duration per unit cost")
+	durationPerUnitCost = flag.Duration("duration_per_unit_cost", 10*time.Second, "Duration per unit cost")
 )
 
 func main() {

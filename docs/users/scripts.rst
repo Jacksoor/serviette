@@ -41,4 +41,4 @@ Scripts are not screened for safety and they may be malicious! Some precautionar
 Billing
 -------
 
-Each script you run will be billed according to how long it runs (generally 1 unit of currency per second), up to 5 seconds. If a script runs for too long, you may overdraw the excess amount from your account and your balance will be negative. No payments or bills of any sort may be fulfilled while the balance is overdrawn.
+Each script you run will be billed according to how long it runs (generally 10 units of currency per second), up to 5 seconds. If a script runs for too long, you may overdraw the excess amount from your account and your balance will be negative. No payments or bills of any sort may be fulfilled while the balance is overdrawn.

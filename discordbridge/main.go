@@ -43,6 +43,8 @@ var (
 	bankTarget     = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
 	executorTarget = flag.String("executor_target", "/tmp/kobun4-executor.socket", "Executor target")
 
+	paymentPerMessageCharacter = flag.Int64("payment_per_message_character", 1, "How much to pay per character in a message")
+
 	webURL = flag.String("web_url", "http://kobun", "URL to web UI")
 )
 
@@ -88,7 +90,7 @@ func main() {
 		Status:  *status,
 		Flavors: flavorsMap,
 		WebURL:  *webURL,
-	}, *socketPath, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
+	}, *socketPath, *paymentPerMessageCharacter, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}

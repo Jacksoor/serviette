@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
@@ -48,6 +49,8 @@ type Client struct {
 
 	opts *Options
 
+	paymentPerMessageCharacter int64
+
 	bridgeServiceTarget string
 
 	accountsClient accountspb.AccountsClient
@@ -55,7 +58,7 @@ type Client struct {
 	scriptsClient  scriptspb.ScriptsClient
 }
 
-func New(token string, opts *Options, bridgeServiceTarget string, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
+func New(token string, opts *Options, bridgeServiceTarget string, paymentPerMessageCharacter int64, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 	if err != nil {
 		return nil, err
@@ -65,6 +68,8 @@ func New(token string, opts *Options, bridgeServiceTarget string, accountsClient
 		session: session,
 
 		opts: opts,
+
+		paymentPerMessageCharacter: paymentPerMessageCharacter,
 
 		bridgeServiceTarget: bridgeServiceTarget,
 
@@ -597,5 +602,5 @@ func (c *Client) payForMessage(ctx context.Context, m *discordgo.Message) error 
 }
 
 func (c *Client) messageEarnings(content string) int64 {
-	return 1
+	return utf8.RuneCountInString(content) * c.paymentPerMessageCharacter
 }

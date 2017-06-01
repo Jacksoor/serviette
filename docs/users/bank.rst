@@ -18,7 +18,7 @@ Basic Commands
 Income
 ~~~~~~
 
-Income is received on a per-message basis – each message sent by you will pay out a certain amount (generally 1 message = 1 unit of money).
+Income is received on a per-character basis – each character sent by you will pay out a certain amount (generally 1 character = 1 unit of money).
 
 Balance
 ~~~~~~~
