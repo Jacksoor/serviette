@@ -470,7 +470,7 @@ Get a user's balance. Leave out the username to get your own balance.`,
 Get a user's account information. Leave out the username to get your own accounts.`,
 				},
 				{
-					Name:  fmt.Sprintf("`%spay amount [<@mention>/<handle>]`", prefix),
+					Name:  fmt.Sprintf("`%spay <amount> [<@mention>/<handle>]`", prefix),
 					Value: `Send a payment to another user's account.`,
 				},
 				{

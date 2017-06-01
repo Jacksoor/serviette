@@ -25,13 +25,13 @@ Balance
 
 ::
 
-    $balance [mention/handle]
+    $balance [<mention>/<handle>]
 
 You can look up your balance simply by using ``$balance``. You can look up anyone else's balance by following the command with either their mention or their account handle.
 
 ::
 
-    $account [mention/handle]
+    $account [<mention>/<handle>]
 
 To look up your account handle or anyone else's, you can substitute ``$balance`` for ``$account``.
 
@@ -40,7 +40,7 @@ Payments
 
 ::
 
-    $pay amount mention/handle
+    $pay <amount> <mention>/<handle>
 
 Payments are free and can be sent to anyone by either their mention or their account handle. You cannot pay someone more than you have in your balance.
 
@@ -70,6 +70,6 @@ Transfer
 
 ::
 
-    $transfer amount sourcemention/sourcehandle sourcekey targetmention/targethandle
+    $transfer amount <source mention>/<source handle> <source key> <target mention>/<target handle>
 
 **This command will only be responded to in one-on-one conversations.** This initiates a **direct** transfer from another account to your account. You must provide the key of the account you are transferring from, as that account's consent will **not be required**.

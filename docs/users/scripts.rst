@@ -9,7 +9,7 @@ To find out information about any script, you can use the ``$command`` command:
 
 ::
 
-    $command commandname
+    $command <command name>
 
 If you are looking to write your own scripts, the :ref:`scripting documentation <scripting>` contains a reference guide.
 
@@ -52,7 +52,7 @@ There is also generally a minimum charge of 10 units of currency, even if the sc
 Escrow
 ------
 
-Escrowing money is how you can specify to scripts the limit they can charge you and withdraw into the script owner's accounts. You can check if a script will need to escrow funds via ``$command commandname``.
+Escrowing money is how you can specify to scripts the limit they can charge you and withdraw into the script owner's accounts. You can check if a script will need to escrow funds via ``$command``.
 
 If a script does need to escrow funds, the first number given after the command name will be considered the escrowed amount, e.g.::
 
