@@ -70,6 +70,6 @@ Transfer
 
 ::
 
-    $transfer amount <source mention>/<source handle> <source key> <target mention>/<target handle>
+    $transfer <amount> <source mention>/<source handle> <source key> <target mention>/<target handle>
 
 **This command will only be responded to in one-on-one conversations.** This initiates a **direct** transfer from another account to your account. You must provide the key of the account you are transferring from, as that account's consent will **not be required**.
