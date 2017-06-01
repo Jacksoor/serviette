@@ -176,7 +176,7 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	if target[0] != '<' {
 		target = "`" + target + "`"
 	} else {
-		target = fmt.Sprintf("<%s (`%s`)", target, base64.RawURLEncoding.EncodeToString(targetAccountHandle))
+		target = fmt.Sprintf("%s (`%s`)", target, base64.RawURLEncoding.EncodeToString(targetAccountHandle))
 	}
 
 	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
