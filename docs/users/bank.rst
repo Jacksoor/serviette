@@ -3,7 +3,7 @@ The Bank
 
 Money makes the kobun4 world go around, and in kobun4 it's all kept in the bank.
 
-Fundamentally, 1 unit of money is equivalent to 1 unit of processing time (generally 1 unit of money = 1 second of processing time).
+Generally, 10 unit of currency is equivalent to 1 unit of processing time (generally 1 unit of currency = 1 second of processing time).
 
 .. _accounts:
 
@@ -18,7 +18,7 @@ Basic Commands
 Income
 ~~~~~~
 
-Income is received on a per-character basis – each character sent by you will pay out a certain amount (generally 1 character = 1 unit of money).
+Income is received on a per-character basis – each character sent by you will pay out a certain amount (generally 1 character = 1 unit of currency).
 
 Balance
 ~~~~~~~
