@@ -11,10 +11,3 @@ kobun4 is a user-extensible bot for multiple chat protocols.
    scripting/index
    developers/index
    operations/index
-
-
-Indices and tables
-==================
-
- * :ref:`genindex`
- * :ref:`search`
