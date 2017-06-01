@@ -46,8 +46,10 @@ var discordMentionRegexp = regexp.MustCompile(`<@!?(\d+)>`)
 func bankBalance(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	target := rest
 
+	checkSelf := false
 	if target == "" {
 		target = fmt.Sprintf("<@!%s>", m.Author.ID)
+		checkSelf = true
 	}
 
 	accountHandle, err := resolveAccountTarget(ctx, c, target)
@@ -77,15 +79,22 @@ func bankBalance(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 		target = "`" + target + "`"
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **%s's balance:** %d %s", m.Author.ID, target, resp.Balance, c.currencyName(channel.GuildID)))
+	prefix := "Your"
+	if !checkSelf {
+		prefix = fmt.Sprintf("%s's", target)
+	}
+
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **%s balance:** %d %s", m.Author.ID, prefix, resp.Balance, c.currencyName(channel.GuildID)))
 	return nil
 }
 
 func bankAccount(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	target := rest
 
+	checkSelf := false
 	if target == "" {
 		target = fmt.Sprintf("<@!%s>", m.Author.ID)
+		checkSelf = true
 	}
 
 	accountHandle, err := resolveAccountTarget(ctx, c, target)
@@ -115,7 +124,12 @@ func bankAccount(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 		target = "`" + target + "`"
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **%s (`%s`)'s balance:** %d %s", m.Author.ID, target, base64.RawURLEncoding.EncodeToString(accountHandle), resp.Balance, c.currencyName(channel.GuildID)))
+	prefix := "Your"
+	if !checkSelf {
+		prefix = fmt.Sprintf("%s's", target)
+	}
+
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **%s (`%s`) balance:** %d %s", m.Author.ID, prefix, base64.RawURLEncoding.EncodeToString(accountHandle), resp.Balance, c.currencyName(channel.GuildID)))
 	return nil
 }
 
