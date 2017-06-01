@@ -2,16 +2,16 @@ package client
 
 func explainBillUsageToOwner(c *Client, v bool) string {
 	if v {
-		return "bills usage to the command's owner"
+		return "to owner"
 	} else {
-		return "**bills usage to you**"
+		return "to **you**"
 	}
 }
 
 func explainNeedsEscrow(c *Client, v bool) string {
 	if v {
-		return "**uses the number after the command name as an escrow amount**"
+		return "uses number after command"
 	} else {
-		return "does not need to escrow any funds from you"
+		return "no escrow"
 	}
 }

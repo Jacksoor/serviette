@@ -28,7 +28,8 @@ var bankCommands map[string]command = map[string]command{
 
 	"pay": bankPay,
 
-	"cmd": bankCmd,
+	"command": bankCmd,
+	"cmd":     bankCmd,
 
 	"key": bankKey,
 
@@ -174,9 +175,31 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 
 	if target[0] != '<' {
 		target = "`" + target + "`"
+	} else {
+		target = fmt.Sprintf("<%s (`%s`)", target, base64.RawURLEncoding.EncodeToString(targetAccountHandle))
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Payment sent to %s:** %d %s", m.Author.ID, target, amount, c.currencyName(channel.GuildID)))
+	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		Content: fmt.Sprintf("<@!%s>: ✅", m.Author.ID),
+		Embed: &discordgo.MessageEmbed{
+			Title: "Payment Receipt",
+			Color: 0x009100,
+			Fields: []*discordgo.MessageEmbedField{
+				{
+					Name:  "From",
+					Value: fmt.Sprintf("<@!%s> (`%s`)", m.Author.ID, base64.RawURLEncoding.EncodeToString(sourceResolveResp.AccountHandle)),
+				},
+				{
+					Name:  "To",
+					Value: target,
+				},
+				{
+					Name:  "Amount",
+					Value: fmt.Sprintf("%d %s", amount, c.currencyName(channel.GuildID)),
+				},
+			},
+		},
+	})
 	return nil
 }
 
@@ -208,19 +231,30 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		return err
 	}
 
-	prettyRequirements := []string{
-		" - " + explainBillUsageToOwner(c, getRequirements.Requirements.BillUsageToOwner),
-		" - " + explainNeedsEscrow(c, getRequirements.Requirements.NeedsEscrow),
-	}
+	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		Content: fmt.Sprintf("<@!%s>: ✅", m.Author.ID),
+		Embed: &discordgo.MessageEmbed{
+			Title: fmt.Sprintf("Command information for `%s`", scriptName),
+			Color: 0x009100,
+			Fields: []*discordgo.MessageEmbedField{
+				{
+					Name:  "Script Name",
+					Value: fmt.Sprintf("`%s/%s`", base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName),
+				},
+				{
+					Name:   "Usage Billing",
+					Value:  explainBillUsageToOwner(c, getRequirements.Requirements.BillUsageToOwner),
+					Inline: true,
+				},
+				{
+					Name:   "Escrow",
+					Value:  explainNeedsEscrow(c, getRequirements.Requirements.NeedsEscrow),
+					Inline: true,
+				},
+			},
+		},
+	})
 
-	var preamble string
-	if aliased {
-		preamble = fmt.Sprintf("`%s` (`%s/%s`)", commandName, base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName)
-	} else {
-		preamble = fmt.Sprintf("`%s/%s`", base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName)
-	}
-
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Command information for %s:**\n\n%s", m.Author.ID, preamble, fmt.Sprintf("**Requirements:**\n%s", strings.Join(prettyRequirements, "\n"))))
 	return nil
 }
 
@@ -237,7 +271,23 @@ func bankKey(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		return err
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Account handle (username):** `%s`,  **Account key (password):** `%s`", m.Author.ID, base64.RawURLEncoding.EncodeToString(resolveResp.AccountHandle), base64.RawURLEncoding.EncodeToString(resolveResp.AccountKey)))
+	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		Content: fmt.Sprintf("<@!%s>: ✅", m.Author.ID),
+		Embed: &discordgo.MessageEmbed{
+			Title: "Your Secret Account Details",
+			Color: 0x009100,
+			Fields: []*discordgo.MessageEmbedField{
+				{
+					Name:  "Handle (Username)",
+					Value: fmt.Sprintf("`%s`", base64.RawURLEncoding.EncodeToString(resolveResp.AccountHandle)),
+				},
+				{
+					Name:  "Key (Password)",
+					Value: fmt.Sprintf("`%s`", base64.RawURLEncoding.EncodeToString(resolveResp.AccountKey)),
+				},
+			},
+		},
+	})
 	return nil
 }
 
@@ -252,7 +302,23 @@ func bankNeworphan(ctx context.Context, c *Client, s *discordgo.Session, m *disc
 		return err
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Account handle (username):** `%s`,  **Account key (password):** `%s`", m.Author.ID, base64.RawURLEncoding.EncodeToString(resp.AccountHandle), base64.RawURLEncoding.EncodeToString(resp.AccountKey)))
+	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		Content: fmt.Sprintf("<@!%s>: ✅", m.Author.ID),
+		Embed: &discordgo.MessageEmbed{
+			Title: "New Orphan Account Details",
+			Color: 0x009100,
+			Fields: []*discordgo.MessageEmbedField{
+				{
+					Name:  "Handle (Username)",
+					Value: fmt.Sprintf("`%s`", base64.RawURLEncoding.EncodeToString(resp.AccountHandle)),
+				},
+				{
+					Name:  "Key (Password)",
+					Value: fmt.Sprintf("`%s`", base64.RawURLEncoding.EncodeToString(resp.AccountKey)),
+				},
+			},
+		},
+	})
 	return nil
 }
 
@@ -341,46 +407,90 @@ func bankTransfer(ctx context.Context, c *Client, s *discordgo.Session, m *disco
 
 	if source[0] != '<' {
 		source = "`" + source + "`"
+	} else {
+		source = fmt.Sprintf("%s (`%s`)", source, base64.RawURLEncoding.EncodeToString(sourceAccountHandle))
 	}
 
 	if target[0] != '<' {
 		target = "`" + target + "`"
+	} else {
+		target = fmt.Sprintf("%s (`%s`)", target, base64.RawURLEncoding.EncodeToString(targetAccountHandle))
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Transfer from %s to %s:** %d %s", m.Author.ID, source, target, amount, c.currencyName(channel.GuildID)))
+	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		Content: fmt.Sprintf("<@!%s>: ✅", m.Author.ID),
+		Embed: &discordgo.MessageEmbed{
+			Title: "Transfer Receipt",
+			Color: 0x009100,
+			Fields: []*discordgo.MessageEmbedField{
+				{
+					Name:  "From",
+					Value: source,
+				},
+				{
+					Name:  "To",
+					Value: target,
+				},
+				{
+					Name:  "Amount",
+					Value: fmt.Sprintf("%d %s", amount, c.currencyName(channel.GuildID)),
+				},
+			},
+		},
+	})
 	return nil
 }
 
 func bankHelp(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf(`Hi <@!%s>, I understand the following commands:
+	prefix := c.bankCommandPrefix(channel.GuildID)
 
-`+"`"+`balance [@mention/handle]`+"`"+`
-_Also available as:_ `+"`"+`bal`+"`"+`
-Get a user's balance. Leave out the username to get your own balance.
+	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		Content: fmt.Sprintf("<@!%s>: ✅", m.Author.ID),
+		Embed: &discordgo.MessageEmbed{
+			Title: "Help",
+			Description: fmt.Sprintf(`Here's a listing of my commands.
 
-`+"`"+`account [@mention/handle]`+"`"+`
-_Also available as:_ `+"`"+`$`+"`"+`
-Get a user's account information. Leave out the username to get your own accounts.
+You can also visit me online here: %s (for login details, please use the `+"`"+`%skey`+"`"+` command in private.)
 
-`+"`"+`pay amount @mention/handle`+"`"+`
-Pay a user from your account into their account.
-
-`+"`"+`cmd command`+"`"+`
-Get information on a command.
-
-**I will only respond to the following commands in private:**
-
-`+"`"+`key`+"`"+`
-Gets the key to your account.
-
-`+"`"+`neworphan`+"`"+`
-Creates a new, empty account.
-
-`+"`"+`transfer amount source@mention/sourcehandle sourcekey target@mention/targethandle`+"`"+`
-Transfer funds directly from the source account into the target account. This requires the key of the source account.
-
-**You can also visit me online at %s** For login details, please use the `+"`"+`key`+"`"+` command in private.
-
-`, m.Author.ID, c.opts.WebURL))
+For further information, check out the user documentation at https://kobun4.readthedocs.io/en/latest/users/index.html`, c.opts.WebURL, prefix),
+			Color: 0x009100,
+			Fields: []*discordgo.MessageEmbedField{
+				{
+					Name: fmt.Sprintf("`%sbalance [@mention/handle]`", prefix),
+					Value: `_Also available as:_ ` + "`" + `bal` + "`" + `
+Get a user's balance. Leave out the username to get your own balance.`,
+				},
+				{
+					Name: fmt.Sprintf("`%saccount [@mention/handle]`", prefix),
+					Value: `_Also available as:_ ` + "`" + `$` + "`" + `
+Get a user's account information. Leave out the username to get your own accounts.`,
+				},
+				{
+					Name:  fmt.Sprintf("`%spay amount [@mention/handle]`", prefix),
+					Value: `Send a payment to another user's account.`,
+				},
+				{
+					Name: fmt.Sprintf("`%scommand commandname`", prefix),
+					Value: `_Also available as:_ ` + "`" + `cmd` + "`" + `
+Get information on a command.`,
+				},
+				{
+					Name: fmt.Sprintf("`%skey`", prefix),
+					Value: `**Direct message only.**
+Gets the key to your account.`,
+				},
+				{
+					Name: fmt.Sprintf("`%sneworphan`", prefix),
+					Value: `**Direct message only.**
+Creates a new, empty account.`,
+				},
+				{
+					Name: fmt.Sprintf("`%stransfer amount source@mention/sourcehandle sourcekey target@mention/targethandle`", prefix),
+					Value: `**Direct message only.**
+Transfer funds directly from the source account into the target account. This requires the key of the source account.`,
+				},
+			},
+		},
+	})
 	return nil
 }

@@ -12,13 +12,13 @@ Accounts
 
 An account is identified by two things – its *handle* and its *key*. Users can make transfers into your account knowing only its *handle*, but only you or another holder of your *key* can make transfers out of your account.
 
-Basic Commands
---------------
-
 Income
-~~~~~~
+------
 
 Income is received on a per-character basis – each character sent by you will pay out a certain amount (generally 1 character = 1 unit of currency).
+
+Basic Commands
+--------------
 
 Balance
 ~~~~~~~

@@ -459,15 +459,17 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		} else {
 			escrowedFunds, err = strconv.ParseInt(parts[0], 10, 64)
 			if err != nil {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting numeric amount for escrow**", m.Author.ID))
-				return nil
+				if _, ok := err.(*strconv.NumError); !ok {
+					return err
+				}
+				escrowedFunds = 0
+			} else {
+				if len(parts) == 1 {
+					rest = ""
+				} else {
+					rest = parts[1]
+				}
 			}
-		}
-
-		if len(parts) == 1 {
-			rest = ""
-		} else {
-			rest = parts[1]
 		}
 	}
 
