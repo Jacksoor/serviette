@@ -6,6 +6,7 @@ option go_package = "v1pb";
 
 message Requirements {
     bool bill_usage_to_owner = 1;
+    bool needs_escrow = 2;
 }
 
 message Context {

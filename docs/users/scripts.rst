@@ -46,3 +46,18 @@ Billing
 Each script you run will be billed according to how long it runs (generally 10 units of currency per second), up to 5 seconds. If a script runs for too long, you may overdraw the excess amount from your account and your balance will be negative. No payments or bills of any sort may be fulfilled while the balance is overdrawn.
 
 There is also generally a minimum charge of 10 units of currency, even if the script ran for less than a second.
+
+.. _escrow:
+
+Escrow
+------
+
+Escrowing money is how you can specify to scripts the limit they can charge you and withdraw into the script owner's accounts. You can check if a script will need to escrow funds via ``$cmd command``.
+
+If a script does need to escrow funds, the first number given after the command name will be considered the escrowed amount, e.g.::
+
+    !lottery 1000
+
+This will escrow 1000 units of currency for use by the lottery command, which can charge up to the escrowed amount. If a command has options, they can be given after the amount, e.g.::
+
+    !coinflip 1000 h

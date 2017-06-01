@@ -29,6 +29,12 @@
             If checked, all usage costs that would usually be billed to the executor of the script will be billed to the owner (you!).
         </label>
     </p>
+    <p>
+        <label>
+            <input type="checkbox" name="needs_escrow" {{if .Requirements.NeedsEscrow}}checked{{end}}> <strong>Needs escrow?</strong><br>
+            If checked, the first argument to the command will be considered escrowed funds. The remaining argument will be sent to stdin.
+        </label>
+    </p>
 
     <p>
         <button type="submit">Save</button>

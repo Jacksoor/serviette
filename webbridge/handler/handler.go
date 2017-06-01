@@ -455,6 +455,7 @@ func (h *Handler) scriptUpdate(w http.ResponseWriter, r *http.Request, ps httpro
 		Name:          scriptName,
 		Requirements: &scriptspb.Requirements{
 			BillUsageToOwner: r.Form.Get("bill_usage_to_owner") == "on",
+			NeedsEscrow:      r.Form.Get("needs_escrow") == "on",
 		},
 		Content: []byte(strings.Replace(r.Form.Get("content"), "\r", "", -1)),
 	}); err != nil {

@@ -10,6 +10,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/mail"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -254,7 +255,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 			rest = strings.TrimSpace(rest[firstSpaceIndex+1:])
 		}
 
-		if err := c.runScriptCommand(ctx, s, m.Message, channel, 0, commandName, rest); err != nil {
+		if err := c.runScriptCommand(ctx, s, m.Message, channel, commandName, rest); err != nil {
 			glog.Errorf("Failed to run command %s: %v", commandName, err)
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ‼ **Internal error**", m.Author.ID))
 			return
@@ -410,7 +411,7 @@ func (c *Client) prettyBillingDetails(commandName string, requirements *scriptsp
 	return strings.Join(parts, "\n\n")
 }
 
-func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, escrowedFunds int64, commandName string, rest string) error {
+func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, commandName string, rest string) error {
 	resolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
 		Name: aliasName(m.Author.ID),
 	})
@@ -449,6 +450,26 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		return err
 	}
 	requirements := getRequirementsResp.Requirements
+
+	var escrowedFunds int64
+	if requirements.NeedsEscrow {
+		parts := strings.SplitN(rest, " ", 2)
+		if parts[0] == "" {
+			escrowedFunds = 0
+		} else {
+			escrowedFunds, err = strconv.ParseInt(parts[0], 10, 64)
+			if err != nil {
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting numeric amount for escrow**", m.Author.ID))
+				return nil
+			}
+		}
+
+		if len(parts) == 1 {
+			rest = ""
+		} else {
+			rest = parts[1]
+		}
+	}
 
 	resp, err := c.scriptsClient.Execute(ctx, &scriptspb.ExecuteRequest{
 		ExecutingAccountHandle: resolveResp.AccountHandle,

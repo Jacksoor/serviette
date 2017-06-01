@@ -35,26 +35,12 @@ You can look up your balance simply by using ``$balance``. You can look up anyon
 
 To look up your account handle or anyone else's, you can substitute ``$balance`` for ``$account``.
 
-.. _escrow:
-
-Escrow
-~~~~~~
-
-::
-
-    $escrow amount command [arg]
-
-
-Funds may be placed in *escrow* for a script via ``$escrow``. Scripts may only charge up to the escrowed limit, i.e. you will not spend more money than the amount escrowed for the command.
-
-If a command with escrowed funds manages to successfully charge your account, the charge will shown as part of the result.
-
 Payments
 ~~~~~~~~
 
 ::
 
-    $pay mention/handle amount
+    $pay amount mention/handle
 
 Payments are free and can be sent to anyone by either their mention or their account handle. You cannot pay someone more than you have in your balance.
 
@@ -84,6 +70,6 @@ Transfer
 
 ::
 
-    $transfer sourcemention/sourcehandle sourcekey targetmention/targethandle amount
+    $transfer amount sourcemention/sourcehandle sourcekey targetmention/targethandle
 
 **This command will only be responded to in one-on-one conversations.** This initiates a **direct** transfer from another account to your account. You must provide the key of the account you are transferring from, as that account's consent will **not be required**.

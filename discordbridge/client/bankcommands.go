@@ -30,8 +30,6 @@ var bankCommands map[string]command = map[string]command{
 
 	"cmd": bankCmd,
 
-	"escrow": bankEscrow,
-
 	"key": bankKey,
 
 	"neworphan": bankNeworphan,
@@ -124,11 +122,11 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	parts := strings.SplitN(rest, " ", 2)
 
 	if len(parts) != 2 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%spay @mention/handle amount`**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%spay amount @mention/handle`**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
 		return nil
 	}
 
-	amount, err := strconv.ParseInt(parts[1], 10, 64)
+	amount, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting numeric amount**", m.Author.ID))
 		return nil
@@ -141,7 +139,7 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		return err
 	}
 
-	target := parts[0]
+	target := parts[1]
 	targetAccountHandle, err := resolveAccountTarget(ctx, c, target)
 	if err != nil {
 		switch err {
@@ -210,16 +208,9 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		return err
 	}
 
-	prettyRequirements := make([]string, 0)
-	if getRequirements.Requirements.BillUsageToOwner {
-		prettyRequirements = append(prettyRequirements, " - "+explainBillUsageToOwner(c))
-	}
-
-	var prettyRequirementDetails string
-	if len(prettyRequirements) > 0 {
-		prettyRequirementDetails = fmt.Sprintf("**Requirements:**\n%s", strings.Join(prettyRequirements, "\n"))
-	} else {
-		prettyRequirementDetails = fmt.Sprintf("**No requirements imposed.**")
+	prettyRequirements := []string{
+		" - " + explainBillUsageToOwner(c, getRequirements.Requirements.BillUsageToOwner),
+		" - " + explainNeedsEscrow(c, getRequirements.Requirements.NeedsEscrow),
 	}
 
 	var preamble string
@@ -229,37 +220,8 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		preamble = fmt.Sprintf("`%s/%s`", base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName)
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Command information for %s:**\n\n%s", m.Author.ID, preamble, prettyRequirementDetails))
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **Command information for %s:**\n\n%s", m.Author.ID, preamble, fmt.Sprintf("**Requirements:**\n%s", strings.Join(prettyRequirements, "\n"))))
 	return nil
-}
-
-func bankEscrow(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
-	parts := strings.SplitN(rest, " ", 2)
-
-	if len(parts) != 2 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%eescrow amount command [arg]`**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
-		return nil
-	}
-
-	amount, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting numeric amount**", m.Author.ID))
-		return nil
-	}
-
-	cmdRest := parts[1]
-	firstSpaceIndex := strings.Index(cmdRest, " ")
-
-	var commandName string
-	if firstSpaceIndex == -1 {
-		commandName = cmdRest
-		cmdRest = ""
-	} else {
-		commandName = cmdRest[:firstSpaceIndex]
-		cmdRest = strings.TrimSpace(cmdRest[firstSpaceIndex+1:])
-	}
-
-	return c.runScriptCommand(ctx, s, m, channel, amount, commandName, cmdRest)
 }
 
 func bankKey(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
@@ -303,23 +265,23 @@ func bankTransfer(ctx context.Context, c *Client, s *discordgo.Session, m *disco
 	parts := strings.SplitN(rest, " ", 4)
 
 	if len(parts) != 4 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%stransfer source@mention/sourcehandle sourcekey target@mention/targethandle amount`**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%stransfer amount source@mention/sourcehandle sourcekey target@mention/targethandle`**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
 		return nil
 	}
 
-	amount, err := strconv.ParseInt(parts[3], 10, 64)
+	amount, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting numeric amount**", m.Author.ID))
 		return nil
 	}
 
-	sourceAccountKey, err := base64.RawURLEncoding.DecodeString(parts[1])
+	sourceAccountKey, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting account key**", m.Author.ID))
 		return nil
 	}
 
-	source := parts[0]
+	source := parts[1]
 	sourceAccountHandle, err := resolveAccountTarget(ctx, c, source)
 	if err != nil {
 		switch err {
@@ -333,7 +295,7 @@ func bankTransfer(ctx context.Context, c *Client, s *discordgo.Session, m *disco
 		return err
 	}
 
-	target := parts[2]
+	target := parts[3]
 	targetAccountHandle, err := resolveAccountTarget(ctx, c, target)
 	if err != nil {
 		switch err {
@@ -400,14 +362,11 @@ Get a user's balance. Leave out the username to get your own balance.
 _Also available as:_ `+"`"+`$`+"`"+`
 Get a user's account information. Leave out the username to get your own accounts.
 
-`+"`"+`pay @mention/handle amount`+"`"+`
+`+"`"+`pay amount @mention/handle`+"`"+`
 Pay a user from your account into their account.
 
 `+"`"+`cmd command`+"`"+`
 Get information on a command.
-
-`+"`"+`escrow amount command [arg]`+"`"+`
-Runs a command with the specified amount of money escrowed.
 
 **I will only respond to the following commands in private:**
 
@@ -417,7 +376,7 @@ Gets the key to your account.
 `+"`"+`neworphan`+"`"+`
 Creates a new, empty account.
 
-`+"`"+`transfer source@mention/sourcehandle sourcekey target@mention/targethandle amount`+"`"+`
+`+"`"+`transfer amount source@mention/sourcehandle sourcekey target@mention/targethandle`+"`"+`
 Transfer funds directly from the source account into the target account. This requires the key of the source account.
 
 **You can also visit me online at %s** For login details, please use the `+"`"+`key`+"`"+` command in private.
