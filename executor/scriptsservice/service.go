@@ -39,11 +39,12 @@ type Service struct {
 	accountsClient accountspb.AccountsClient
 
 	durationPerUnitCost time.Duration
+	minimumUsageCost    int64
 
 	supervisor *worker.Supervisor
 }
 
-func New(scripts *scripts.Store, mounter *scripts.Mounter, k4LibraryPath string, moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, durationPerUnitCost time.Duration, supervisor *worker.Supervisor) *Service {
+func New(scripts *scripts.Store, mounter *scripts.Mounter, k4LibraryPath string, moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, durationPerUnitCost time.Duration, minimumUsageCost int64, supervisor *worker.Supervisor) *Service {
 	return &Service{
 		scripts: scripts,
 		mounter: mounter,
@@ -54,6 +55,7 @@ func New(scripts *scripts.Store, mounter *scripts.Mounter, k4LibraryPath string,
 		accountsClient: accountsClient,
 
 		durationPerUnitCost: durationPerUnitCost,
+		minimumUsageCost:    minimumUsageCost,
 
 		supervisor: supervisor,
 	}
@@ -225,9 +227,8 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	dur := endTime.Sub(startTime)
 	usageCost := int64(dur / s.durationPerUnitCost)
-	if usageCost == 0 {
-		// Charge a minimum of 1.
-		usageCost = 1
+	if usageCost < s.minimumUsageCost {
+		usageCost = s.minimumUsageCost
 	}
 	waitStatus := r.ProcessState.Sys().(syscall.WaitStatus)
 

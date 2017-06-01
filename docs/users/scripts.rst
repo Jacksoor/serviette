@@ -42,3 +42,5 @@ Billing
 -------
 
 Each script you run will be billed according to how long it runs (generally 10 units of currency per second), up to 5 seconds. If a script runs for too long, you may overdraw the excess amount from your account and your balance will be negative. No payments or bills of any sort may be fulfilled while the balance is overdrawn.
+
+There is also generally a minimum charge of 10 units of currency, even if the script ran for less than a second.

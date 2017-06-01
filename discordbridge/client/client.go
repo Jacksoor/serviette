@@ -602,5 +602,5 @@ func (c *Client) payForMessage(ctx context.Context, m *discordgo.Message) error 
 }
 
 func (c *Client) messageEarnings(content string) int64 {
-	return utf8.RuneCountInString(content) * c.paymentPerMessageCharacter
+	return int64(utf8.RuneCountInString(content)) * c.paymentPerMessageCharacter
 }

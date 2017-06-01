@@ -52,7 +52,8 @@ var (
 	memoryLimit = flag.Int64("memory_limit", 20*1024*1024, "Memory limit")
 	tmpfsSize   = flag.Int64("tmpfs_size", 4*1024*1024, "Memory limit")
 
-	durationPerUnitCost = flag.Duration("duration_per_unit_cost", 10*time.Second, "Duration per unit cost")
+	durationPerUnitCost = flag.Duration("duration_per_unit_cost", time.Second/10, "Duration per unit cost")
+	minimumUsageCost    = flag.Int64("minimum_usage_cost", 10, "Minimum cost to charge for usage")
 )
 
 func main() {
@@ -111,7 +112,7 @@ func main() {
 	})
 
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scripts.NewStore(*scriptsRootPath, db), mounter, *k4LibraryPath, moneypb.NewMoneyClient(bankConn), accountsClient, *durationPerUnitCost, supervisor))
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scripts.NewStore(*scriptsRootPath, db), mounter, *k4LibraryPath, moneypb.NewMoneyClient(bankConn), accountsClient, *durationPerUnitCost, *minimumUsageCost, supervisor))
 	reflection.Register(s)
 
 	signalChan := make(chan os.Signal, 1)
