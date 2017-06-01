@@ -3,7 +3,7 @@ The Bank
 
 Money makes the kobun4 world go around, and in kobun4 it's all kept in the bank.
 
-Generally, 10 unit of currency is equivalent to 1 unit of processing time (generally 1 unit of currency = 1 second of processing time).
+Generally, 10 units of currency is equivalent to 1 unit of processing time (generally 1 unit of currency = 1 second of processing time).
 
 .. _accounts:
 
