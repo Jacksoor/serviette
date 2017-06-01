@@ -5,7 +5,7 @@ kobun4 is a user-extensible bot for multiple chat protocols.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Contents
 
    users/index
    scripting/index
