@@ -186,12 +186,14 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 			Color: 0x009100,
 			Fields: []*discordgo.MessageEmbedField{
 				{
-					Name:  "From",
-					Value: fmt.Sprintf("<@!%s> (`%s`)", m.Author.ID, base64.RawURLEncoding.EncodeToString(sourceResolveResp.AccountHandle)),
+					Name:   "From",
+					Value:  fmt.Sprintf("<@!%s> (`%s`)", m.Author.ID, base64.RawURLEncoding.EncodeToString(sourceResolveResp.AccountHandle)),
+					Inline: true,
 				},
 				{
-					Name:  "To",
-					Value: target,
+					Name:   "To",
+					Value:  target,
+					Inline: true,
 				},
 				{
 					Name:  "Amount",
@@ -424,12 +426,14 @@ func bankTransfer(ctx context.Context, c *Client, s *discordgo.Session, m *disco
 			Color: 0x009100,
 			Fields: []*discordgo.MessageEmbedField{
 				{
-					Name:  "From",
-					Value: source,
+					Name:   "From",
+					Value:  source,
+					Inline: true,
 				},
 				{
-					Name:  "To",
-					Value: target,
+					Name:   "To",
+					Value:  target,
+					Inline: true,
 				},
 				{
 					Name:  "Amount",
