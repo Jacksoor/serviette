@@ -456,23 +456,27 @@ For further information, check out the user documentation at https://kobun4.read
 			Color: 0x009100,
 			Fields: []*discordgo.MessageEmbedField{
 				{
-					Name: fmt.Sprintf("`%sbalance [@mention/handle]`", prefix),
+					Name:  fmt.Sprintf("`%s<command name>`", c.scriptCommandPrefix(channel.GuildID)),
+					Value: fmt.Sprintf(`Runs the named script command. A full list is available at %s/scripts`, c.opts.WebURL),
+				},
+				{
+					Name: fmt.Sprintf("`%sbalance [<@mention>/<handle>]`", prefix),
 					Value: `**Also available as:** ` + "`" + `bal` + "`" + `
 Get a user's balance. Leave out the username to get your own balance.`,
 				},
 				{
-					Name: fmt.Sprintf("`%saccount [@mention/handle]`", prefix),
+					Name: fmt.Sprintf("`%saccount [<@mention>/<handle>]`", prefix),
 					Value: `**Also available as:** ` + "`" + `$` + "`" + `
 Get a user's account information. Leave out the username to get your own accounts.`,
 				},
 				{
-					Name:  fmt.Sprintf("`%spay amount [@mention/handle]`", prefix),
+					Name:  fmt.Sprintf("`%spay amount [<@mention>/<handle>]`", prefix),
 					Value: `Send a payment to another user's account.`,
 				},
 				{
-					Name: fmt.Sprintf("`%scommand commandname`", prefix),
+					Name: fmt.Sprintf("`%scommand <command name>`", prefix),
 					Value: `**Also available as:** ` + "`" + `cmd` + "`" + `
-Get information on a command.`,
+Get information on the named script command.`,
 				},
 				{
 					Name: fmt.Sprintf("`%skey`", prefix),
@@ -485,7 +489,7 @@ Gets the key to your account.`,
 Creates a new, empty account.`,
 				},
 				{
-					Name: fmt.Sprintf("`%stransfer amount source@mention/sourcehandle sourcekey target@mention/targethandle`", prefix),
+					Name: fmt.Sprintf("`%stransfer <amount> <source @mention>/<source handle> <source key> <target @mention>/<target handle>`", prefix),
 					Value: `**Direct message only.**
 Transfer funds directly from the source account into the target account. This requires the key of the source account.`,
 				},
