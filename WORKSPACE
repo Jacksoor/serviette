@@ -73,8 +73,10 @@ new_go_repository(
 
 new_go_repository(
     name = "com_github_bwmarrin_discordgo",
-    commit = "0993a94b4e1c3291bed2047f583f34792269355c",
+    commit = "9ade506592f39764fa3957ba2b6284fa4085468f",
     importpath = "github.com/bwmarrin/discordgo",
+    remote = "https://github.com/porpoises/discordgo.git",
+    vcs = "git",
 )
 
 new_go_repository(

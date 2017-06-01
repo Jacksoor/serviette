@@ -16,6 +16,7 @@ Scripts are subject to :ref:`billing <billing>`, but usage may be optionally bil
 .. toctree::
 
    clients
+   bridges
    context
    services
    storage
