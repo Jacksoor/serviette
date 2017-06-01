@@ -6,9 +6,9 @@ Bridges are kobun4's way of communicating with chat services.
 Discord
 -------
 
-The ``discord`` bridge connects to the `Discord <discord>`_ chat service.
+The ``discord`` bridge connects to the `Discord <discordweb>`_ chat service.
 
-.. _discord: https://discordapp.com
+.. _discordweb: https://discordapp.com
 
 Output Formats
 ~~~~~~~~~~~~~~

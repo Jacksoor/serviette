@@ -5,4 +5,5 @@ If you are an end user of kobun4, this section of the documentation is for you. 
 
 .. toctree::
 
-   money
+   bank
+   scripts
