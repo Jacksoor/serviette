@@ -3,7 +3,7 @@ The Bank
 
 Money makes the kobun4 world go around, and in kobun4 it's all kept in the bank.
 
-The value of money is directly equivalent to the amount of processing time given to scripts :ref:`scripts <scripts>` (generally, 10 units of currency = 1 second of processing time).
+The value of money is directly equivalent to the amount of processing time given to :ref:`scripts <scripts>` (generally, 10 units of currency = 1 second of processing time).
 
 .. _accounts:
 
