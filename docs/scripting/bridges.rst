@@ -6,6 +6,10 @@ Bridges are kobun4's way of communicating with chat services.
 Discord
 -------
 
+.. image:: https://discordapp.com/api/guilds/315164870997835777/embed.png
+   :alt: merc-devel
+   :target: https://discord.gg/bRCvFy9
+
 The ``discord`` bridge connects to the `Discord <discordweb>`_ chat service.
 
 .. _discordweb: https://discordapp.com
