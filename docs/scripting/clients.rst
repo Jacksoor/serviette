@@ -8,6 +8,8 @@ Python
 
 .. code-block:: python
 
+   #!/usr/bin/python3
+
    import sys
    sys.path.insert(0, '/usr/lib/k4')
    import k4
@@ -27,6 +29,8 @@ Lua
 ---
 
 .. code-block:: lua
+
+   #!/usr/bin/lua
 
    package.path = '/usr/lib/k4/?.lua;' .. package.path
    k4 = require('k4')
