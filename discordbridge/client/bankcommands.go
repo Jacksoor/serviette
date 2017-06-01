@@ -450,19 +450,19 @@ func bankHelp(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo
 			Title: "Help",
 			Description: fmt.Sprintf(`Here's a listing of my commands.
 
-You can also visit me online here: %s (for login details, please use the `+"`"+`%skey`+"`"+` command in private.)
+You can also visit me online here: %s (for login details, please use the `+"`"+`%skey`+"`"+` command in private)
 
 For further information, check out the user documentation at https://kobun4.readthedocs.io/en/latest/users/index.html`, c.opts.WebURL, prefix),
 			Color: 0x009100,
 			Fields: []*discordgo.MessageEmbedField{
 				{
 					Name: fmt.Sprintf("`%sbalance [@mention/handle]`", prefix),
-					Value: `_Also available as:_ ` + "`" + `bal` + "`" + `
+					Value: `**Also available as:** ` + "`" + `bal` + "`" + `
 Get a user's balance. Leave out the username to get your own balance.`,
 				},
 				{
 					Name: fmt.Sprintf("`%saccount [@mention/handle]`", prefix),
-					Value: `_Also available as:_ ` + "`" + `$` + "`" + `
+					Value: `**Also available as:** ` + "`" + `$` + "`" + `
 Get a user's account information. Leave out the username to get your own accounts.`,
 				},
 				{
@@ -471,7 +471,7 @@ Get a user's account information. Leave out the username to get your own account
 				},
 				{
 					Name: fmt.Sprintf("`%scommand commandname`", prefix),
-					Value: `_Also available as:_ ` + "`" + `cmd` + "`" + `
+					Value: `**Also available as:** ` + "`" + `cmd` + "`" + `
 Get information on a command.`,
 				},
 				{
