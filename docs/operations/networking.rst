@@ -15,6 +15,7 @@ Make sure there is an appropriate bridge interface. For Debian/Ubuntu, one can b
 
    auto br0
    iface br0 inet static
+       bridge_ports none
        address 10.0.0.1
        netmask 255.255.255.0
        network 10.0.0.0
