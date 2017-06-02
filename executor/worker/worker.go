@@ -27,11 +27,11 @@ type Worker struct {
 }
 
 type WorkerOptions struct {
-	TimeLimit   time.Duration
-	MemoryLimit int64
-	TmpfsSize   int64
-	Chroot      string
-	NsjailArgs  []string
+	TimeLimit          time.Duration
+	MemoryLimit        int64
+	TmpfsSize          int64
+	Chroot             string
+	KafelSeccompPolicy string
 }
 
 type WorkerResult struct {
@@ -64,8 +64,6 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	nsjailArgs = append(nsjailArgs, f.opts.NsjailArgs...)
-
 	if deadline, ok := ctx.Deadline(); ok {
 		timeLimit := time.Until(deadline) / time.Second
 		nsjailArgs = append(nsjailArgs,
@@ -85,6 +83,7 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 		"--chroot", f.opts.Chroot,
 		"--tmpfsmount", "/tmp",
 		"--tmpfs_size", fmt.Sprintf("%d", f.opts.TmpfsSize),
+		"--seccomp_string", f.opts.KafelSeccompPolicy,
 		"--", f.arg0)
 
 	cmd := exec.CommandContext(

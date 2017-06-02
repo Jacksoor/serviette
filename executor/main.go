@@ -18,7 +18,6 @@ import (
 	_ "google.golang.org/grpc/grpclog/glogger"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/kballard/go-shellquote"
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/porpoises/kobun4/executor/scripts"
@@ -43,7 +42,6 @@ var (
 	k4LibraryPath   = flag.String("k4_library_path", "clients", "Path to library root")
 	chrootPath      = flag.String("chroot_path", "chroot", "Path to chroot")
 	scriptsRootPath = flag.String("scripts_root_path", "scripts", "Path to script root")
-	nsjailArgs      = flag.String("nsjail_args", "", "Additional args to nsjail")
 
 	imagesRootPath = flag.String("images_root_path", "images", "Path to image root")
 	imageSize      = flag.Int64("image_size", 20*1024*1024, "Image size for new images")
@@ -54,6 +52,8 @@ var (
 
 	durationPerUnitCost = flag.Duration("duration_per_unit_cost", time.Second/10, "Duration per unit cost")
 	minimumUsageCost    = flag.Int64("minimum_usage_cost", 10, "Minimum cost to charge for usage")
+
+	kafelSeccompPolicy = flag.String("kafel_seccomp_policy", "POLICY default { KILL { ptrace, process_vm_readv, process_vm_writev } } USE default DEFAULT ALLOW", "Kafel policy to use for seccomp")
 )
 
 func main() {
@@ -98,17 +98,12 @@ func main() {
 		}
 	}()
 
-	splitNsjailArgs, err := shellquote.Split(*nsjailArgs)
-	if err != nil {
-		glog.Fatalf("failed to parse nsjail args: %v", err)
-	}
-
 	supervisor := worker.NewSupervisor(&worker.WorkerOptions{
-		TimeLimit:   *timeLimit,
-		MemoryLimit: *memoryLimit,
-		TmpfsSize:   *tmpfsSize,
-		NsjailArgs:  splitNsjailArgs,
-		Chroot:      *chrootPath,
+		TimeLimit:          *timeLimit,
+		MemoryLimit:        *memoryLimit,
+		TmpfsSize:          *tmpfsSize,
+		Chroot:             *chrootPath,
+		KafelSeccompPolicy: *kafelSeccompPolicy,
 	})
 
 	s := grpc.NewServer()
