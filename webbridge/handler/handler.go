@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"html/template"
@@ -291,44 +292,6 @@ func (h *Handler) scriptAccountIndex(w http.ResponseWriter, r *http.Request, ps 
 	})
 }
 
-var newScriptTemplate string = `#!/usr/bin/python3
-
-"""
-This is an example script using Python.
-"""
-
-import sys
-sys.path.insert(0, '/usr/lib/k4')
-
-# Import the k4 library.
-import k4
-
-
-# Input.
-inp = sys.stdin.read()
-
-# Open some persistent storage.
-try:
-    with open('/mnt/storage/number_of_greetings', 'r') as f:
-        num_his = int(f.read())
-except IOError:
-    num_his = 0
-
-# Create a new client.
-client = k4.Client()
-
-# Get the current context.
-context = client.Context.Get()
-
-# Greet the user!
-print('Hi, {}! I\'ve said "hi" {} times! You said "{}"!'.format(
-    context['mention'], num_his, inp))
-
-# Increment the number of his and put it back into persistent storage.
-with open('/mnt/storage/number_of_greetings', 'w') as f:
-    f.write(str(num_his + 1))
-`
-
 func (h *Handler) scriptCreate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	accountHandle, _, err := h.authenticate(w, r)
 	if err != nil {
@@ -353,11 +316,25 @@ func (h *Handler) scriptCreate(w http.ResponseWriter, r *http.Request, ps httpro
 
 	scriptName := r.Form.Get("name")
 
+	var contentBuf bytes.Buffer
+	t, err := template.ParseFiles(filepath.Join(h.templatePath, "script.template.py"))
+	if err != nil {
+		glog.Errorf("Failed to parse script template: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := t.Execute(&contentBuf, struct{}{}); err != nil {
+		glog.Errorf("Failed to execute script template: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	if _, err := h.scriptsClient.Create(r.Context(), &scriptspb.CreateRequest{
 		AccountHandle: scriptAccountHandle,
 		Name:          scriptName,
 		Requirements:  &scriptspb.Requirements{},
-		Content:       []byte(newScriptTemplate),
+		Content:       contentBuf.Bytes(),
 	}); err != nil {
 		glog.Errorf("Failed to create script: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
