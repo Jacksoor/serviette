@@ -11,7 +11,7 @@ Make sure IP forwarding is enabled in ``/etc/sysctl.conf``:
 
 Make sure there is an appropriate bridge interface. For Debian/Ubuntu, one can be configured inside ``/etc/network/interfaces``:
 
-.. code-block::
+.. code-block:: none
 
    auto br0
    iface br0 inet static
