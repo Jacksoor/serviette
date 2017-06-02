@@ -473,6 +473,12 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		}
 	}
 
+	waitMsg, err := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ⌛ **Please wait, running your command...**", m.Author.ID))
+	if err != nil {
+		return err
+	}
+	defer s.ChannelMessageDelete(m.ChannelID, waitMsg.ID)
+
 	resp, err := c.scriptsClient.Execute(ctx, &scriptspb.ExecuteRequest{
 		ExecutingAccountHandle: resolveResp.AccountHandle,
 		ExecutingAccountKey:    resolveResp.AccountKey,
