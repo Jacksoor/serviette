@@ -1,4 +1,4 @@
-json = require('dkjson')
+json = require('cjson')
 socket = require('posix.sys.socket')
 
 Client = {}
