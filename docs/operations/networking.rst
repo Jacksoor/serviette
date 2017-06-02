@@ -9,7 +9,7 @@ Make sure IP forwarding is enabled in ``/etc/sysctl.conf``:
 
    net.ipv4.ip_forward=1
 
-Make sure there is an appropriate bridge interface. For Debian/Ubuntu, one can be configured inside ``/etc/network/interfaces``:
+Make sure there are appropriate bridge and veth interfaces. For Debian/Ubuntu, these can be configured inside ``/etc/network/interfaces``:
 
 .. code-block:: none
 
@@ -20,6 +20,15 @@ Make sure there is an appropriate bridge interface. For Debian/Ubuntu, one can b
        netmask 255.255.255.0
        network 10.0.0.0
        broadcast 10.0.0.255
+
+   auto veth0
+   iface veth0 inet manual
+       pre-up ip link add dev veth0 type veth peer name veth1
+       pre-up ip link set dev veth0 master br0
+       up ip link set dev veth0 up
+       up ip link set dev veth1 up
+       down ip link set dev veth0 down
+       post-down ip link del veth0
 
 iptables should also be set up to allow NAT:
 

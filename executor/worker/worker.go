@@ -32,6 +32,15 @@ type WorkerOptions struct {
 	TmpfsSize          int64
 	Chroot             string
 	KafelSeccompPolicy string
+
+	Network *NetworkOptions
+}
+
+type NetworkOptions struct {
+	Interface string
+	IP        string
+	Netmask   string
+	Gateway   string
 }
 
 type WorkerResult struct {
@@ -84,6 +93,10 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 		"--tmpfsmount", "/tmp",
 		"--tmpfs_size", fmt.Sprintf("%d", f.opts.TmpfsSize),
 		"--seccomp_string", f.opts.KafelSeccompPolicy,
+		"--macvlan_iface", f.opts.Network.Interface,
+		"--macvlan_vs_ip", f.opts.Network.IP,
+		"--macvlan_vs_nm", f.opts.Network.Netmask,
+		"--macvlan_vs_gw", f.opts.Network.Gateway,
 		"--", f.arg0)
 
 	cmd := exec.CommandContext(
