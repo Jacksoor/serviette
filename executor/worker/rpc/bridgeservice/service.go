@@ -57,11 +57,28 @@ func (s *Service) GetChannelInfo(req *struct {
 	return json.Unmarshal([]byte(rawResp), resp)
 }
 
-func (s *Service) GetServerInfo(req *struct {
+func (s *Service) GetGroupInfo(req *struct {
 	ID string `json:"id"`
 }, resp *map[string]interface{}) error {
-	grpcResp, err := s.bridgeClient.GetServerInfo(context.Background(), &bridgepb.GetServerInfoRequest{
-		ServerId: req.ID,
+	grpcResp, err := s.bridgeClient.GetGroupInfo(context.Background(), &bridgepb.GetGroupInfoRequest{
+		GroupId: req.ID,
+	})
+	if err != nil {
+		return err
+	}
+
+	rawResp, err := marshaler.MarshalToString(grpcResp)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal([]byte(rawResp), resp)
+}
+
+func (s *Service) GetNetworkInfo(req *struct {
+	ID string `json:"id"`
+}, resp *map[string]interface{}) error {
+	grpcResp, err := s.bridgeClient.GetNetworkInfo(context.Background(), &bridgepb.GetNetworkInfoRequest{
+		NetworkId: req.ID,
 	})
 	if err != nil {
 		return err

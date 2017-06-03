@@ -43,13 +43,23 @@ func (s *Service) GetChannelInfo(ctx context.Context, req *pb.GetChannelInfoRequ
 	}, nil
 }
 
-func (s *Service) GetServerInfo(ctx context.Context, req *pb.GetServerInfoRequest) (*pb.GetServerInfoResponse, error) {
-	guild, err := s.session.Guild(req.ServerId)
+func (s *Service) GetGroupInfo(ctx context.Context, req *pb.GetGroupInfoRequest) (*pb.GetGroupInfoResponse, error) {
+	guild, err := s.session.Guild(req.GroupId)
 	if err != nil {
 		return nil, err
 	}
 
-	return &pb.GetServerInfoResponse{
+	return &pb.GetGroupInfoResponse{
 		Name: guild.Name,
+	}, nil
+}
+
+func (s *Service) GetNetworkInfo(ctx context.Context, req *pb.GetNetworkInfoRequest) (*pb.GetNetworkInfoResponse, error) {
+	if req.NetworkId != "discord" {
+		return nil, fmt.Errorf(`network_id can only be "discord"`)
+	}
+
+	return &pb.GetNetworkInfoResponse{
+		Name: "Discord",
 	}, nil
 }

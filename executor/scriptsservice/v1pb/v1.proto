@@ -15,7 +15,8 @@ message Context {
     // User info.
     string user_id = 11;
     string channel_id = 12;
-    string server_id = 13;
+    string group_id = 13;
+    string network_id = 14;
 
     // Accounts.
     string script_account_handle = 21;

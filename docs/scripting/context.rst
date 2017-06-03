@@ -17,13 +17,19 @@ The following fields are always available:
 
    The ID of the user who requested the command to be executed.
 
+   .. warning:: ``userId`` does not completely uniquely identify a user. In order to identify a user completely, it must be used in combination with ``networkId`` and ``bridgeName``, e.g. in the form ``bridgeName/networkId/userId``.
+
 .. py:data:: channelId
 
    The ID of the channel the command was executed on.
 
-.. py:data:: serverId
+.. py:data:: groupId
 
-   The ID of the server the command was executed on.
+   The ID of the group the command was executed on.
+
+.. py:data:: networkId
+
+   The ID of the network the command was executed on.
 
 .. py:data:: scriptAccountHandle
 

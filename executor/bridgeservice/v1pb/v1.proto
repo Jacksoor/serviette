@@ -25,11 +25,21 @@ message GetChannelInfoResponse {
     map<string, string> extra = 1000;
 }
 
-message GetServerInfoRequest {
-    string server_id = 1;
+message GetGroupInfoRequest {
+    string group_id = 1;
 }
 
-message GetServerInfoResponse {
+message GetGroupInfoResponse {
+    string name = 1;
+
+    map<string, string> extra = 1000;
+}
+
+message GetNetworkInfoRequest {
+    string network_id = 1;
+}
+
+message GetNetworkInfoResponse {
     string name = 1;
 
     map<string, string> extra = 1000;
@@ -38,5 +48,6 @@ message GetServerInfoResponse {
 service Bridge {
     rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse) {}
     rpc GetChannelInfo(GetChannelInfoRequest) returns (GetChannelInfoResponse) {}
-    rpc GetServerInfo(GetServerInfoRequest) returns (GetServerInfoResponse) {}
+    rpc GetGroupInfo(GetGroupInfoRequest) returns (GetGroupInfoResponse) {}
+    rpc GetNetworkInfo(GetNetworkInfoRequest) returns (GetNetworkInfoResponse) {}
 }

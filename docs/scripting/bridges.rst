@@ -14,6 +14,17 @@ The ``discord`` bridge connects to the `Discord <discordweb>`_ chat service.
 
 .. _discordweb: https://discordapp.com
 
+Mappings
+~~~~~~~~
+
+ * **Users:** Mapped to Discord users via their numeric ID.
+
+ * **Channels:** Mapped to Discord channels via their numeric ID.
+
+ * **Groups:** Mapped to Discord servers (also known as guilds) via their numeric ID.
+
+ * **Networks:** Only a single network exists, named ``discord``.
+
 Output Formats
 ~~~~~~~~~~~~~~
 

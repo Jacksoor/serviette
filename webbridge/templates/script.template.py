@@ -25,8 +25,7 @@ except IOError:
     num_his = 0
 
 # Greet the user!
-print('Hi, {}! I\'ve said "hi" {} times! You said "{}"!'.format(
-    client.context.mention, num_his, inp))
+print('Hi! I\'ve said "hi" {} times! You said "{}"!'.format(num_his, inp))
 
 # Increment the number of his and put it back into persistent storage.
 with open('/mnt/storage/number_of_greetings', 'w') as f:

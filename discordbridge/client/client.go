@@ -93,7 +93,7 @@ func New(token string, opts *Options, bridgeServiceTarget string, paymentPerMess
 }
 
 func aliasName(userID string) string {
-	return fmt.Sprintf("discord/%s", userID)
+	return fmt.Sprintf("discord/discord/%s", userID)
 }
 
 func (c *Client) bankCommandPrefix(guildID string) string {
@@ -264,7 +264,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 		return
 	}
 
-	if err := c.payForMessage(ctx, m.Message); err != nil {
+	if err := c.payForMessage(ctx, m.Message, channel); err != nil {
 		glog.Errorf("Failed to pay for message: %v", err)
 	}
 }
@@ -490,7 +490,8 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 
 			UserId:    m.Author.ID,
 			ChannelId: m.ChannelID,
-			ServerId:  channel.GuildID,
+			GroupId:   channel.GuildID,
+			NetworkId: "discord",
 
 			CurrencyName:        c.currencyName(channel.GuildID),
 			ScriptCommandPrefix: c.scriptCommandPrefix(channel.GuildID),
@@ -608,7 +609,11 @@ func (c *Client) ensureAccount(ctx context.Context, authorID string) error {
 	return nil
 }
 
-func (c *Client) payForMessage(ctx context.Context, m *discordgo.Message) error {
+func (c *Client) payForMessage(ctx context.Context, m *discordgo.Message, channel *discordgo.Channel) error {
+	if channel.IsPrivate {
+		return nil
+	}
+
 	if err := c.ensureAccount(ctx, m.Author.ID); err != nil {
 		return err
 	}
