@@ -532,15 +532,6 @@ func (h *Handler) aliasCreate(w http.ResponseWriter, r *http.Request, ps httprou
 		return
 	}
 
-	if _, err := h.moneyClient.Add(r.Context(), &moneypb.AddRequest{
-		AccountHandle: accountHandle,
-		Amount:        -cost,
-	}); err != nil {
-		glog.Errorf("Failed to adjust balance: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
 	if _, err := h.scriptsClient.SetAlias(r.Context(), &scriptspb.SetAliasRequest{
 		Name:           r.Form.Get("name"),
 		AccountHandle:  accountHandle,
@@ -548,6 +539,15 @@ func (h *Handler) aliasCreate(w http.ResponseWriter, r *http.Request, ps httprou
 		ExpiryTimeUnix: now.Add(time.Duration(periods) * h.aliasDuration).Unix(),
 	}); err != nil {
 		glog.Errorf("Failed to set alias: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := h.moneyClient.Add(r.Context(), &moneypb.AddRequest{
+		AccountHandle: accountHandle,
+		Amount:        -cost,
+	}); err != nil {
+		glog.Errorf("Failed to adjust balance: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}

@@ -31,7 +31,7 @@ func NewStore(rootPath string, db *sql.DB) *Store {
 	}
 }
 
-var nameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+var nameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,}$`)
 
 func (s *Store) load(ctx context.Context, accountHandle []byte, name string) (*Script, error) {
 	if !nameRegexp.MatchString(name) {
