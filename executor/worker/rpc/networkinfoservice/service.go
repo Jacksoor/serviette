@@ -73,3 +73,41 @@ func (s *Service) GetGroupInfo(req *struct {
 	}
 	return json.Unmarshal([]byte(rawResp), resp)
 }
+
+func (s *Service) GetChannelMemberInfo(req *struct {
+	ChannelID string `json:"channelID"`
+	UserID    string `json:"userID"`
+}, resp *map[string]interface{}) error {
+	grpcResp, err := s.networkInfoClient.GetChannelMemberInfo(context.Background(), &networkinfopb.GetChannelMemberInfoRequest{
+		ChannelId: req.ChannelID,
+		UserId:    req.UserID,
+	})
+	if err != nil {
+		return err
+	}
+
+	rawResp, err := marshaler.MarshalToString(grpcResp)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal([]byte(rawResp), resp)
+}
+
+func (s *Service) GetGroupMemberInfo(req *struct {
+	GroupID string `json:"groupID"`
+	UserID  string `json:"userID"`
+}, resp *map[string]interface{}) error {
+	grpcResp, err := s.networkInfoClient.GetGroupMemberInfo(context.Background(), &networkinfopb.GetGroupMemberInfoRequest{
+		GroupId: req.GroupID,
+		UserId:  req.UserID,
+	})
+	if err != nil {
+		return err
+	}
+
+	rawResp, err := marshaler.MarshalToString(grpcResp)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal([]byte(rawResp), resp)
+}

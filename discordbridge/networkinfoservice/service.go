@@ -53,3 +53,41 @@ func (s *Service) GetGroupInfo(ctx context.Context, req *pb.GetGroupInfoRequest)
 		Name: guild.Name,
 	}, nil
 }
+
+func (s *Service) GetGroupMemberInfo(ctx context.Context, req *pb.GetGroupMemberInfoRequest) (*pb.GetGroupMemberInfoResponse, error) {
+	member, err := s.session.GuildMember(req.GroupId, req.UserId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.GetGroupMemberInfoResponse{
+		Name: member.Nick,
+	}, nil
+}
+
+func (s *Service) GetChannelMemberInfo(ctx context.Context, req *pb.GetChannelMemberInfoRequest) (*pb.GetChannelMemberInfoResponse, error) {
+	user, err := s.session.User(req.UserId)
+	if err != nil {
+		return nil, err
+	}
+
+	name := user.Username
+
+	channel, err := s.session.Channel(req.ChannelId)
+	if err != nil {
+		return nil, err
+	}
+
+	if channel.GuildID != "" {
+		member, err := s.session.GuildMember(channel.GuildID, req.UserId)
+		if err != nil {
+			return nil, err
+		}
+
+		name = member.Nick
+	}
+
+	return &pb.GetChannelMemberInfoResponse{
+		Name: name,
+	}, nil
+}

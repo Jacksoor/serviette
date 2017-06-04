@@ -35,8 +35,33 @@ message GetGroupInfoResponse {
     map<string, string> extra = 1000;
 }
 
+message GetChannelMemberInfoRequest {
+    string channel_id = 1;
+    string user_id = 2;
+}
+
+message GetChannelMemberInfoResponse {
+    string name = 1;
+
+    map<string, string> extra = 1000;
+}
+
+message GetGroupMemberInfoRequest {
+    string group_id = 1;
+    string user_id = 2;
+}
+
+message GetGroupMemberInfoResponse {
+    string name = 1;
+
+    map<string, string> extra = 1000;
+}
+
 service NetworkInfo {
     rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse) {}
     rpc GetChannelInfo(GetChannelInfoRequest) returns (GetChannelInfoResponse) {}
     rpc GetGroupInfo(GetGroupInfoRequest) returns (GetGroupInfoResponse) {}
+
+    rpc GetChannelMemberInfo(GetChannelMemberInfoRequest) returns (GetChannelMemberInfoResponse) { }
+    rpc GetGroupMemberInfo(GetGroupMemberInfoRequest) returns (GetGroupMemberInfoResponse) { }
 }
