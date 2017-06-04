@@ -283,7 +283,9 @@ func copyPart(dest io.Writer, part *multipart.Part) (int64, error) {
 	return 0, fmt.Errorf("unknown Content-Transfer-Encoding: %s", encoding)
 }
 
-type invalidOutputError error
+type invalidOutputError struct {
+	error
+}
 
 var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 	"text": func(r *scriptspb.ExecuteResponse) (*discordgo.MessageSend, error) {
@@ -311,7 +313,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		embed := &discordgo.MessageEmbed{}
 
 		if err := json.Unmarshal(r.Stdout, embed); err != nil {
-			return nil, invalidOutputError(err)
+			return nil, invalidOutputError{err}
 		}
 
 		return &discordgo.MessageSend{
@@ -324,21 +326,21 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 
 		msg, err := mail.ReadMessage(bytes.NewReader(r.Stdout))
 		if err != nil {
-			return nil, invalidOutputError(err)
+			return nil, invalidOutputError{err}
 		}
 
 		mediaType, params, err := mime.ParseMediaType(msg.Header.Get("Content-Type"))
 		if err != nil {
-			return nil, invalidOutputError(err)
+			return nil, invalidOutputError{err}
 		}
 
 		if !strings.HasPrefix(mediaType, "multipart/") {
-			return nil, invalidOutputError(err)
+			return nil, invalidOutputError{err}
 		}
 
 		boundary, ok := params["boundary"]
 		if !ok {
-			return nil, invalidOutputError(errors.New("boundary not found in multipart header"))
+			return nil, invalidOutputError{errors.New("boundary not found in multipart header")}
 		}
 
 		mr := multipart.NewReader(msg.Body, boundary)
@@ -346,7 +348,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		// Parse the payload (first part).
 		payloadPart, err := mr.NextPart()
 		if err != nil {
-			return nil, invalidOutputError(err)
+			return nil, invalidOutputError{err}
 		}
 
 		// Decode the embed.
@@ -356,7 +358,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		}
 
 		if err := json.Unmarshal(payloadBuf.Bytes(), embed); err != nil {
-			return nil, invalidOutputError(err)
+			return nil, invalidOutputError{err}
 		}
 
 		// Decode all the files.
@@ -367,7 +369,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 				if err == io.EOF {
 					break
 				}
-				return nil, invalidOutputError(err)
+				return nil, invalidOutputError{err}
 			}
 
 			buf := new(bytes.Buffer)
