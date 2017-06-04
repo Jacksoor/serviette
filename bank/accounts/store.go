@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"golang.org/x/net/context"
+	"time"
 )
 
 var (
@@ -134,6 +135,40 @@ func (s *Store) SetAlias(ctx context.Context, tx *sql.Tx, name string, account *
 			insert or replace into aliases (name, account_handle)
 			values (?, ?)
 		`, name, account.Handle())
+	}
+
+	if err != nil {
+		return err
+	}
+
+	n, err := r.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if n == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (s *Store) RecordTransfer(ctx context.Context, tx *sql.Tx, source *Account, target *Account, amount int64) error {
+	now := time.Now()
+
+	var r sql.Result
+	var err error
+
+	if source == nil {
+		r, err = tx.ExecContext(ctx, `
+			insert into transfers (source_handle, target_handle, time_unix, amount)
+			values (null, ?, ?, ?)
+		`, target.Handle(), now.Unix(), amount)
+	} else {
+		r, err = tx.ExecContext(ctx, `
+			insert into transfers (source_handle, target_handle, time_unix, amount)
+			values (?, ?, ?, ?)
+		`, source.Handle(), target.Handle(), now.Unix(), amount)
 	}
 
 	if err != nil {

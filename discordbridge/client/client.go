@@ -48,7 +48,7 @@ type Client struct {
 
 	opts *Options
 
-	paymentPerMessageCharacter int64
+	channelPayments map[string]int64
 
 	networkInfoServiceTarget string
 
@@ -57,7 +57,7 @@ type Client struct {
 	scriptsClient  scriptspb.ScriptsClient
 }
 
-func New(token string, opts *Options, networkInfoServiceTarget string, paymentPerMessageCharacter int64, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
+func New(token string, opts *Options, networkInfoServiceTarget string, channelPayments map[string]int64, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func New(token string, opts *Options, networkInfoServiceTarget string, paymentPe
 
 		opts: opts,
 
-		paymentPerMessageCharacter: paymentPerMessageCharacter,
+		channelPayments: channelPayments,
 
 		networkInfoServiceTarget: networkInfoServiceTarget,
 
@@ -629,9 +629,14 @@ func (c *Client) payForMessage(ctx context.Context, m *discordgo.Message, channe
 		return err
 	}
 
+	earnings := c.messageEarnings(channel, m.Content)
+	if earnings == 0 {
+		return nil
+	}
+
 	if _, err := c.moneyClient.Add(ctx, &moneypb.AddRequest{
 		AccountHandle: resp.AccountHandle,
-		Amount:        c.messageEarnings(m.Content),
+		Amount:        earnings,
 	}); err != nil {
 		return err
 	}
@@ -639,6 +644,6 @@ func (c *Client) payForMessage(ctx context.Context, m *discordgo.Message, channe
 	return nil
 }
 
-func (c *Client) messageEarnings(content string) int64 {
-	return int64(utf8.RuneCountInString(content)) * c.paymentPerMessageCharacter
+func (c *Client) messageEarnings(channel *discordgo.Channel, content string) int64 {
+	return int64(utf8.RuneCountInString(content)) * c.channelPayments[channel.ID]
 }

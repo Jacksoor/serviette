@@ -6,6 +6,8 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"golang.org/x/net/trace"
@@ -42,7 +44,7 @@ var (
 	bankTarget     = flag.String("bank_target", "localhost:5901", "Bank target")
 	executorTarget = flag.String("executor_target", "localhost:5902", "Executor target")
 
-	paymentPerMessageCharacter = flag.Int64("payment_per_message_character", 1, "How much to pay per character in a message")
+	channelPayments = flag.String("channel_payments", "", "Channel IDs to pay out on, separated by commas")
 
 	webURL = flag.String("web_url", "http://kobun", "URL to web UI")
 )
@@ -81,11 +83,32 @@ func main() {
 		glog.Fatalf("did not load flavors: %v", err)
 	}
 
+	var payments map[string]int64
+	if *channelPayments != "" {
+		channelSpecs := strings.Split(*channelPayments, ",")
+		payments = make(map[string]int64, len(channelSpecs))
+
+		for _, channelSpec := range channelSpecs {
+			colonIndex := strings.Index(channelSpec, ":")
+			if colonIndex == -1 {
+				glog.Fatalf("Failed to parse channel_payments")
+			}
+
+			channelID := channelSpec[:colonIndex]
+			amount, err := strconv.ParseInt(channelSpec[colonIndex+1:], 10, 64)
+			if err != nil {
+				glog.Fatalf("Failed to parse channel_payments: %v", err)
+			}
+
+			payments[channelID] = amount
+		}
+	}
+
 	client, err := client.New(*discordToken, &client.Options{
 		Status:  *status,
 		Flavors: flavorsMap,
 		WebURL:  *webURL,
-	}, *bindSocket, *paymentPerMessageCharacter, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
+	}, *bindSocket, payments, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}

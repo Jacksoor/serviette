@@ -44,6 +44,11 @@ func (s *Service) Add(ctx context.Context, req *pb.AddRequest) (*pb.AddResponse,
 		return nil, grpc.Errorf(codes.Internal, "failed to deposit")
 	}
 
+	if err := s.accounts.RecordTransfer(ctx, tx, nil, account, req.Amount); err != nil {
+		glog.Errorf("Failed to record transfer: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to record transfer")
+	}
+
 	if err := tx.Commit(); err != nil {
 		glog.Errorf("Failed to commit: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to commit")
@@ -129,6 +134,11 @@ func (s *Service) Transfer(ctx context.Context, req *pb.TransferRequest) (*pb.Tr
 	if err := target.AddMoney(ctx, tx, req.Amount); err != nil {
 		glog.Errorf("Failed to deposit: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to deposit")
+	}
+
+	if err := s.accounts.RecordTransfer(ctx, tx, source, target, req.Amount); err != nil {
+		glog.Errorf("Failed to record transfer: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to record transfer")
 	}
 
 	if err := tx.Commit(); err != nil {
