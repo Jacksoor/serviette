@@ -3,7 +3,7 @@
 Sandbox
 =======
 
-All kobun4 commands are run in an nsjail_ sandbox. Scripts are subject to:
+All kobun4 commands are run in an `nsjail <https://github.com/google/nsjail>`_ sandbox. Scripts are subject to:
 
  * A clean chroot, independent of the host.
 
@@ -14,5 +14,3 @@ All kobun4 commands are run in an nsjail_ sandbox. Scripts are subject to:
  * A single persistent storage area in :ref:`persistentstorage`.
 
  * A single ephemeral storage area in :ref:`ephemeralstorage`.
-
-.. _nsjail: https://github.com/google/nsjail
