@@ -21,6 +21,12 @@ go_library(
 
 go_binary(
     name = "bank",
+    gc_linkopts = [
+        "-linkmode",
+        "external",
+        "-extldflags",
+        "-static",
+    ],
     library = ":go_default_library",
     visibility = ["//visibility:public"],
 )
