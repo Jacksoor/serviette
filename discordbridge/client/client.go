@@ -28,8 +28,6 @@ import (
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
-var errInvalidOutput = errors.New("invalid output")
-
 type command func(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error
 
 type Flavor struct {
@@ -285,6 +283,8 @@ func copyPart(dest io.Writer, part *multipart.Part) (int64, error) {
 	return 0, fmt.Errorf("unknown Content-Transfer-Encoding: %s", encoding)
 }
 
+type invalidOutputError error
+
 var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 	"text": func(r *scriptspb.ExecuteResponse) (*discordgo.MessageSend, error) {
 		embed := &discordgo.MessageEmbed{
@@ -311,7 +311,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		embed := &discordgo.MessageEmbed{}
 
 		if err := json.Unmarshal(r.Stdout, embed); err != nil {
-			return nil, errInvalidOutput
+			return nil, invalidOutputError(err)
 		}
 
 		return &discordgo.MessageSend{
@@ -324,21 +324,21 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 
 		msg, err := mail.ReadMessage(bytes.NewReader(r.Stdout))
 		if err != nil {
-			return nil, errInvalidOutput
+			return nil, invalidOutputError(err)
 		}
 
 		mediaType, params, err := mime.ParseMediaType(msg.Header.Get("Content-Type"))
 		if err != nil {
-			return nil, errInvalidOutput
+			return nil, invalidOutputError(err)
 		}
 
 		if !strings.HasPrefix(mediaType, "multipart/") {
-			return nil, errInvalidOutput
+			return nil, invalidOutputError(err)
 		}
 
 		boundary, ok := params["boundary"]
 		if !ok {
-			return nil, errInvalidOutput
+			return nil, invalidOutputError(errors.New("boundary not found in multipart header"))
 		}
 
 		mr := multipart.NewReader(msg.Body, boundary)
@@ -346,7 +346,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		// Parse the payload (first part).
 		payloadPart, err := mr.NextPart()
 		if err != nil {
-			return nil, errInvalidOutput
+			return nil, invalidOutputError(err)
 		}
 
 		// Decode the embed.
@@ -356,7 +356,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 		}
 
 		if err := json.Unmarshal(payloadBuf.Bytes(), embed); err != nil {
-			return nil, errInvalidOutput
+			return nil, invalidOutputError(err)
 		}
 
 		// Decode all the files.
@@ -367,7 +367,7 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 				if err == io.EOF {
 					break
 				}
-				return nil, errInvalidOutput
+				return nil, invalidOutputError(err)
 			}
 
 			buf := new(bytes.Buffer)
@@ -524,8 +524,14 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 
 		messageSend, err := outputFormatter(resp)
 		if err != nil {
-			if err == errInvalidOutput {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Command output was invalid!** %s", m.Author.ID, c.prettyBillingDetails(commandName, requirements, channel, resp)))
+			if iErr, ok := err.(invalidOutputError); ok {
+				s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+					Content: fmt.Sprintf("<@!%s>: ❗ **Command output was invalid!** %s", m.Author.ID, c.prettyBillingDetails(commandName, requirements, channel, resp)),
+					Embed: &discordgo.MessageEmbed{
+						Color:       0xb50000,
+						Description: fmt.Sprintf("```%s```", iErr.Error()),
+					},
+				})
 				return nil
 			}
 			return err
