@@ -503,6 +503,20 @@ func (h *Handler) aliasCreate(w http.ResponseWriter, r *http.Request, ps httprou
 		return
 	}
 
+	_, err = h.scriptsClient.ResolveAlias(r.Context(), &scriptspb.ResolveAliasRequest{
+		Name: r.Form.Get("name"),
+	})
+	if err == nil {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	if grpc.Code(err) != codes.NotFound {
+		glog.Errorf("Failed to resolve alias: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	balanceResp, err := h.moneyClient.GetBalance(r.Context(), &moneypb.GetBalanceRequest{
 		AccountHandle: accountHandle,
 	})
