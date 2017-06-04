@@ -1,4 +1,4 @@
-package bridgeservice
+package networkinfoservice
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
-	pb "github.com/porpoises/kobun4/executor/bridgeservice/v1pb"
+	pb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
 )
 
 type Service struct {
@@ -51,15 +51,5 @@ func (s *Service) GetGroupInfo(ctx context.Context, req *pb.GetGroupInfoRequest)
 
 	return &pb.GetGroupInfoResponse{
 		Name: guild.Name,
-	}, nil
-}
-
-func (s *Service) GetNetworkInfo(ctx context.Context, req *pb.GetNetworkInfoRequest) (*pb.GetNetworkInfoResponse, error) {
-	if req.NetworkId != "discord" {
-		return nil, fmt.Errorf(`network_id can only be "discord"`)
-	}
-
-	return &pb.GetNetworkInfoResponse{
-		Name: "Discord",
 	}, nil
 }

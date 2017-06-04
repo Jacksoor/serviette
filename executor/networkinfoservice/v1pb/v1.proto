@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package kobun4.executor.bridge.v1;
+package kobun4.executor.networkinfo.v1;
 
 option go_package = "v1pb";
 
@@ -35,19 +35,8 @@ message GetGroupInfoResponse {
     map<string, string> extra = 1000;
 }
 
-message GetNetworkInfoRequest {
-    string network_id = 1;
-}
-
-message GetNetworkInfoResponse {
-    string name = 1;
-
-    map<string, string> extra = 1000;
-}
-
-service Bridge {
+service NetworkInfo {
     rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse) {}
     rpc GetChannelInfo(GetChannelInfoRequest) returns (GetChannelInfoResponse) {}
     rpc GetGroupInfo(GetGroupInfoRequest) returns (GetGroupInfoResponse) {}
-    rpc GetNetworkInfo(GetNetworkInfoRequest) returns (GetNetworkInfoResponse) {}
 }

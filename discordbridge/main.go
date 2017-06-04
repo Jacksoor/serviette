@@ -18,12 +18,12 @@ import (
 	_ "google.golang.org/grpc/grpclog/glogger"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/porpoises/kobun4/discordbridge/bridgeservice"
 	"github.com/porpoises/kobun4/discordbridge/client"
+	"github.com/porpoises/kobun4/discordbridge/networkinfoservice"
 
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
-	bridgepb "github.com/porpoises/kobun4/executor/bridgeservice/v1pb"
+	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
@@ -99,7 +99,7 @@ func main() {
 	glog.Info("Connected to Discord.")
 
 	s := grpc.NewServer()
-	bridgepb.RegisterBridgeServer(s, bridgeservice.New(client.Session()))
+	networkinfopb.RegisterNetworkInfoServer(s, networkinfoservice.New(client.Session()))
 	reflection.Register(s)
 
 	signalChan := make(chan os.Signal, 1)

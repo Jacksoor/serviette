@@ -67,7 +67,7 @@ message ExecuteRequest {
     string rest = 5;
     Context context = 6;
 
-    string bridge_service_target = 7;
+    string network_info_service_target = 7;
 
     int64 escrowed_funds = 8;
 }

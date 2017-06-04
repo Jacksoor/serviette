@@ -52,14 +52,14 @@ type Client struct {
 
 	paymentPerMessageCharacter int64
 
-	bridgeServiceTarget string
+	networkInfoServiceTarget string
 
 	accountsClient accountspb.AccountsClient
 	moneyClient    moneypb.MoneyClient
 	scriptsClient  scriptspb.ScriptsClient
 }
 
-func New(token string, opts *Options, bridgeServiceTarget string, paymentPerMessageCharacter int64, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
+func New(token string, opts *Options, networkInfoServiceTarget string, paymentPerMessageCharacter int64, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func New(token string, opts *Options, bridgeServiceTarget string, paymentPerMess
 
 		paymentPerMessageCharacter: paymentPerMessageCharacter,
 
-		bridgeServiceTarget: bridgeServiceTarget,
+		networkInfoServiceTarget: networkInfoServiceTarget,
 
 		accountsClient: accountsClient,
 		moneyClient:    moneyClient,
@@ -497,8 +497,8 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 			ScriptCommandPrefix: c.scriptCommandPrefix(channel.GuildID),
 			BankCommandPrefix:   c.bankCommandPrefix(channel.GuildID),
 		},
-		BridgeServiceTarget: c.bridgeServiceTarget,
-		EscrowedFunds:       escrowedFunds,
+		NetworkInfoServiceTarget: c.networkInfoServiceTarget,
+		EscrowedFunds:            escrowedFunds,
 	})
 
 	if err != nil {

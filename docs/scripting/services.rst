@@ -30,34 +30,34 @@ The accounts service provides methods to look up accounts.
 
    Looks up a user's account handle from their alias.
 
-   :param alias: The alias to look up. The alias is generally of the format ``<bridge name>/<user ID>``.
+   :param alias: The alias to look up. The alias is generally of the format ``<bridge name>/<network name>/<user ID>``.
    :return: The user's account handle.
 
-Bridge
-------
+NetworkInfo
+-----------
 
-The bridge service provides scripts with the ability to interact with the chat service they're running on.
+The network information service provides scripts with the ability to interact with the network they're running on.
 
-.. py:function:: Bridge.GetUserInfo(id : string) -> {name: string, extra: object}
+.. py:function:: NetworkInfo.GetUserInfo(id : string) -> {name: string, extra: object}
 
    Looks up a user's information by their user ID.
 
    :param id: The ID to look up.
-   :return: Information about the user. ``extra`` contains additional chat service-specific information.
+   :return: Information about the user. ``extra`` contains additional network-specific information.
 
-.. py:function:: Bridge.GetChannelInfo(id : string) -> {name: string, isOneOnOne: boolean, extra: object}
+.. py:function:: NetworkInfo.GetChannelInfo(id : string) -> {name: string, isOneOnOne: boolean, extra: object}
 
    Looks up a channel's information by its channel ID.
 
    :param id: The ID to look up.
-   :return: Information about the channel. ``isOneOnOne`` is true if and only if the channel is a private channel with the bot. ``extra`` contains additional chat service-specific information.
+   :return: Information about the channel. ``isOneOnOne`` is true if and only if the channel is a private channel with the bot. ``extra`` contains additional network-specific information.
 
-.. py:function:: Bridge.GetServerInfo(id : string) -> {name: string, extra: object}
+.. py:function:: NetworkInfo.GetServerInfo(id : string) -> {name: string, extra: object}
 
    Looks up a server's information by its server ID.
 
    :param id: The ID to look up.
-   :return: Information about the server. ``extra`` contains additional chat service-specific information.
+   :return: Information about the server. ``extra`` contains additional network-specific information.
 
 Money
 -----
