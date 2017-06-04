@@ -55,13 +55,24 @@ func (s *Service) GetGroupInfo(ctx context.Context, req *pb.GetGroupInfoRequest)
 }
 
 func (s *Service) GetGroupMemberInfo(ctx context.Context, req *pb.GetGroupMemberInfoRequest) (*pb.GetGroupMemberInfoResponse, error) {
+	user, err := s.session.User(req.UserId)
+	if err != nil {
+		return nil, err
+	}
+
+	name := user.Username
+
 	member, err := s.session.GuildMember(req.GroupId, req.UserId)
 	if err != nil {
 		return nil, err
 	}
 
+	if member.Nick != "" {
+		name = member.Nick
+	}
+
 	return &pb.GetGroupMemberInfoResponse{
-		Name: member.Nick,
+		Name: name,
 	}, nil
 }
 
@@ -84,7 +95,9 @@ func (s *Service) GetChannelMemberInfo(ctx context.Context, req *pb.GetChannelMe
 			return nil, err
 		}
 
-		name = member.Nick
+		if member.Nick != "" {
+			name = member.Nick
+		}
 	}
 
 	return &pb.GetChannelMemberInfoResponse{

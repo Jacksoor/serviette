@@ -75,8 +75,8 @@ func (s *Service) GetGroupInfo(req *struct {
 }
 
 func (s *Service) GetChannelMemberInfo(req *struct {
-	ChannelID string `json:"channelID"`
-	UserID    string `json:"userID"`
+	ChannelID string `json:"channelId"`
+	UserID    string `json:"userId"`
 }, resp *map[string]interface{}) error {
 	grpcResp, err := s.networkInfoClient.GetChannelMemberInfo(context.Background(), &networkinfopb.GetChannelMemberInfoRequest{
 		ChannelId: req.ChannelID,
@@ -94,8 +94,8 @@ func (s *Service) GetChannelMemberInfo(req *struct {
 }
 
 func (s *Service) GetGroupMemberInfo(req *struct {
-	GroupID string `json:"groupID"`
-	UserID  string `json:"userID"`
+	GroupID string `json:"groupId"`
+	UserID  string `json:"userId"`
 }, resp *map[string]interface{}) error {
 	grpcResp, err := s.networkInfoClient.GetGroupMemberInfo(context.Background(), &networkinfopb.GetGroupMemberInfoRequest{
 		GroupId: req.GroupID,
