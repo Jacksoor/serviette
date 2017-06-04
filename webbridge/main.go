@@ -23,11 +23,11 @@ import (
 )
 
 var (
-	socketPath      = flag.String("socket_path", "/tmp/kobun4-webbridge.socket", "Bind path for socket")
-	debugSocketPath = flag.String("debug_socket_path", "/tmp/kobun4-webbridge.debug.socket", "Bind path for socket")
+	bindSocket      = flag.String("bind_socket", "localhost:5904", "Bind for socket")
+	bindDebugSocket = flag.String("bind_debug_socket", "localhost:5914", "Bind for socket")
 
-	bankTarget     = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
-	executorTarget = flag.String("executor_target", "/tmp/kobun4-executor.socket", "Executor target")
+	bankTarget     = flag.String("bank_target", "localhost:5901", "Bank target")
+	executorTarget = flag.String("executor_target", "localhost:5902", "Executor target")
 
 	staticPath   = flag.String("static_path", "Path to templates", "static")
 	templatePath = flag.String("template_path", "Path to templates", "templates")
@@ -44,7 +44,7 @@ func main() {
 		return true, true
 	}
 
-	debugLis, err := net.Listen("unix", *debugSocketPath)
+	debugLis, err := net.Listen("tcp", *bindDebugSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
@@ -53,17 +53,13 @@ func main() {
 
 	go http.Serve(debugLis, nil)
 
-	bankConn, err := grpc.Dial(*bankTarget, grpc.WithInsecure(), grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
-		return net.DialTimeout("unix", addr, timeout)
-	}))
+	bankConn, err := grpc.Dial(*bankTarget, grpc.WithInsecure())
 	if err != nil {
 		glog.Fatalf("did not connect to bank: %v", err)
 	}
 	defer bankConn.Close()
 
-	executorConn, err := grpc.Dial(*executorTarget, grpc.WithInsecure(), grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
-		return net.DialTimeout("unix", addr, timeout)
-	}))
+	executorConn, err := grpc.Dial(*executorTarget, grpc.WithInsecure())
 	if err != nil {
 		glog.Fatalf("did not connect to executor: %v", err)
 	}
@@ -77,17 +73,11 @@ func main() {
 		Handler: handler,
 	}
 
-	lis, err := net.Listen("unix", *socketPath)
+	lis, err := net.Listen("tcp", *bindSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
 	defer lis.Close()
-
-	if err := os.Chmod(*socketPath, 0777); err != nil {
-		glog.Fatalf("failed to chmod listener: %v", err)
-	}
-
-	glog.Infof("Listening on: %v", lis.Addr())
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGTERM)

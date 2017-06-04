@@ -32,13 +32,14 @@ import (
 )
 
 var (
-	socketPath       = flag.String("socket_path", "/tmp/kobun4-executor.socket", "Bind path for socket")
-	webdavSocketPath = flag.String("webdav_socket_path", "/tmp/kobun4-executor.webdav.socket", "Bind path for WebDAV socket")
-	debugSocketPath  = flag.String("debug_socket_path", "/tmp/kobun4-executor.debug.socket", "Bind path for socket")
+	bindSocket       = flag.String("bind_socket", "localhost:5902", "Bind for socket")
+	bindDebugSocket  = flag.String("bind_debug_socket", "localhost:5912", "Bind for socket")
+	bindWebdavSocket = flag.String("bind_webdav_socket", "localhost:5922", "Bind for WebDAV socket")
+
+	bankTarget = flag.String("bank_target", "localhost:5901", "Bank target")
 
 	sqliteDBPath = flag.String("sqlite_db_path", "executor.db", "Path to SQLite database")
 
-	bankTarget      = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
 	k4LibraryPath   = flag.String("k4_library_path", "clients", "Path to library root")
 	chrootPath      = flag.String("chroot_path", "chroot", "Path to chroot")
 	scriptsRootPath = flag.String("scripts_root_path", "scripts", "Path to script root")
@@ -69,7 +70,7 @@ func main() {
 		return true, true
 	}
 
-	debugLis, err := net.Listen("unix", *debugSocketPath)
+	debugLis, err := net.Listen("tcp", *bindDebugSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
@@ -83,9 +84,7 @@ func main() {
 		glog.Fatalf("failed to open db: %v", err)
 	}
 
-	bankConn, err := grpc.Dial(*bankTarget, grpc.WithInsecure(), grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
-		return net.DialTimeout("unix", addr, timeout)
-	}))
+	bankConn, err := grpc.Dial(*bankTarget, grpc.WithInsecure())
 	if err != nil {
 		glog.Fatalf("did not connect to bank: %v", err)
 	}
@@ -124,7 +123,7 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGTERM)
 
-	lis, err := net.Listen("unix", *socketPath)
+	lis, err := net.Listen("tcp", *bindSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
@@ -136,15 +135,11 @@ func main() {
 		errChan <- s.Serve(lis)
 	}()
 
-	webdavLis, err := net.Listen("unix", *webdavSocketPath)
+	webdavLis, err := net.Listen("tcp", *bindWebdavSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
 	defer webdavLis.Close()
-
-	if err := os.Chmod(*webdavSocketPath, 0777); err != nil {
-		glog.Fatalf("failed to chmod listener: %v", err)
-	}
 
 	glog.Infof("WebDAV listening on: %s", webdavLis.Addr())
 

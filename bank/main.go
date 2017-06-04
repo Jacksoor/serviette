@@ -28,8 +28,8 @@ import (
 )
 
 var (
-	socketPath      = flag.String("socket_path", "/tmp/kobun4-bank.socket", "Bind path for socket")
-	debugSocketPath = flag.String("debug_socket_path", "/tmp/kobun4-bank.debug.socket", "Bind path for socket")
+	bindSocket      = flag.String("bind_socket", "localhost:5901", "Bind for socket")
+	bindDebugSocket = flag.String("bind_debug_socket", "localhost:5911", "Bind for socket")
 
 	sqliteDBPath = flag.String("sqlite_db_path", "bank.db", "Path to SQLite database")
 )
@@ -42,7 +42,7 @@ func main() {
 		return true, true
 	}
 
-	debugLis, err := net.Listen("unix", *debugSocketPath)
+	debugLis, err := net.Listen("tcp", *bindDebugSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
@@ -67,7 +67,7 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGTERM)
 
-	lis, err := net.Listen("unix", *socketPath)
+	lis, err := net.Listen("tcp", *bindSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}

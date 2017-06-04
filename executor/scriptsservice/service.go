@@ -3,7 +3,6 @@ package scriptsservice
 import (
 	"encoding/base64"
 	"fmt"
-	"net"
 	"path/filepath"
 	"syscall"
 	"time"
@@ -191,9 +190,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	outputService := outputservice.New("text")
 	worker.RegisterService("Output", outputService)
 
-	networkInfoConn, err := grpc.Dial(req.NetworkInfoServiceTarget, grpc.WithInsecure(), grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
-		return net.DialTimeout("unix", addr, timeout)
-	}))
+	networkInfoConn, err := grpc.Dial(req.NetworkInfoServiceTarget, grpc.WithInsecure())
 	if err != nil {
 		return nil, grpc.Errorf(codes.Unavailable, "network info service unavailable")
 	}

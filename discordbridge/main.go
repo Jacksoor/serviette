@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"golang.org/x/net/trace"
 	"net/http"
@@ -28,8 +27,8 @@ import (
 )
 
 var (
-	socketPath      = flag.String("socket_path", "/tmp/kobun4-discordbridge.socket", "Bind path for socket")
-	debugSocketPath = flag.String("debug_socket_path", "/tmp/kobun4-discordbridge.debug.socket", "Bind path for socket")
+	bindSocket      = flag.String("bind_socket", "localhost:5903", "Bind for socket")
+	bindDebugSocket = flag.String("bind_debug_socket", "localhost:5913", "Bind for socket")
 
 	discordToken = flag.String("discord_token", "", "Token for Discord.")
 	status       = flag.String("status", "", "Status to show.")
@@ -40,8 +39,8 @@ var (
 	scriptCommandPrefix = flag.String("script_command_prefix", "!", "Script command prefix")
 	currencyName        = flag.String("currency_name", "coins", "Currency name")
 
-	bankTarget     = flag.String("bank_target", "/tmp/kobun4-bank.socket", "Bank target")
-	executorTarget = flag.String("executor_target", "/tmp/kobun4-executor.socket", "Executor target")
+	bankTarget     = flag.String("bank_target", "localhost:5901", "Bank target")
+	executorTarget = flag.String("executor_target", "localhost:5902", "Executor target")
 
 	paymentPerMessageCharacter = flag.Int64("payment_per_message_character", 1, "How much to pay per character in a message")
 
@@ -56,7 +55,7 @@ func main() {
 		return true, true
 	}
 
-	debugLis, err := net.Listen("unix", *debugSocketPath)
+	debugLis, err := net.Listen("tcp", *bindDebugSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
@@ -65,17 +64,13 @@ func main() {
 
 	go http.Serve(debugLis, nil)
 
-	bankConn, err := grpc.Dial(*bankTarget, grpc.WithInsecure(), grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
-		return net.DialTimeout("unix", addr, timeout)
-	}))
+	bankConn, err := grpc.Dial(*bankTarget, grpc.WithInsecure())
 	if err != nil {
 		glog.Fatalf("did not connect to bank: %v", err)
 	}
 	defer bankConn.Close()
 
-	executorConn, err := grpc.Dial(*executorTarget, grpc.WithInsecure(), grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
-		return net.DialTimeout("unix", addr, timeout)
-	}))
+	executorConn, err := grpc.Dial(*executorTarget, grpc.WithInsecure())
 	if err != nil {
 		glog.Fatalf("did not connect to executor: %v", err)
 	}
@@ -90,7 +85,7 @@ func main() {
 		Status:  *status,
 		Flavors: flavorsMap,
 		WebURL:  *webURL,
-	}, *socketPath, *paymentPerMessageCharacter, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
+	}, *bindSocket, *paymentPerMessageCharacter, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}
@@ -105,7 +100,7 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGTERM)
 
-	lis, err := net.Listen("unix", *socketPath)
+	lis, err := net.Listen("tcp", *bindSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
