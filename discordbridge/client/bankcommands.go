@@ -250,7 +250,8 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Content: fmt.Sprintf("<@!%s>: ✅", m.Author.ID),
 		Embed: &discordgo.MessageEmbed{
-			Title: fmt.Sprintf("Command information for `%s`", scriptName),
+			Title: fmt.Sprintf("`%s`", scriptName),
+			URL:   fmt.Sprintf("%s/scripts/%s/%s", c.opts.WebURL, base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName),
 			Color: 0x009100,
 			Fields: []*discordgo.MessageEmbedField{
 				{
