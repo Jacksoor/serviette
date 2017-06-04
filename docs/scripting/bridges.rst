@@ -36,4 +36,4 @@ The Discord bridge supports the following output formats:
 
  * ``discord.embed_multipart``: Specifies a multipart `Discord embed <discordembed>`_ to send. The output will be parsed as a multipart MIME message. The first part of the multipart request will be interpreted as the embed and unmarshaled from JSON. The remaining parts will be considered file attachments.
 
-.. _discordcreatemessage: https://discordapp.com/developers/docs/resources/channel#create-message
+.. _discordembed: https://discordapp.com/developers/docs/resources/channel#embed-object
