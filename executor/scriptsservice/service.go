@@ -170,7 +170,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, err
 	}
 
-	if getBalanceResp.Balance <= 0 {
+	if getBalanceResp.Balance <= s.baseUsageCost {
 		return nil, grpc.Errorf(codes.FailedPrecondition, "the executing account does not have enough funds")
 	}
 
@@ -199,16 +199,13 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	networkInfoService := networkinfoservice.New(networkinfopb.NewNetworkInfoClient(networkInfoConn))
 	worker.RegisterService("NetworkInfo", networkInfoService)
 
-	workerCtx, workerCancel := context.WithTimeout(ctx, time.Duration(getBalanceResp.Balance)*s.durationPerUnitCost)
-	defer workerCancel()
-
 	rawCtx, err := marshaler.MarshalToString(req.Context)
 	if err != nil {
 		glog.Errorf("Failed to marshal context: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
 
-	r, err := worker.Run(workerCtx, []string{
+	r, err := worker.Run(ctx, []string{
 		"--bindmount", fmt.Sprintf("%s:/mnt/storage", mountPath),
 		"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", s.scripts.RootPath()),
 		"--bindmount_ro", fmt.Sprintf("%s:/usr/lib/k4", s.k4LibraryPath),

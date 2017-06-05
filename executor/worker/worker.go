@@ -3,6 +3,7 @@ package worker
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/rpc"
 	"net/rpc/jsonrpc"
@@ -73,13 +74,12 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	if deadline, ok := ctx.Deadline(); ok {
-		timeLimit := time.Until(deadline) / time.Second
-		nsjailArgs = append(nsjailArgs,
-			"--rlimit_cpu", fmt.Sprintf("%d", timeLimit),
-			"--time_limit", fmt.Sprintf("%d", timeLimit),
-		)
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return nil, errors.New("no deadline found?")
 	}
+
+	timeLimit := time.Until(deadline)
 
 	nsjailArgs = append(nsjailArgs,
 		"--mode", "o",
@@ -89,6 +89,8 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 		"--group", "nogroup",
 		"--hostname", "kobun4",
 		"--cgroup_mem_max", fmt.Sprintf("%d", f.opts.MemoryLimit),
+		"--rlimit_cpu", fmt.Sprintf("%d", timeLimit/time.Second),
+		"--time_limit", fmt.Sprintf("%d", timeLimit/time.Second),
 		"--chroot", f.opts.Chroot,
 		"--tmpfsmount", "/tmp",
 		"--tmpfs_size", fmt.Sprintf("%d", f.opts.TmpfsSize),
