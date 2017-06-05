@@ -247,6 +247,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		})
 	}
 
+	// Exited with signal, so shift it back.
+	if waitStatus.ExitStatus() > 100 {
+		waitStatus = syscall.WaitStatus(int32(waitStatus.ExitStatus()) - 100)
+	}
+
 	return &pb.ExecuteResponse{
 		WaitStatus: uint32(waitStatus),
 		Stdout:     r.Stdout,

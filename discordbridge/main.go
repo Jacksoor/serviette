@@ -6,8 +6,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 
 	"golang.org/x/net/trace"
@@ -35,7 +33,8 @@ var (
 	discordToken = flag.String("discord_token", "", "Token for Discord.")
 	status       = flag.String("status", "", "Status to show.")
 
-	flavors = flag.String("flavors", `{"": {"bankCommandPrefix": "$", "scriptCommandPrefix": "!", "currencyName": "coins", "quiet": false}}`, "Per-guild flavors")
+	flavors  = flag.String("flavors", `{"": {"bankCommandPrefix": "$", "scriptCommandPrefix": "!", "currencyName": "coins", "quiet": false}}`, "Per-guild flavors")
+	earnings = flag.String("earnings", "{}", "Channel IDs to pay out on")
 
 	bankCommandPrefix   = flag.String("bank_command_prefix", "$", "Bank command prefix")
 	scriptCommandPrefix = flag.String("script_command_prefix", "!", "Script command prefix")
@@ -43,8 +42,6 @@ var (
 
 	bankTarget     = flag.String("bank_target", "localhost:5901", "Bank target")
 	executorTarget = flag.String("executor_target", "localhost:5902", "Executor target")
-
-	channelPayments = flag.String("channel_payments", "", "Channel IDs to pay out on, separated by commas")
 
 	webURL = flag.String("web_url", "http://kobun", "URL to web UI")
 )
@@ -83,32 +80,17 @@ func main() {
 		glog.Fatalf("did not load flavors: %v", err)
 	}
 
-	var payments map[string]int64
-	if *channelPayments != "" {
-		channelSpecs := strings.Split(*channelPayments, ",")
-		payments = make(map[string]int64, len(channelSpecs))
-
-		for _, channelSpec := range channelSpecs {
-			colonIndex := strings.Index(channelSpec, ":")
-			if colonIndex == -1 {
-				glog.Fatalf("Failed to parse channel_payments")
-			}
-
-			channelID := channelSpec[:colonIndex]
-			amount, err := strconv.ParseInt(channelSpec[colonIndex+1:], 10, 64)
-			if err != nil {
-				glog.Fatalf("Failed to parse channel_payments: %v", err)
-			}
-
-			payments[channelID] = amount
-		}
+	var earningsMap map[string]client.Earnings
+	if err := json.Unmarshal([]byte(*earnings), &earningsMap); err != nil {
+		glog.Fatalf("did not load earnings: %v", err)
 	}
 
 	client, err := client.New(*discordToken, &client.Options{
-		Status:  *status,
-		Flavors: flavorsMap,
-		WebURL:  *webURL,
-	}, *bindSocket, payments, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
+		Status:   *status,
+		Flavors:  flavorsMap,
+		Earnings: earningsMap,
+		WebURL:   *webURL,
+	}, *bindSocket, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}

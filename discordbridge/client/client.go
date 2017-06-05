@@ -2,11 +2,13 @@ package client
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"mime"
 	"mime/multipart"
 	"net/mail"
@@ -14,7 +16,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"unicode/utf8"
 
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
@@ -37,10 +38,17 @@ type Flavor struct {
 	Quiet               bool   `json:"quiet"`
 }
 
+type Earnings struct {
+	MaxAmount int64 `json:"max_amount"`
+	MinAmount int64 `json:"min_amount"`
+	EverySecs int64 `json:"every_secs"`
+}
+
 type Options struct {
-	Flavors map[string]Flavor
-	Status  string
-	WebURL  string
+	Flavors  map[string]Flavor
+	Earnings map[string]Earnings
+	Status   string
+	WebURL   string
 }
 
 type Client struct {
@@ -48,7 +56,7 @@ type Client struct {
 
 	opts *Options
 
-	channelPayments map[string]int64
+	lastEarningTimes map[string]time.Time
 
 	networkInfoServiceTarget string
 
@@ -57,7 +65,7 @@ type Client struct {
 	scriptsClient  scriptspb.ScriptsClient
 }
 
-func New(token string, opts *Options, networkInfoServiceTarget string, channelPayments map[string]int64, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
+func New(token string, opts *Options, networkInfoServiceTarget string, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 	if err != nil {
 		return nil, err
@@ -68,7 +76,7 @@ func New(token string, opts *Options, networkInfoServiceTarget string, channelPa
 
 		opts: opts,
 
-		channelPayments: channelPayments,
+		lastEarningTimes: make(map[string]time.Time, 0),
 
 		networkInfoServiceTarget: networkInfoServiceTarget,
 
@@ -484,7 +492,8 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 		Name:                   scriptName,
 		Rest:                   rest,
 		Context: &scriptspb.Context{
-			BridgeName: "discord",
+			BridgeName:  "discord",
+			CommandName: commandName,
 
 			UserId:    m.Author.ID,
 			ChannelId: m.ChannelID,
@@ -629,7 +638,7 @@ func (c *Client) payForMessage(ctx context.Context, m *discordgo.Message, channe
 		return err
 	}
 
-	earnings := c.messageEarnings(channel, m.Content)
+	earnings := c.messageEarnings(m.Author.ID, channel, m.Content)
 	if earnings == 0 {
 		return nil
 	}
@@ -644,6 +653,26 @@ func (c *Client) payForMessage(ctx context.Context, m *discordgo.Message, channe
 	return nil
 }
 
-func (c *Client) messageEarnings(channel *discordgo.Channel, content string) int64 {
-	return int64(utf8.RuneCountInString(content)) * c.channelPayments[channel.ID]
+func (c *Client) messageEarnings(authorID string, channel *discordgo.Channel, content string) int64 {
+	now := time.Now()
+
+	earningsSpec, ok := c.opts.Earnings[channel.ID]
+	if !ok {
+		return 0
+	}
+
+	lastEarningTime := c.lastEarningTimes[authorID]
+	if lastEarningTime.Add(time.Duration(earningsSpec.EverySecs) * time.Second).After(now) {
+		return 0
+	}
+
+	r, err := rand.Int(rand.Reader, big.NewInt(earningsSpec.MaxAmount-earningsSpec.MinAmount))
+	if err != nil {
+		glog.Errorf("Failed to generate earnings amount: %v", err)
+		return 0
+	}
+
+	c.lastEarningTimes[authorID] = now
+
+	return r.Int64() + earningsSpec.MinAmount
 }
