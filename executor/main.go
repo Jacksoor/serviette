@@ -52,7 +52,7 @@ var (
 	tmpfsSize   = flag.Int64("tmpfs_size", 4*1024*1024, "Memory limit")
 
 	durationPerUnitCost = flag.Duration("duration_per_unit_cost", time.Second/10, "Duration per unit cost")
-	minimumUsageCost    = flag.Int64("minimum_usage_cost", 10, "Minimum cost to charge for usage")
+	baseUsageCost       = flag.Int64("base_usage_cost", 10, "Base cost to charge for usage")
 
 	kafelSeccompPolicy = flag.String("kafel_seccomp_policy", "POLICY default { KILL { ptrace, process_vm_readv, process_vm_writev } } USE default DEFAULT ALLOW", "Kafel policy to use for seccomp")
 
@@ -117,7 +117,7 @@ func main() {
 	})
 
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scripts.NewStore(*scriptsRootPath, db), mounter, *k4LibraryPath, moneypb.NewMoneyClient(bankConn), accountsClient, *durationPerUnitCost, *minimumUsageCost, supervisor))
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scripts.NewStore(*scriptsRootPath, db), mounter, *k4LibraryPath, moneypb.NewMoneyClient(bankConn), accountsClient, *durationPerUnitCost, *baseUsageCost, supervisor))
 	reflection.Register(s)
 
 	signalChan := make(chan os.Signal, 1)

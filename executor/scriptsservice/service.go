@@ -38,12 +38,12 @@ type Service struct {
 	accountsClient accountspb.AccountsClient
 
 	durationPerUnitCost time.Duration
-	minimumUsageCost    int64
+	baseUsageCost       int64
 
 	supervisor *worker.Supervisor
 }
 
-func New(scripts *scripts.Store, mounter *scripts.Mounter, k4LibraryPath string, moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, durationPerUnitCost time.Duration, minimumUsageCost int64, supervisor *worker.Supervisor) *Service {
+func New(scripts *scripts.Store, mounter *scripts.Mounter, k4LibraryPath string, moneyClient moneypb.MoneyClient, accountsClient accountspb.AccountsClient, durationPerUnitCost time.Duration, baseUsageCost int64, supervisor *worker.Supervisor) *Service {
 	return &Service{
 		scripts: scripts,
 		mounter: mounter,
@@ -54,7 +54,7 @@ func New(scripts *scripts.Store, mounter *scripts.Mounter, k4LibraryPath string,
 		accountsClient: accountsClient,
 
 		durationPerUnitCost: durationPerUnitCost,
-		minimumUsageCost:    minimumUsageCost,
+		baseUsageCost:       baseUsageCost,
 
 		supervisor: supervisor,
 	}
@@ -222,10 +222,8 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	dur := r.ProcessState.UserTime() + r.ProcessState.SystemTime()
 
-	usageCost := int64(dur / s.durationPerUnitCost)
-	if usageCost < s.minimumUsageCost {
-		usageCost = s.minimumUsageCost
-	}
+	usageCost := s.baseUsageCost + int64(dur/s.durationPerUnitCost)
+
 	waitStatus := r.ProcessState.Sys().(syscall.WaitStatus)
 
 	glog.Infof("Script execution result: %s, time: %s, cost: %d, wait status: %v", string(r.Stderr), dur, usageCost, waitStatus)
