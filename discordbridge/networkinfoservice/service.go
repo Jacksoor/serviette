@@ -38,7 +38,7 @@ func (s *Service) GetChannelInfo(ctx context.Context, req *pb.GetChannelInfoRequ
 	}
 
 	return &pb.GetChannelInfoResponse{
-		Name:       channel.Name,
+		Name:       fmt.Sprintf("#%s", channel.Name),
 		IsOneOnOne: channel.IsPrivate,
 	}, nil
 }
