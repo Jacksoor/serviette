@@ -208,7 +208,6 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
 
-	startTime := time.Now()
 	r, err := worker.Run(workerCtx, []string{
 		"--bindmount", fmt.Sprintf("%s:/mnt/storage", mountPath),
 		"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", s.scripts.RootPath()),
@@ -220,9 +219,9 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		glog.Errorf("Failed to run worker: %v", err)
 		return nil, err
 	}
-	endTime := time.Now()
 
-	dur := endTime.Sub(startTime)
+	dur := r.ProcessState.UserTime() + r.ProcessState.SystemTime()
+
 	usageCost := int64(dur / s.durationPerUnitCost)
 	if usageCost < s.minimumUsageCost {
 		usageCost = s.minimumUsageCost
