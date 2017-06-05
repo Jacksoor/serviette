@@ -557,8 +557,14 @@ func (c *Client) runScriptCommand(ctx context.Context, s *discordgo.Session, m *
 			return err
 		}
 		return nil
-	} else if waitStatus.Signal() == syscall.SIGKILL {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Took too long!** %s", m.Author.ID, c.prettyBillingDetails(commandName, requirements, channel, resp)))
+	} else if waitStatus.Signaled() {
+		sig := waitStatus.Signal()
+		switch sig {
+		case syscall.SIGKILL:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Took too long!** %s", m.Author.ID, c.prettyBillingDetails(commandName, requirements, channel, resp)))
+		default:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Script was killed by %s!** %s", m.Author.ID, sig.String(), c.prettyBillingDetails(commandName, requirements, channel, resp)))
+		}
 	} else {
 		stderr := resp.Stderr
 		if len(stderr) > 1500 {
