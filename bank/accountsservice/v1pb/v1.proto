@@ -12,19 +12,19 @@ message CreateResponse {
     bytes account_key = 2;
 }
 
+message GetRequest {
+    bytes account_handle = 1;
+}
+
+message GetResponse {
+    bytes account_key = 1;
+}
+
 message ListRequest {
 }
 
 message ListResponse {
     repeated bytes account_handle = 1;
-}
-
-message CheckRequest {
-    bytes account_handle = 1;
-    bytes account_key = 2;
-}
-
-message CheckResponse {
 }
 
 message DeleteRequest {
@@ -34,29 +34,9 @@ message DeleteRequest {
 message DeleteResponse {
 }
 
-message ResolveAliasRequest {
-    string name = 1;
-}
-
-message ResolveAliasResponse {
-    bytes account_handle = 1;
-    bytes account_key = 2;
-}
-
-message SetAliasRequest {
-    string name = 1;
-    bytes account_handle = 2;
-}
-
-message SetAliasResponse {
-}
-
 service Accounts {
     rpc Create(CreateRequest) returns (CreateResponse) { }
+    rpc Get(GetRequest) returns (GetResponse) { }
     rpc List(ListRequest) returns (ListResponse) { }
-    rpc Check(CheckRequest) returns (CheckResponse) { }
     rpc Delete(DeleteRequest) returns (DeleteResponse) { }
-
-    rpc ResolveAlias(ResolveAliasRequest) returns (ResolveAliasResponse) { }
-    rpc SetAlias(SetAliasRequest) returns (SetAliasResponse) { }
 }

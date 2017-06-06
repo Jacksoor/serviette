@@ -60,17 +60,15 @@ message DeleteResponse {
 
 message ExecuteRequest {
     bytes executing_account_handle = 1;
-    bytes executing_account_key = 2;
+    bytes script_account_handle = 2;
 
-    bytes script_account_handle = 3;
+    string name = 3;
+    string rest = 4;
+    Context context = 5;
 
-    string name = 4;
-    string rest = 5;
-    Context context = 6;
+    string network_info_service_target = 6;
 
-    string network_info_service_target = 7;
-
-    int64 escrowed_funds = 8;
+    int64 escrowed_funds = 7;
 }
 
 message ExecuteResponse {

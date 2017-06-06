@@ -11,6 +11,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
+	"github.com/porpoises/kobun4/discordbridge/varstore"
+
 	"github.com/bwmarrin/discordgo"
 
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
@@ -43,7 +45,7 @@ var bankCommands map[string]command = map[string]command{
 
 var discordMentionRegexp = regexp.MustCompile(`<@!?(\d+)>`)
 
-func bankBalance(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+func bankBalance(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	target := rest
 
 	checkSelf := false
@@ -52,17 +54,37 @@ func bankBalance(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 		checkSelf = true
 	}
 
-	accountHandle, err := resolveAccountTarget(ctx, c, target)
-	if err != nil {
-		switch err {
-		case errNotFound:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Target user does not have account**", m.Author.ID))
-			return nil
-		case errBadAccountHandle:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting @mention or account handle**", m.Author.ID))
-			return nil
+	var accountHandle []byte
+
+	ok, err := func() (bool, error) {
+		tx, err := c.vars.BeginTx(ctx)
+		if err != nil {
+			return false, err
 		}
+		defer tx.Rollback()
+
+		accountHandle, err = resolveAccountTarget(ctx, tx, c, target)
+		if err != nil {
+			switch err {
+			case errNotFound:
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Target user does not have account**", m.Author.ID))
+				return false, nil
+			case errBadAccountHandle:
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting @mention or account handle**", m.Author.ID))
+				return false, nil
+			}
+			return false, err
+		}
+
+		return true, nil
+	}()
+
+	if err != nil {
 		return err
+	}
+
+	if !ok {
+		return nil
 	}
 
 	resp, err := c.moneyClient.GetBalance(ctx, &moneypb.GetBalanceRequest{
@@ -84,11 +106,11 @@ func bankBalance(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 		prefix = fmt.Sprintf("%s's", target)
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **%s balance:** %d %s", m.Author.ID, prefix, resp.Balance, c.currencyName(channel.GuildID)))
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **%s balance:** %d %s", m.Author.ID, prefix, resp.Balance, guildVars.CurrencyName))
 	return nil
 }
 
-func bankAccount(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+func bankAccount(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	target := rest
 
 	checkSelf := false
@@ -97,17 +119,37 @@ func bankAccount(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 		checkSelf = true
 	}
 
-	accountHandle, err := resolveAccountTarget(ctx, c, target)
-	if err != nil {
-		switch err {
-		case errNotFound:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Target user does not have account**", m.Author.ID))
-			return nil
-		case errBadAccountHandle:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting @mention or account handle**", m.Author.ID))
-			return nil
+	var accountHandle []byte
+
+	ok, err := func() (bool, error) {
+		tx, err := c.vars.BeginTx(ctx)
+		if err != nil {
+			return false, err
 		}
+		defer tx.Rollback()
+
+		accountHandle, err = resolveAccountTarget(ctx, tx, c, target)
+		if err != nil {
+			switch err {
+			case errNotFound:
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Target user does not have account**", m.Author.ID))
+				return false, nil
+			case errBadAccountHandle:
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting @mention or account handle**", m.Author.ID))
+				return false, nil
+			}
+			return false, err
+		}
+
+		return true, nil
+	}()
+
+	if err != nil {
 		return err
+	}
+
+	if !ok {
+		return nil
 	}
 
 	resp, err := c.moneyClient.GetBalance(ctx, &moneypb.GetBalanceRequest{
@@ -129,15 +171,15 @@ func bankAccount(ctx context.Context, c *Client, s *discordgo.Session, m *discor
 		prefix = fmt.Sprintf("%s's", target)
 	}
 
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **%s (`%s`) balance:** %d %s", m.Author.ID, prefix, base64.RawURLEncoding.EncodeToString(accountHandle), resp.Balance, c.currencyName(channel.GuildID)))
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ✅ **%s (`%s`) balance:** %d %s", m.Author.ID, prefix, base64.RawURLEncoding.EncodeToString(accountHandle), resp.Balance, guildVars.CurrencyName))
 	return nil
 }
 
-func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+func bankPay(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	parts := strings.SplitN(rest, " ", 2)
 
 	if len(parts) != 2 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%spay amount @mention/handle`**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%spay amount @mention/handle`**", m.Author.ID, guildVars.BankCommandPrefix))
 		return nil
 	}
 
@@ -147,29 +189,51 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 		return nil
 	}
 
-	sourceResolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
-		Name: aliasName(m.Author.ID),
-	})
+	target := parts[1]
+
+	var sourceAccountHandle []byte
+	var targetAccountHandle []byte
+
+	ok, err := func() (bool, error) {
+		tx, err := c.vars.BeginTx(ctx)
+		if err != nil {
+			return false, err
+		}
+		defer tx.Rollback()
+
+		userVars, err := c.vars.UserVars(ctx, tx, m.Author.ID)
+		if err != nil {
+			return false, err
+		}
+
+		sourceAccountHandle = userVars.AccountHandle
+
+		targetAccountHandle, err = resolveAccountTarget(ctx, tx, c, target)
+		if err != nil {
+			switch err {
+			case errNotFound:
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Target user does not have account**", m.Author.ID))
+				return false, nil
+			case errBadAccountHandle:
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting @mention or account handle**", m.Author.ID))
+				return false, nil
+			}
+			return false, err
+		}
+
+		return true, nil
+	}()
+
 	if err != nil {
 		return err
 	}
 
-	target := parts[1]
-	targetAccountHandle, err := resolveAccountTarget(ctx, c, target)
-	if err != nil {
-		switch err {
-		case errNotFound:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Target user does not have account**", m.Author.ID))
-			return nil
-		case errBadAccountHandle:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting @mention or account handle**", m.Author.ID))
-			return nil
-		}
-		return err
+	if !ok {
+		return nil
 	}
 
 	if _, err := c.moneyClient.Transfer(ctx, &moneypb.TransferRequest{
-		SourceAccountHandle: sourceResolveResp.AccountHandle,
+		SourceAccountHandle: sourceAccountHandle,
 		TargetAccountHandle: targetAccountHandle,
 		Amount:              amount,
 	}); err != nil {
@@ -201,7 +265,7 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 			Fields: []*discordgo.MessageEmbedField{
 				{
 					Name:   "From",
-					Value:  fmt.Sprintf("<@!%s> (`%s`)", m.Author.ID, base64.RawURLEncoding.EncodeToString(sourceResolveResp.AccountHandle)),
+					Value:  fmt.Sprintf("<@!%s> (`%s`)", m.Author.ID, base64.RawURLEncoding.EncodeToString(sourceAccountHandle)),
 					Inline: true,
 				},
 				{
@@ -211,7 +275,7 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 				},
 				{
 					Name:  "Amount",
-					Value: fmt.Sprintf("%d %s", amount, c.currencyName(channel.GuildID)),
+					Value: fmt.Sprintf("%d %s", amount, guildVars.CurrencyName),
 				},
 			},
 		},
@@ -219,7 +283,7 @@ func bankPay(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	return nil
 }
 
-func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+func bankCmd(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	commandName := rest
 
 	scriptAccountHandle, scriptName, aliased, err := resolveScriptName(ctx, c, commandName)
@@ -275,14 +339,40 @@ func bankCmd(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	return nil
 }
 
-func bankKey(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+func bankKey(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	if !channel.IsPrivate {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Can only use this command in private**", m.Author.ID))
 		return nil
 	}
 
-	resolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
-		Name: aliasName(m.Author.ID),
+	var accountHandle []byte
+
+	ok, err := func() (bool, error) {
+		tx, err := c.vars.BeginTx(ctx)
+		if err != nil {
+			return false, err
+		}
+		defer tx.Rollback()
+
+		userVars, err := c.vars.UserVars(ctx, tx, m.Author.ID)
+		if err != nil {
+			return false, err
+		}
+
+		accountHandle = userVars.AccountHandle
+		return true, nil
+	}()
+
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		return nil
+	}
+
+	getResp, err := c.accountsClient.Get(ctx, &accountspb.GetRequest{
+		AccountHandle: accountHandle,
 	})
 	if err != nil {
 		return err
@@ -296,11 +386,11 @@ func bankKey(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 			Fields: []*discordgo.MessageEmbedField{
 				{
 					Name:  "Handle (Username)",
-					Value: fmt.Sprintf("`%s`", base64.RawURLEncoding.EncodeToString(resolveResp.AccountHandle)),
+					Value: fmt.Sprintf("`%s`", base64.RawURLEncoding.EncodeToString(accountHandle)),
 				},
 				{
 					Name:  "Key (Password)",
-					Value: fmt.Sprintf("`%s`", base64.RawURLEncoding.EncodeToString(resolveResp.AccountKey)),
+					Value: fmt.Sprintf("`%s`", base64.RawURLEncoding.EncodeToString(getResp.AccountKey)),
 				},
 			},
 		},
@@ -308,7 +398,7 @@ func bankKey(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.
 	return nil
 }
 
-func bankNeworphan(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+func bankNeworphan(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	if !channel.IsPrivate {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Can only use this command in private**", m.Author.ID))
 		return nil
@@ -339,7 +429,7 @@ func bankNeworphan(ctx context.Context, c *Client, s *discordgo.Session, m *disc
 	return nil
 }
 
-func bankTransfer(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+func bankTransfer(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	if !channel.IsPrivate {
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Can only use this command in private**", m.Author.ID))
 		return nil
@@ -348,9 +438,12 @@ func bankTransfer(ctx context.Context, c *Client, s *discordgo.Session, m *disco
 	parts := strings.SplitN(rest, " ", 4)
 
 	if len(parts) != 4 {
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%stransfer amount source@mention/sourcehandle sourcekey target@mention/targethandle`**", m.Author.ID, c.bankCommandPrefix(channel.GuildID)))
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting `%stransfer amount source@mention/sourcehandle sourcekey target@mention/targethandle`**", m.Author.ID, guildVars.BankCommandPrefix))
 		return nil
 	}
+
+	source := parts[1]
+	target := parts[3]
 
 	amount, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
@@ -364,38 +457,62 @@ func bankTransfer(ctx context.Context, c *Client, s *discordgo.Session, m *disco
 		return nil
 	}
 
-	source := parts[1]
-	sourceAccountHandle, err := resolveAccountTarget(ctx, c, source)
-	if err != nil {
-		switch err {
-		case errNotFound:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Source user does not have account**", m.Author.ID))
-			return nil
-		case errBadAccountHandle:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting @mention or account handle**", m.Author.ID))
-			return nil
+	var sourceAccountHandle []byte
+	var targetAccountHandle []byte
+
+	ok, err := func() (bool, error) {
+		tx, err := c.vars.BeginTx(ctx)
+		if err != nil {
+			return false, err
 		}
+		defer tx.Rollback()
+
+		sourceAccountHandle, err = resolveAccountTarget(ctx, tx, c, source)
+		if err != nil {
+			switch err {
+			case errNotFound:
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Source user does not have account**", m.Author.ID))
+				return false, nil
+			case errBadAccountHandle:
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting @mention or account handle**", m.Author.ID))
+				return false, nil
+			}
+			return false, err
+		}
+
+		targetAccountHandle, err = resolveAccountTarget(ctx, tx, c, target)
+		if err != nil {
+			switch err {
+			case errNotFound:
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Target user does not have account**", m.Author.ID))
+				return false, nil
+			case errBadAccountHandle:
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting @mention or account handle**", m.Author.ID))
+				return false, nil
+			}
+			return false, err
+		}
+
+		return true, nil
+	}()
+
+	if err != nil {
 		return err
 	}
 
-	target := parts[3]
-	targetAccountHandle, err := resolveAccountTarget(ctx, c, target)
-	if err != nil {
-		switch err {
-		case errNotFound:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Target user does not have account**", m.Author.ID))
-			return nil
-		case errBadAccountHandle:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Expecting @mention or account handle**", m.Author.ID))
-			return nil
-		}
-		return err
+	if !ok {
+		return nil
 	}
 
-	if _, err := c.accountsClient.Check(context.Background(), &accountspb.CheckRequest{
+	getResp, err := c.accountsClient.Get(ctx, &accountspb.GetRequest{
 		AccountHandle: sourceAccountHandle,
-		AccountKey:    sourceAccountKey,
-	}); err != nil {
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if string(getResp.AccountKey) != string(sourceAccountKey) {
 		if grpc.Code(err) == codes.PermissionDenied {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Not authorized**", m.Author.ID))
 			return nil
@@ -452,7 +569,7 @@ func bankTransfer(ctx context.Context, c *Client, s *discordgo.Session, m *disco
 				},
 				{
 					Name:  "Amount",
-					Value: fmt.Sprintf("%d %s", amount, c.currencyName(channel.GuildID)),
+					Value: fmt.Sprintf("%d %s", amount, guildVars.CurrencyName),
 				},
 			},
 		},
@@ -460,9 +577,7 @@ func bankTransfer(ctx context.Context, c *Client, s *discordgo.Session, m *disco
 	return nil
 }
 
-func bankHelp(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
-	prefix := c.bankCommandPrefix(channel.GuildID)
-
+func bankHelp(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 		Content: fmt.Sprintf("<@!%s>: ✅", m.Author.ID),
 		Embed: &discordgo.MessageEmbed{
@@ -471,44 +586,44 @@ func bankHelp(ctx context.Context, c *Client, s *discordgo.Session, m *discordgo
 
 You can also visit me online here: %s (for login details, please use the `+"`"+`%skey`+"`"+` command in private)
 
-For further information, check out the user documentation at https://kobun4.readthedocs.io/en/latest/users/index.html`, c.opts.WebURL, prefix),
+For further information, check out the user documentation at https://kobun4.readthedocs.io/en/latest/users/index.html`, c.opts.WebURL, guildVars.BankCommandPrefix),
 			Color: 0x009100,
 			Fields: []*discordgo.MessageEmbedField{
 				{
-					Name:  fmt.Sprintf("`%s<command name>`", c.scriptCommandPrefix(channel.GuildID)),
+					Name:  fmt.Sprintf("`%s<command name>`", guildVars.ScriptCommandPrefix),
 					Value: fmt.Sprintf(`Runs the named script command. A full list is available at %s/scripts`, c.opts.WebURL),
 				},
 				{
-					Name: fmt.Sprintf("`%sbalance [<@mention>/<handle>]`", prefix),
+					Name: fmt.Sprintf("`%sbalance [<@mention>/<handle>]`", guildVars.BankCommandPrefix),
 					Value: `**Also available as:** ` + "`" + `bal` + "`" + `
 Get a user's balance. Leave out the username to get your own balance.`,
 				},
 				{
-					Name: fmt.Sprintf("`%saccount [<@mention>/<handle>]`", prefix),
+					Name: fmt.Sprintf("`%saccount [<@mention>/<handle>]`", guildVars.BankCommandPrefix),
 					Value: `**Also available as:** ` + "`" + `$` + "`" + `
 Get a user's account information. Leave out the username to get your own accounts.`,
 				},
 				{
-					Name:  fmt.Sprintf("`%spay <amount> [<@mention>/<handle>]`", prefix),
+					Name:  fmt.Sprintf("`%spay <amount> [<@mention>/<handle>]`", guildVars.BankCommandPrefix),
 					Value: `Send a payment to another user's account.`,
 				},
 				{
-					Name: fmt.Sprintf("`%scommand <command name>`", prefix),
+					Name: fmt.Sprintf("`%scommand <command name>`", guildVars.BankCommandPrefix),
 					Value: `**Also available as:** ` + "`" + `cmd` + "`" + `
 Get information on the named script command.`,
 				},
 				{
-					Name: fmt.Sprintf("`%skey`", prefix),
+					Name: fmt.Sprintf("`%skey`", guildVars.BankCommandPrefix),
 					Value: `**Direct message only.**
 Gets the key to your account.`,
 				},
 				{
-					Name: fmt.Sprintf("`%sneworphan`", prefix),
+					Name: fmt.Sprintf("`%sneworphan`", guildVars.BankCommandPrefix),
 					Value: `**Direct message only.**
 Creates a new, empty account.`,
 				},
 				{
-					Name: fmt.Sprintf("`%stransfer <amount> <source @mention>/<source handle> <source key> <target @mention>/<target handle>`", prefix),
+					Name: fmt.Sprintf("`%stransfer <amount> <source @mention>/<source handle> <source key> <target @mention>/<target handle>`", guildVars.BankCommandPrefix),
 					Value: `**Direct message only.**
 Transfer funds directly from the source account into the target account. This requires the key of the source account.`,
 				},

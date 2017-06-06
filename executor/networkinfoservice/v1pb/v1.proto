@@ -10,6 +10,7 @@ message GetUserInfoRequest {
 
 message GetUserInfoResponse {
     string name = 1;
+    bytes account_handle = 2;
 
     map<string, string> extra = 1000;
 }

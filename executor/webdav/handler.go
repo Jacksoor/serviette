@@ -42,18 +42,25 @@ func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) ([]byte, 
 		return nil, nil, err
 	}
 
-	if _, err := h.accountsClient.Check(r.Context(), &accountspb.CheckRequest{
+	getResp, err := h.accountsClient.Get(r.Context(), &accountspb.GetRequest{
 		AccountHandle: accountHandle,
-		AccountKey:    accountKey,
-	}); err != nil {
-		switch grpc.Code(err) {
-		case codes.PermissionDenied, codes.NotFound:
+	})
+
+	if err != nil {
+		if grpc.Code(err) == codes.NotFound {
 			w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		default:
-			glog.Errorf("Failed to check account: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return nil, nil, err
 		}
+
+		glog.Errorf("Failed to check account: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return nil, nil, err
+	}
+
+	if string(getResp.AccountKey) != string(accountKey) {
+		w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return nil, nil, err
 	}
 

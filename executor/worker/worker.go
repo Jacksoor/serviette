@@ -63,9 +63,6 @@ func newWorker(opts *WorkerOptions, arg0 string, argv []string, stdin []byte) *W
 }
 
 func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, error) {
-	ctx, cancel := context.WithTimeout(ctx, f.opts.TimeLimit)
-	defer cancel()
-
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {
 		return nil, err
@@ -73,6 +70,9 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
+
+	ctx, cancel := context.WithTimeout(ctx, f.opts.TimeLimit)
+	defer cancel()
 
 	deadline, ok := ctx.Deadline()
 	if !ok {

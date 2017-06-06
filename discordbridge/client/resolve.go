@@ -1,6 +1,7 @@
 package client
 
 import (
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"strings"
@@ -9,7 +10,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
-	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
+	"github.com/porpoises/kobun4/discordbridge/varstore"
+
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
@@ -18,20 +20,18 @@ var (
 	errBadAccountHandle       = errors.New("bad account handle")
 )
 
-func resolveAccountTarget(ctx context.Context, c *Client, target string) ([]byte, error) {
+func resolveAccountTarget(ctx context.Context, tx *sql.Tx, c *Client, target string) ([]byte, error) {
 	matches := discordMentionRegexp.FindStringSubmatch(target)
 	if len(matches) > 0 && matches[0] == target {
-		resolveResp, err := c.accountsClient.ResolveAlias(ctx, &accountspb.ResolveAliasRequest{
-			Name: aliasName(matches[1]),
-		})
+		userVars, err := c.vars.UserVars(ctx, tx, matches[1])
 		if err != nil {
-			if grpc.Code(err) == codes.NotFound {
+			if err == varstore.ErrNotFound {
 				return nil, errNotFound
 			}
 			return nil, err
 		}
 
-		return resolveResp.AccountHandle, nil
+		return userVars.AccountHandle, nil
 	}
 
 	accountHandle, err := base64.RawURLEncoding.DecodeString(target)

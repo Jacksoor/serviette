@@ -51,8 +51,8 @@ var (
 	memoryLimit = flag.Int64("memory_limit", 20*1024*1024, "Memory limit")
 	tmpfsSize   = flag.Int64("tmpfs_size", 4*1024*1024, "Memory limit")
 
-	durationPerUnitCost = flag.Duration("duration_per_unit_cost", time.Second/10, "Duration per unit cost")
-	baseUsageCost       = flag.Int64("base_usage_cost", 10, "Base cost to charge for usage")
+	durationPerUnitCost = flag.Duration("duration_per_unit_cost", time.Second, "Duration per unit cost")
+	baseUsageCost       = flag.Int64("base_usage_cost", 0, "Base cost to charge for usage")
 
 	kafelSeccompPolicy = flag.String("kafel_seccomp_policy", "POLICY default { KILL { ptrace, process_vm_readv, process_vm_writev } } USE default DEFAULT ALLOW", "Kafel policy to use for seccomp")
 

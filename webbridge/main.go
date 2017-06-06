@@ -32,7 +32,7 @@ var (
 	staticPath   = flag.String("static_path", "Path to templates", "static")
 	templatePath = flag.String("template_path", "Path to templates", "templates")
 
-	aliasCost     = flag.Int64("alias_cost", 5000, "Cost of an alias purchase")
+	aliasCost     = flag.Int64("alias_cost", 500, "Cost of an alias purchase")
 	aliasDuration = flag.Duration("alias_duration", 4*7*24*time.Hour, "Time for an alias to last")
 )
 

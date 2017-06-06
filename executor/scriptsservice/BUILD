@@ -11,7 +11,6 @@ go_library(
         "//executor/scripts:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "//executor/worker:go_default_library",
-        "//executor/worker/rpc/accountsservice:go_default_library",
         "//executor/worker/rpc/moneyservice:go_default_library",
         "//executor/worker/rpc/networkinfoservice:go_default_library",
         "//executor/worker/rpc/outputservice:go_default_library",

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"database/sql"
 	"flag"
 	"net"
 	"os"
@@ -12,6 +12,8 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/golang/glog"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/grpclog/glogger"
@@ -19,6 +21,7 @@ import (
 
 	"github.com/porpoises/kobun4/discordbridge/client"
 	"github.com/porpoises/kobun4/discordbridge/networkinfoservice"
+	"github.com/porpoises/kobun4/discordbridge/varstore"
 
 	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
 	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
@@ -33,8 +36,7 @@ var (
 	discordToken = flag.String("discord_token", "", "Token for Discord.")
 	status       = flag.String("status", "", "Status to show.")
 
-	flavors  = flag.String("flavors", `{"": {"bankCommandPrefix": "$", "scriptCommandPrefix": "!", "currencyName": "coins", "quiet": false}}`, "Per-guild flavors")
-	earnings = flag.String("earnings", "{}", "Channel IDs to pay out on")
+	sqliteDBPath = flag.String("sqlite_db_path", "discordbridge.db", "Path to SQLite database")
 
 	bankCommandPrefix   = flag.String("bank_command_prefix", "$", "Bank command prefix")
 	scriptCommandPrefix = flag.String("script_command_prefix", "!", "Script command prefix")
@@ -75,22 +77,17 @@ func main() {
 	}
 	defer executorConn.Close()
 
-	var flavorsMap map[string]client.Flavor
-	if err := json.Unmarshal([]byte(*flavors), &flavorsMap); err != nil {
-		glog.Fatalf("did not load flavors: %v", err)
+	db, err := sql.Open("sqlite3", *sqliteDBPath)
+	if err != nil {
+		glog.Fatalf("failed to open db: %v", err)
 	}
 
-	var earningsMap map[string]client.Earnings
-	if err := json.Unmarshal([]byte(*earnings), &earningsMap); err != nil {
-		glog.Fatalf("did not load earnings: %v", err)
-	}
+	vars := varstore.New(db)
 
 	client, err := client.New(*discordToken, &client.Options{
-		Status:   *status,
-		Flavors:  flavorsMap,
-		Earnings: earningsMap,
-		WebURL:   *webURL,
-	}, *bindSocket, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
+		Status: *status,
+		WebURL: *webURL,
+	}, *bindSocket, vars, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}

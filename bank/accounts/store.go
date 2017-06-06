@@ -100,59 +100,6 @@ func (s *Store) Accounts(ctx context.Context, tx *sql.Tx) ([]*Account, error) {
 	return accounts, nil
 }
 
-func (s *Store) LoadByAlias(ctx context.Context, tx *sql.Tx, name string) (*Account, error) {
-	var handle []byte
-	var key []byte
-
-	if err := tx.QueryRowContext(ctx, `
-		select handle, key from accounts
-		inner join aliases on aliases.account_handle = accounts.handle
-		where aliases.name = ?
-	`, name).Scan(&handle, &key); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-
-	return &Account{
-		handle: handle,
-		key:    key,
-	}, nil
-}
-
-func (s *Store) SetAlias(ctx context.Context, tx *sql.Tx, name string, account *Account) error {
-	var r sql.Result
-	var err error
-
-	if account == nil {
-		r, err = tx.ExecContext(ctx, `
-			delete from aliases
-			where name = ?
-		`, name)
-	} else {
-		r, err = tx.ExecContext(ctx, `
-			insert or replace into aliases (name, account_handle)
-			values (?, ?)
-		`, name, account.Handle())
-	}
-
-	if err != nil {
-		return err
-	}
-
-	n, err := r.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if n == 0 {
-		return ErrNotFound
-	}
-
-	return nil
-}
-
 func (s *Store) RecordTransfer(ctx context.Context, tx *sql.Tx, source *Account, target *Account, amount int64) error {
 	now := time.Now()
 

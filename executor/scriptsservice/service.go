@@ -20,7 +20,6 @@ import (
 
 	"github.com/porpoises/kobun4/executor/scripts"
 	"github.com/porpoises/kobun4/executor/worker"
-	"github.com/porpoises/kobun4/executor/worker/rpc/accountsservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/moneyservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/networkinfoservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/outputservice"
@@ -170,14 +169,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, err
 	}
 
-	if getBalanceResp.Balance <= s.baseUsageCost {
+	if getBalanceResp.Balance < s.baseUsageCost {
 		return nil, grpc.Errorf(codes.FailedPrecondition, "the executing account does not have enough funds")
 	}
 
 	worker := s.supervisor.Spawn(filepath.Join("/mnt/scripts", script.QualifiedName()), []string{}, []byte(req.Rest))
-
-	accountsService := accountsservice.New(s.accountsClient)
-	worker.RegisterService("Accounts", accountsService)
 
 	moneyService := moneyservice.New(s.moneyClient, s.accountsClient, req.ScriptAccountHandle, req.ExecutingAccountHandle, req.EscrowedFunds)
 	worker.RegisterService("Money", moneyService)

@@ -120,11 +120,16 @@ func (s *Service) Transfer(req *struct {
 		return err
 	}
 
-	if _, err := s.accountsClient.Check(context.Background(), &accountspb.CheckRequest{
+	getResp, err := s.accountsClient.Get(context.Background(), &accountspb.GetRequest{
 		AccountHandle: sourceAccountHandle,
-		AccountKey:    sourceAccountKey,
-	}); err != nil {
+	})
+
+	if err != nil {
 		return err
+	}
+
+	if string(getResp.AccountKey) != string(sourceAccountKey) {
+		return errors.New("invalid account key")
 	}
 
 	if _, err := s.moneyClient.Transfer(context.Background(), &moneypb.TransferRequest{
