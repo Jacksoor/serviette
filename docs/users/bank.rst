@@ -3,7 +3,7 @@ The Bank
 
 Money makes the kobun4 world go around, and in kobun4 it's all kept in the bank.
 
-The value of money is directly equivalent to the amount of processing time given to :ref:`scripts <scripts>` (generally, 10 units of currency = 1 second of processing time).
+The value of money is directly equivalent to the amount of processing time given to :ref:`scripts <scripts>` (generally, 1 units of currency = 1 second of processing time).
 
 .. _accounts:
 
@@ -15,7 +15,7 @@ An account is identified by two things – its *handle* and its *key*. Users can
 Income
 ------
 
-Income is received on a per-character basis – each character sent by you will pay out a certain amount (generally 1 character = 1 unit of currency).
+Income is received in certain channels when you send a message, subject to a cooldown period (generally 2 minutes). The amount is random and varies (generally between 1 and 5 units of currency).
 
 Basic Commands
 --------------

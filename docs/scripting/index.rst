@@ -9,13 +9,17 @@ Scripts can be written via the web interface and are run in a :ref:`sandbox <san
 
 To access the web interface, issue ``$help`` to get the URL. You may authenticate using the details provided by ``$key`` in a one-on-one conversation.
 
-When a user executes a script (via ``!<command name>``), a script is ``exec``\ed in the sandbox and the argument sent to its stdin. Its stdout and stderr, up to a limit (generally 5MB each) are captured and sent to the entity requesting execution, as well as exit code.
+When a user executes a script (via ``!<command name>``), a script is ``exec``\ed in the sandbox and the argument sent to its stdin. Its stdout and stderr, up to a limit (generally 5MB each) are captured and sent to the bridge requesting execution, as well as exit code.
 
- * On exit code 0, the executing entity will report success, along with the contents of stdout (success).
+ * On exit code 0, the bridge will report success, along with the contents of stdout (success).
 
- * On any exit code other than 2, the executing entity will report failure, along with the contents of stderr (script failure).
+ * On any exit code other than 2, the bridge will report failure, along with the contents of stderr (script failure).
 
- * On exit code 2, the executing entity will report failure, along with the contents of stdout (script error).
+ * On exit code 2, the bridge will report failure, along with the contents of stdout (script error).
+
+ * On SIGKILL, the bridge will report that execution took too long.
+
+ * On any other signal, the bridge will report the signal details.
 
 Scripts are subject to :ref:`billing <billing>`, but usage may be optionally billed to the owner of the script.
 

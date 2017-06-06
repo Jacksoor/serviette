@@ -21,24 +21,12 @@ The response's ID must match the request's ID, otherwise the response must not b
 
 The following sections describe the services available via this RPC interface.
 
-Accounts
---------
-
-The accounts service provides methods to look up accounts.
-
-.. py:function:: Accounts.Lookup(alias : string) -> string
-
-   Looks up a user's account handle from their alias.
-
-   :param alias: The alias to look up. The alias is generally of the format ``<bridge name>/<network name>/<user ID>``.
-   :return: The user's account handle.
-
 NetworkInfo
 -----------
 
 The network information service provides scripts with the ability to interact with the network they're running on.
 
-.. py:function:: NetworkInfo.GetUserInfo(id : string) -> {name: string, extra: object}
+.. py:function:: NetworkInfo.GetUserInfo(id : string) -> {name: string, accountHandle: string, extra: object}
 
    Looks up a user's information by their user ID.
 

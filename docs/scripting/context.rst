@@ -13,6 +13,10 @@ The following fields are always available:
 
    The name of the chat service or otherwise entity that requested execution of the script (the *bridge*).
 
+.. py:data:: commandName
+
+   The name of the command used to run the script.
+
 .. py:data:: userId
 
    The ID of the user who requested the command to be executed.
