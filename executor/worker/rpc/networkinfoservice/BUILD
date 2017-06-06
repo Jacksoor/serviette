@@ -6,7 +6,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//executor/networkinfoservice/v1pb:go_default_library",
-        "@com_github_golang_protobuf//jsonpb:go_default_library",
         "@org_golang_x_net//context:go_default_library",
     ],
 )

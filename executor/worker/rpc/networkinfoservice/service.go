@@ -1,8 +1,7 @@
 package networkinfoservice
 
 import (
-	"encoding/json"
-	"github.com/golang/protobuf/jsonpb"
+	"encoding/base64"
 
 	"golang.org/x/net/context"
 
@@ -19,13 +18,13 @@ func New(networkInfoClient networkinfopb.NetworkInfoClient) *Service {
 	}
 }
 
-var marshaler = jsonpb.Marshaler{
-	EmitDefaults: true,
-}
-
 func (s *Service) GetUserInfo(req *struct {
 	ID string `json:"id"`
-}, resp *map[string]interface{}) error {
+}, resp *struct {
+	Name          string            `json:"name"`
+	AccountHandle string            `json:"accountHandle"`
+	Extra         map[string]string `json:"extra"`
+}) error {
 	grpcResp, err := s.networkInfoClient.GetUserInfo(context.Background(), &networkinfopb.GetUserInfoRequest{
 		UserId: req.ID,
 	})
@@ -33,16 +32,19 @@ func (s *Service) GetUserInfo(req *struct {
 		return err
 	}
 
-	rawResp, err := marshaler.MarshalToString(grpcResp)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal([]byte(rawResp), resp)
+	resp.Name = grpcResp.Name
+	resp.AccountHandle = base64.RawURLEncoding.EncodeToString(grpcResp.AccountHandle)
+	resp.Extra = grpcResp.Extra
+	return nil
 }
 
 func (s *Service) GetChannelInfo(req *struct {
 	ID string `json:"id"`
-}, resp *map[string]interface{}) error {
+}, resp *struct {
+	Name       string            `json:"name"`
+	IsOneOnOne bool              `json:"isOneOnOne"`
+	Extra      map[string]string `json:"extra"`
+}) error {
 	grpcResp, err := s.networkInfoClient.GetChannelInfo(context.Background(), &networkinfopb.GetChannelInfoRequest{
 		ChannelId: req.ID,
 	})
@@ -50,16 +52,18 @@ func (s *Service) GetChannelInfo(req *struct {
 		return err
 	}
 
-	rawResp, err := marshaler.MarshalToString(grpcResp)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal([]byte(rawResp), resp)
+	resp.Name = grpcResp.Name
+	resp.IsOneOnOne = grpcResp.IsOneOnOne
+	resp.Extra = grpcResp.Extra
+	return nil
 }
 
 func (s *Service) GetGroupInfo(req *struct {
 	ID string `json:"id"`
-}, resp *map[string]interface{}) error {
+}, resp *struct {
+	Name  string            `json:"name"`
+	Extra map[string]string `json:"extra"`
+}) error {
 	grpcResp, err := s.networkInfoClient.GetGroupInfo(context.Background(), &networkinfopb.GetGroupInfoRequest{
 		GroupId: req.ID,
 	})
@@ -67,17 +71,18 @@ func (s *Service) GetGroupInfo(req *struct {
 		return err
 	}
 
-	rawResp, err := marshaler.MarshalToString(grpcResp)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal([]byte(rawResp), resp)
+	resp.Name = grpcResp.Name
+	resp.Extra = grpcResp.Extra
+	return nil
 }
 
 func (s *Service) GetChannelMemberInfo(req *struct {
 	ChannelID string `json:"channelId"`
 	UserID    string `json:"userId"`
-}, resp *map[string]interface{}) error {
+}, resp *struct {
+	Name  string            `json:"name"`
+	Extra map[string]string `json:"extra"`
+}) error {
 	grpcResp, err := s.networkInfoClient.GetChannelMemberInfo(context.Background(), &networkinfopb.GetChannelMemberInfoRequest{
 		ChannelId: req.ChannelID,
 		UserId:    req.UserID,
@@ -86,17 +91,18 @@ func (s *Service) GetChannelMemberInfo(req *struct {
 		return err
 	}
 
-	rawResp, err := marshaler.MarshalToString(grpcResp)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal([]byte(rawResp), resp)
+	resp.Name = grpcResp.Name
+	resp.Extra = grpcResp.Extra
+	return nil
 }
 
 func (s *Service) GetGroupMemberInfo(req *struct {
 	GroupID string `json:"groupId"`
 	UserID  string `json:"userId"`
-}, resp *map[string]interface{}) error {
+}, resp *struct {
+	Name  string            `json:"name"`
+	Extra map[string]string `json:"extra"`
+}) error {
 	grpcResp, err := s.networkInfoClient.GetGroupMemberInfo(context.Background(), &networkinfopb.GetGroupMemberInfoRequest{
 		GroupId: req.GroupID,
 		UserId:  req.UserID,
@@ -105,9 +111,7 @@ func (s *Service) GetGroupMemberInfo(req *struct {
 		return err
 	}
 
-	rawResp, err := marshaler.MarshalToString(grpcResp)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal([]byte(rawResp), resp)
+	resp.Name = grpcResp.Name
+	resp.Extra = grpcResp.Extra
+	return nil
 }

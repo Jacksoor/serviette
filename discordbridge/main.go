@@ -96,7 +96,7 @@ func main() {
 	glog.Info("Connected to Discord.")
 
 	s := grpc.NewServer()
-	networkinfopb.RegisterNetworkInfoServer(s, networkinfoservice.New(client.Session()))
+	networkinfopb.RegisterNetworkInfoServer(s, networkinfoservice.New(client.Session(), vars))
 	reflection.Register(s)
 
 	signalChan := make(chan os.Signal, 1)
