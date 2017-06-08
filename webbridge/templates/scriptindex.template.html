@@ -3,16 +3,6 @@
 {{define "body"}}
 <h1>Scripts</h1>
 
-<h2>By Alias</h2>
-<ul>
-{{range $_, $alias := .Aliases}}
-    <li>
-        <a href="/scripts/{{$alias.AccountHandle}}/{{$alias.ScriptName}}"><samp>{{$alias.Name}}</samp></a> (<samp>{{$alias.AccountHandle}}/{{$alias.ScriptName}}</samp>)<br>
-        Expires in {{prettyTime $alias.ExpiryTime}}.
-    </li>
-{{end}}
-</ul>
-
 <h2>By Account</h2>
 <p>
     These commands are accessible by using <samp>&lt;account handle&gt;/&lt;script name&gt;</samp> as the command name.

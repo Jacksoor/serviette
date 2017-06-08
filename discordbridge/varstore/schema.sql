@@ -18,3 +18,14 @@ create table user_vars (
     account_handle bytea not null,
     last_payout_time_unix bigint not null
 );
+
+create table guild_aliases (
+    guild_id character varying not null,
+    alias_name character varying not null,
+    account_handle bytea not null,
+    script_name character varying not null,
+
+    primary key (guild_id, alias_name)
+);
+
+create index guild_aliases_guild_id_idx on guild_aliases (guild_id);

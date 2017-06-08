@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"golang.org/x/net/trace"
 	_ "net/http/pprof"
@@ -31,9 +30,6 @@ var (
 
 	staticPath   = flag.String("static_path", "Path to templates", "static")
 	templatePath = flag.String("template_path", "Path to templates", "templates")
-
-	aliasCost     = flag.Int64("alias_cost", 500, "Cost of an alias purchase")
-	aliasDuration = flag.Duration("alias_duration", 4*7*24*time.Hour, "Time for an alias to last")
 )
 
 func main() {
@@ -65,7 +61,7 @@ func main() {
 	}
 	defer executorConn.Close()
 
-	handler, err := handler.New(*staticPath, *templatePath, *aliasCost, *aliasDuration, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
+	handler, err := handler.New(*staticPath, *templatePath, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to create handler: %v", err)
 	}

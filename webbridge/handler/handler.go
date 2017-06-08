@@ -7,7 +7,6 @@ import (
 	"html/template"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -32,9 +31,6 @@ type Handler struct {
 	staticPath   string
 	templatePath string
 
-	aliasCost     int64
-	aliasDuration time.Duration
-
 	accountsClient accountspb.AccountsClient
 	moneyClient    moneypb.MoneyClient
 	scriptsClient  scriptspb.ScriptsClient
@@ -54,7 +50,7 @@ var funcMap template.FuncMap = template.FuncMap{
 	},
 }
 
-func New(staticPath string, templatePath string, aliasCost int64, aliasDuration time.Duration, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (http.Handler, error) {
+func New(staticPath string, templatePath string, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (http.Handler, error) {
 	router := httprouter.New()
 
 	h := &Handler{
@@ -62,9 +58,6 @@ func New(staticPath string, templatePath string, aliasCost int64, aliasDuration 
 
 		staticPath:   staticPath,
 		templatePath: templatePath,
-
-		aliasCost:     aliasCost,
-		aliasDuration: aliasDuration,
 
 		accountsClient: accountsClient,
 		moneyClient:    moneyClient,
@@ -80,10 +73,6 @@ func New(staticPath string, templatePath string, aliasCost int64, aliasDuration 
 	router.GET("/scripts/:scriptAccountHandle/:scriptName", h.scriptGet)
 	router.POST("/scripts/:scriptAccountHandle/:scriptName", h.scriptUpdate)
 	router.POST("/scripts/:scriptAccountHandle/:scriptName/delete", h.scriptDelete)
-	router.POST("/aliases", h.aliasCreate)
-	router.POST("/aliases/:aliasName", h.aliasUpdate)
-	router.POST("/aliases/:aliasName/renew", h.aliasRenew)
-	router.POST("/aliases/:aliasName/delete", h.aliasDelete)
 
 	return h, nil
 }
@@ -149,13 +138,6 @@ func (h *Handler) renderTemplate(w http.ResponseWriter, files []string, data int
 	}
 }
 
-type aliasDetails struct {
-	Name          string
-	AccountHandle string
-	ScriptName    string
-	ExpiryTime    time.Time
-}
-
 func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	accountHandle, accountKey, err := h.authenticate(w, r)
 	if err != nil {
@@ -180,45 +162,16 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		return
 	}
 
-	aliasesListResp, err := h.scriptsClient.ListAliases(r.Context(), &scriptspb.ListAliasesRequest{})
-	if err != nil {
-		glog.Errorf("Failed to list aliases: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	aliases := make([]*aliasDetails, 0)
-	for _, entry := range aliasesListResp.Entry {
-		if string(entry.AccountHandle) != string(accountHandle) {
-			continue
-		}
-
-		aliases = append(aliases, &aliasDetails{
-			Name:          entry.Name,
-			AccountHandle: base64.RawURLEncoding.EncodeToString(entry.AccountHandle),
-			ScriptName:    entry.ScriptName,
-			ExpiryTime:    time.Unix(entry.ExpiryTimeUnix, 0),
-		})
-	}
-
 	h.renderTemplate(w, []string{"_layout", "home"}, struct {
 		AccountHandle string
 		AccountKey    string
 		Balance       int64
 		ScriptNames   []string
-		Aliases       []*aliasDetails
-
-		AliasCost     int64
-		AliasDuration time.Duration
 	}{
 		base64.RawURLEncoding.EncodeToString(accountHandle),
 		base64.RawURLEncoding.EncodeToString(accountKey),
 		balanceResp.Balance,
 		scriptsListResp.Name,
-		aliases,
-
-		h.aliasCost,
-		h.aliasDuration,
 	})
 }
 
@@ -248,29 +201,10 @@ func (h *Handler) scriptIndex(w http.ResponseWriter, r *http.Request, ps httprou
 		accountScripts[base64.RawURLEncoding.EncodeToString(accountHandle)] = listResp.Name
 	}
 
-	aliasesListResp, err := h.scriptsClient.ListAliases(r.Context(), &scriptspb.ListAliasesRequest{})
-	if err != nil {
-		glog.Errorf("Failed to list aliases: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	aliases := make([]*aliasDetails, len(aliasesListResp.Entry))
-	for i, entry := range aliasesListResp.Entry {
-		aliases[i] = &aliasDetails{
-			Name:          entry.Name,
-			AccountHandle: base64.RawURLEncoding.EncodeToString(entry.AccountHandle),
-			ScriptName:    entry.ScriptName,
-			ExpiryTime:    time.Unix(entry.ExpiryTimeUnix, 0),
-		}
-	}
-
 	h.renderTemplate(w, []string{"_layout", "scriptindex"}, struct {
 		AccountScripts map[string][]string
-		Aliases        []*aliasDetails
 	}{
 		accountScripts,
-		aliases,
 	})
 }
 
@@ -484,219 +418,6 @@ func (h *Handler) scriptDelete(w http.ResponseWriter, r *http.Request, ps httpro
 		}
 
 		glog.Errorf("Failed to delete script: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/", http.StatusMovedPermanently)
-}
-
-func (h *Handler) aliasCreate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	accountHandle, _, err := h.authenticate(w, r)
-	if err != nil {
-		return
-	}
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
-	now := time.Now()
-
-	periods, err := strconv.ParseInt(r.Form.Get("periods"), 10, 64)
-	if err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
-	_, err = h.scriptsClient.ResolveAlias(r.Context(), &scriptspb.ResolveAliasRequest{
-		Name: r.Form.Get("name"),
-	})
-	if err == nil {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-
-	if grpc.Code(err) != codes.NotFound {
-		glog.Errorf("Failed to resolve alias: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	balanceResp, err := h.moneyClient.GetBalance(r.Context(), &moneypb.GetBalanceRequest{
-		AccountHandle: accountHandle,
-	})
-	if err != nil {
-		glog.Errorf("Failed to get balance: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	cost := periods * h.aliasCost
-	if balanceResp.Balance < cost {
-		http.Error(w, "Forbidden: insufficient funds", http.StatusForbidden)
-		return
-	}
-
-	if _, err := h.scriptsClient.SetAlias(r.Context(), &scriptspb.SetAliasRequest{
-		Name:           r.Form.Get("name"),
-		AccountHandle:  accountHandle,
-		ScriptName:     r.Form.Get("script_name"),
-		ExpiryTimeUnix: now.Add(time.Duration(periods) * h.aliasDuration).Unix(),
-	}); err != nil {
-		glog.Errorf("Failed to set alias: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if _, err := h.moneyClient.Add(r.Context(), &moneypb.AddRequest{
-		AccountHandle: accountHandle,
-		Amount:        -cost,
-	}); err != nil {
-		glog.Errorf("Failed to adjust balance: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/", http.StatusMovedPermanently)
-}
-
-func (h *Handler) aliasUpdate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	accountHandle, _, err := h.authenticate(w, r)
-	if err != nil {
-		return
-	}
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
-	resolveResp, err := h.scriptsClient.ResolveAlias(r.Context(), &scriptspb.ResolveAliasRequest{
-		Name: ps.ByName("aliasName"),
-	})
-	if err != nil {
-		glog.Errorf("Failed to resolve alias: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if string(accountHandle) != string(resolveResp.AccountHandle) {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-
-	if _, err := h.scriptsClient.SetAlias(r.Context(), &scriptspb.SetAliasRequest{
-		Name:           ps.ByName("aliasName"),
-		AccountHandle:  accountHandle,
-		ScriptName:     r.Form.Get("script_name"),
-		ExpiryTimeUnix: resolveResp.ExpiryTimeUnix,
-	}); err != nil {
-		glog.Errorf("Failed to set alias: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/", http.StatusMovedPermanently)
-}
-
-func (h *Handler) aliasRenew(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	accountHandle, _, err := h.authenticate(w, r)
-	if err != nil {
-		return
-	}
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
-	periods, err := strconv.ParseInt(r.Form.Get("periods"), 10, 64)
-	if err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
-	resolveResp, err := h.scriptsClient.ResolveAlias(r.Context(), &scriptspb.ResolveAliasRequest{
-		Name: ps.ByName("aliasName"),
-	})
-	if err != nil {
-		glog.Errorf("Failed to resolve alias: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if string(accountHandle) != string(resolveResp.AccountHandle) {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-
-	balanceResp, err := h.moneyClient.GetBalance(r.Context(), &moneypb.GetBalanceRequest{
-		AccountHandle: accountHandle,
-	})
-	if err != nil {
-		glog.Errorf("Failed to get balance: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	cost := periods * h.aliasCost
-	if balanceResp.Balance < cost {
-		http.Error(w, "Forbidden: insufficient funds", http.StatusForbidden)
-		return
-	}
-
-	if _, err := h.moneyClient.Add(r.Context(), &moneypb.AddRequest{
-		AccountHandle: accountHandle,
-		Amount:        -cost,
-	}); err != nil {
-		glog.Errorf("Failed to adjust balance: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if _, err := h.scriptsClient.SetAlias(r.Context(), &scriptspb.SetAliasRequest{
-		Name:           ps.ByName("aliasName"),
-		AccountHandle:  accountHandle,
-		ScriptName:     resolveResp.ScriptName,
-		ExpiryTimeUnix: time.Unix(resolveResp.ExpiryTimeUnix, 0).Add(time.Duration(periods) * h.aliasDuration).Unix(),
-	}); err != nil {
-		glog.Errorf("Failed to set alias: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/", http.StatusMovedPermanently)
-}
-
-func (h *Handler) aliasDelete(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	accountHandle, _, err := h.authenticate(w, r)
-	if err != nil {
-		return
-	}
-
-	resolveResp, err := h.scriptsClient.ResolveAlias(r.Context(), &scriptspb.ResolveAliasRequest{
-		Name: ps.ByName("aliasName"),
-	})
-	if err != nil {
-		glog.Errorf("Failed to resolve alias: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if string(accountHandle) != string(resolveResp.AccountHandle) {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-
-	if _, err := h.scriptsClient.SetAlias(r.Context(), &scriptspb.SetAliasRequest{
-		Name:           ps.ByName("aliasName"),
-		AccountHandle:  nil,
-		ScriptName:     "",
-		ExpiryTimeUnix: 0,
-	}); err != nil {
-		glog.Errorf("Failed to set alias: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}

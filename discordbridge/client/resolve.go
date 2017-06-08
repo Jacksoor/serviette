@@ -7,12 +7,8 @@ import (
 	"strings"
 
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 
 	"github.com/porpoises/kobun4/discordbridge/varstore"
-
-	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
 var (
@@ -42,7 +38,7 @@ func resolveAccountTarget(ctx context.Context, tx *sql.Tx, c *Client, target str
 	return accountHandle, nil
 }
 
-func resolveScriptName(ctx context.Context, c *Client, commandName string) ([]byte, string, bool, error) {
+func resolveScriptName(ctx context.Context, c *Client, guildID string, commandName string) ([]byte, string, bool, error) {
 	if sepIndex := strings.Index(commandName, "/"); sepIndex != -1 {
 		// Look up via qualified name.
 		encodedScriptHandle := commandName[:sepIndex]
@@ -55,16 +51,22 @@ func resolveScriptName(ctx context.Context, c *Client, commandName string) ([]by
 	}
 
 	// Look up via an alias name.
-	resolveResp, err := c.scriptsClient.ResolveAlias(ctx, &scriptspb.ResolveAliasRequest{
-		Name: commandName,
-	})
-	if err != nil {
-		if grpc.Code(err) == codes.NotFound {
+	var alias *varstore.Alias
+	if err := func() error {
+		tx, err := c.vars.BeginTx(ctx)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+
+		alias, err = c.vars.GuildAlias(ctx, tx, guildID, commandName)
+		return err
+	}(); err != nil {
+		if err == varstore.ErrNotFound {
 			return nil, "", true, errNotFound
 		}
 		return nil, "", true, err
 	}
 
-	return resolveResp.AccountHandle, resolveResp.ScriptName, true, nil
-
+	return alias.AccountHandle, alias.ScriptName, true, nil
 }

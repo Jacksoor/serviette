@@ -438,7 +438,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		return nil
 	}
 
-	scriptAccountHandle, scriptName, aliased, err := resolveScriptName(ctx, c, commandName)
+	scriptAccountHandle, scriptName, aliased, err := resolveScriptName(ctx, c, channel.GuildID, commandName)
 	if err != nil {
 		switch err {
 		case errNotFound:

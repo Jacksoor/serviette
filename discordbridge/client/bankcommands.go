@@ -286,7 +286,7 @@ func bankPay(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *d
 func bankCmd(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	commandName := rest
 
-	scriptAccountHandle, scriptName, aliased, err := resolveScriptName(ctx, c, commandName)
+	scriptAccountHandle, scriptName, aliased, err := resolveScriptName(ctx, c, channel.GuildID, commandName)
 	if err != nil {
 		if err == errNotFound {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Command `%s` not found**", m.Author.ID, commandName))

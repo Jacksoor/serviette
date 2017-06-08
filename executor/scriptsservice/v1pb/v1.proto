@@ -107,40 +107,6 @@ message GetRequirementsResponse {
     Requirements requirements = 1;
 }
 
-message ResolveAliasRequest {
-    string name = 1;
-}
-
-message ResolveAliasResponse {
-    bytes account_handle = 1;
-    string script_name = 2;
-    int64 expiry_time_unix = 3;
-}
-
-message SetAliasRequest {
-    string name = 1;
-    bytes account_handle = 2;
-    string script_name = 3;
-    int64 expiry_time_unix = 4;
-}
-
-message SetAliasResponse {
-}
-
-message ListAliasesRequest {
-}
-
-message ListAliasesResponse {
-    message Entry {
-        string name = 1;
-        bytes account_handle = 2;
-        string script_name = 3;
-        int64 expiry_time_unix = 4;
-    }
-
-    repeated Entry entry = 1;
-}
-
 service Scripts {
     rpc Create(CreateRequest) returns (CreateResponse) { }
     rpc List(ListRequest) returns (ListResponse) { }
@@ -150,8 +116,4 @@ service Scripts {
     rpc GetContent(GetContentRequest) returns (GetContentResponse) { }
 
     rpc GetRequirements(GetRequirementsRequest) returns (GetRequirementsResponse) { }
-
-    rpc ResolveAlias(ResolveAliasRequest) returns (ResolveAliasResponse) { }
-    rpc SetAlias(SetAliasRequest) returns (SetAliasResponse) { }
-    rpc ListAliases(ListAliasesRequest) returns (ListAliasesResponse) { }
 }
