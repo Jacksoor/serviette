@@ -15,6 +15,7 @@ go_library(
         "@com_github_golang_glog//:go_default_library",
         "@com_github_hako_durafmt//:go_default_library",
         "@com_github_julienschmidt_httprouter//:go_default_library",
+        "@com_github_justinas_nosurf//:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//codes:go_default_library",
     ],

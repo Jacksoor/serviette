@@ -102,3 +102,10 @@ new_go_repository(
     commit = "81a3204d823f2cb127fd516387fab63abe1017f3",
     importpath = "github.com/djherbis/buffer",
 )
+
+new_go_repository(
+    name = "com_github_justinas_nosurf",
+    commit = "8e15682772641a1e39c431233e6a9338a32def32",
+    importpath = "github.com/justinas/nosurf",
+
+)

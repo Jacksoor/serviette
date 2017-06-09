@@ -13,6 +13,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/hako/durafmt"
 	"github.com/julienschmidt/httprouter"
+	"github.com/justinas/nosurf"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -26,7 +27,7 @@ var (
 )
 
 type Handler struct {
-	*httprouter.Router
+	http.Handler
 
 	staticPath   string
 	templatePath string
@@ -54,7 +55,7 @@ func New(staticPath string, templatePath string, accountsClient accountspb.Accou
 	router := httprouter.New()
 
 	h := &Handler{
-		Router: router,
+		Handler: nosurf.New(router),
 
 		staticPath:   staticPath,
 		templatePath: templatePath,
@@ -167,11 +168,15 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		AccountKey    string
 		Balance       int64
 		ScriptNames   []string
+
+		CSRFToken string
 	}{
 		base64.RawURLEncoding.EncodeToString(accountHandle),
 		base64.RawURLEncoding.EncodeToString(accountKey),
 		balanceResp.Balance,
 		scriptsListResp.Name,
+
+		nosurf.Token(r),
 	})
 }
 
@@ -323,11 +328,15 @@ func (h *Handler) scriptGet(w http.ResponseWriter, r *http.Request, ps httproute
 		ScriptName          string
 		ScriptContent       string
 		Meta                *scriptspb.Meta
+
+		CSRFToken string
 	}{
 		base64.RawURLEncoding.EncodeToString(scriptAccountHandle),
 		scriptName,
 		string(contentResp.Content),
 		getMetaResp.Meta,
+
+		nosurf.Token(r),
 	})
 }
 

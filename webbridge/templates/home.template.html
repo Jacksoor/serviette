@@ -25,6 +25,7 @@
 
 <form method="POST" action="/scripts/{{.AccountHandle}}">
     <input type="text" name="name">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <button type="submit">Create new script</button>
 </form>
 {{end}}
