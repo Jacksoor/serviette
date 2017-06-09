@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	requirementsXattrName string = "user.kobun4.executor.requirements"
+	metaXattrName string = "user.kobun4.executor"
 )
 
 func getxattr(path, name string) ([]byte, error) {
@@ -64,10 +64,10 @@ func (s *Script) SetContent(content []byte) error {
 	return ioutil.WriteFile(s.Path(), content, 0755)
 }
 
-func (s *Script) Requirements() (*scriptspb.Requirements, error) {
-	reqs := &scriptspb.Requirements{}
+func (s *Script) Meta() (*scriptspb.Meta, error) {
+	reqs := &scriptspb.Meta{}
 
-	rawReqs, err := getxattr(s.Path(), requirementsXattrName)
+	rawReqs, err := getxattr(s.Path(), metaXattrName)
 	if err != nil {
 		return nil, err
 	}
@@ -83,12 +83,12 @@ func (s *Script) Requirements() (*scriptspb.Requirements, error) {
 	return reqs, nil
 }
 
-func (s *Script) SetRequirements(reqs *scriptspb.Requirements) error {
+func (s *Script) SetMeta(reqs *scriptspb.Meta) error {
 	rawReqs, err := proto.Marshal(reqs)
 	if err != nil {
 		return err
 	}
-	return syscall.Setxattr(s.Path(), requirementsXattrName, rawReqs, 0)
+	return syscall.Setxattr(s.Path(), metaXattrName, rawReqs, 0)
 }
 
 func (s *Script) Delete() error {

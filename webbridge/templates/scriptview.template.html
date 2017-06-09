@@ -15,6 +15,13 @@
 <h1>Script: <samp>{{.ScriptAccountHandle}}/{{.ScriptName}}</samp></h1>
 <form method="POST" action="/scripts/{{.ScriptAccountHandle}}/{{.ScriptName}}" id="editorForm">
     <p>
+        <label>
+            <strong>Description</strong><br>
+            <textarea name="description">{{.Meta.Description}}</textarea>
+        </label>
+    </p>
+
+    <p>
         <textarea name="content" id="editor">{{.ScriptContent}}</textarea>
     </p>
 
@@ -22,16 +29,15 @@
     <a href="https://kobun4.readthedocs.io/en/latest/scripting/index.html" target="docs">Documentation reference</a>
     </p>
 
-    <h2>Requirements</h2>
     <p>
         <label>
-            <input type="checkbox" name="bill_usage_to_owner" {{if .Requirements.BillUsageToOwner}}checked{{end}}> <strong>Bill usage to owner?</strong><br>
+            <input type="checkbox" name="bill_usage_to_owner" {{if .Meta.BillUsageToOwner}}checked{{end}}> <strong>Bill usage to owner?</strong><br>
             If checked, all usage costs that would usually be billed to the executor of the script will be billed to the owner (you!).
         </label>
     </p>
     <p>
         <label>
-            <input type="checkbox" name="needs_escrow" {{if .Requirements.NeedsEscrow}}checked{{end}}> <strong>Needs escrow?</strong><br>
+            <input type="checkbox" name="needs_escrow" {{if .Meta.NeedsEscrow}}checked{{end}}> <strong>Needs escrow?</strong><br>
             If checked, the first argument to the command will be considered escrowed funds. The remaining argument will be sent to stdin.
         </label>
     </p>

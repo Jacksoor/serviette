@@ -197,13 +197,23 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 		fail = true
 	}
 
-	if strings.HasPrefix(m.Content, guildVars.BankCommandPrefix) {
+	content := strings.TrimSpace(m.Content)
+
+	if content == fmt.Sprintf("<@!%s> help", s.State.User.ID) || content == fmt.Sprintf("<@%s> help", s.State.User.ID) {
+		if err := bankHelp(ctx, c, guildVars, s, m.Message, channel, ""); err != nil {
+			glog.Errorf("Failed to run run help command: %v", err)
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
+		}
+		return
+	}
+
+	if strings.HasPrefix(content, guildVars.BankCommandPrefix) {
 		if fail {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ‼ **Internal error**", m.Author.ID))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
 			return
 		}
 
-		rest := m.Content[len(guildVars.BankCommandPrefix):]
+		rest := content[len(guildVars.BankCommandPrefix):]
 		firstSpaceIndex := strings.Index(rest, " ")
 
 		var commandName string
@@ -218,23 +228,23 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 		cmd, ok := bankCommands[commandName]
 		if !ok {
 			if !guildVars.Quiet {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Command `%s%s` not found**", m.Author.ID, guildVars.BankCommandPrefix, commandName))
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s%s` not found**", m.Author.ID, guildVars.BankCommandPrefix, commandName))
 			}
 			return
 		}
 
 		if err := cmd(ctx, c, guildVars, s, m.Message, channel, rest); err != nil {
 			glog.Errorf("Failed to run bank command %s: %v", commandName, err)
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ‼ **Internal error**", m.Author.ID))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
 			return
 		}
 
 		return
 	}
 
-	if strings.HasPrefix(m.Content, guildVars.ScriptCommandPrefix) {
+	if strings.HasPrefix(content, guildVars.ScriptCommandPrefix) {
 		if fail {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ‼ **Internal error**", m.Author.ID))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
 			return
 		}
 
@@ -252,7 +262,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 
 		if err := c.runScriptCommand(ctx, guildVars, s, m.Message, channel, commandName, rest); err != nil {
 			glog.Errorf("Failed to run command %s: %v", commandName, err)
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ‼ **Internal error**", m.Author.ID))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
 			return
 		}
 
@@ -388,10 +398,10 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 	},
 }
 
-func (c *Client) prettyBillingDetails(commandName string, requirements *scriptspb.Requirements, guildVars *varstore.GuildVars, r *scriptspb.ExecuteResponse) string {
+func (c *Client) prettyBillingDetails(commandName string, meta *scriptspb.Meta, guildVars *varstore.GuildVars, r *scriptspb.ExecuteResponse) string {
 	parts := []string{}
 
-	if !requirements.BillUsageToOwner && r.UsageCost > 0 {
+	if !meta.BillUsageToOwner && r.UsageCost > 0 {
 		parts = append(parts, fmt.Sprintf("**Usage cost:** %d %s", r.UsageCost, guildVars.CurrencyName))
 	} else {
 		// Leave top line empty.
@@ -443,35 +453,35 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		switch err {
 		case errNotFound:
 			if !guildVars.Quiet {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Command `%s%s` not found**", m.Author.ID, guildVars.ScriptCommandPrefix, commandName))
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s%s` not found**", m.Author.ID, guildVars.ScriptCommandPrefix, commandName))
 			}
 			return nil
 		}
 		return err
 	}
 
-	getRequirementsResp, err := c.scriptsClient.GetRequirements(ctx, &scriptspb.GetRequirementsRequest{
+	getMetaResp, err := c.scriptsClient.GetMeta(ctx, &scriptspb.GetMetaRequest{
 		AccountHandle: scriptAccountHandle,
 		Name:          scriptName,
 	})
 	if err != nil {
 		if grpc.Code(err) == codes.NotFound {
 			if aliased {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Command alias references invalid script name**", m.Author.ID, commandName))
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Command alias references invalid script name**", m.Author.ID, commandName))
 			} else if !guildVars.Quiet {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Command `%s%s/%s` not found**", m.Author.ID, guildVars.ScriptCommandPrefix, base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName))
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s%s/%s` not found**", m.Author.ID, guildVars.ScriptCommandPrefix, base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName))
 			}
 			return nil
 		} else if grpc.Code(err) == codes.InvalidArgument {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Invalid command name**", m.Author.ID))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Invalid command name**", m.Author.ID))
 			return nil
 		}
 		return err
 	}
-	requirements := getRequirementsResp.Requirements
+	meta := getMetaResp.Meta
 
 	var escrowedFunds int64
-	if requirements.NeedsEscrow {
+	if meta.NeedsEscrow {
 		parts := strings.SplitN(rest, " ", 2)
 		if parts[0] == "" {
 			escrowedFunds = 0
@@ -492,7 +502,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		}
 	}
 
-	waitMsg, err := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ⌛ **Please wait, running your command...**", m.Author.ID))
+	waitMsg, err := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ⌛ **Please wait, running your command...**", m.Author.ID))
 	if err != nil {
 		return err
 	}
@@ -522,10 +532,10 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 
 	if err != nil {
 		if grpc.Code(err) == codes.FailedPrecondition {
-			if requirements.BillUsageToOwner {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Command owner does not have enough funds**", m.Author.ID))
+			if meta.BillUsageToOwner {
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command owner does not have enough funds**", m.Author.ID))
 			} else {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❎ **Not enough funds**", m.Author.ID))
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Not enough funds**", m.Author.ID))
 			}
 			return nil
 		}
@@ -537,7 +547,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 	if waitStatus.ExitStatus() == 0 || waitStatus.ExitStatus() == 2 {
 		outputFormatter, ok := outputFormatters[resp.OutputFormat]
 		if !ok {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Output format `%s` unknown!** %s", m.Author.ID, resp.OutputFormat, c.prettyBillingDetails(commandName, requirements, guildVars, resp)))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Output format `%s` unknown!** %s", m.Author.ID, resp.OutputFormat, c.prettyBillingDetails(commandName, meta, guildVars, resp)))
 			return nil
 		}
 
@@ -545,7 +555,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		if err != nil {
 			if iErr, ok := err.(invalidOutputError); ok {
 				s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-					Content: fmt.Sprintf("<@!%s>: ❗ **Command output was invalid!** %s", m.Author.ID, c.prettyBillingDetails(commandName, requirements, guildVars, resp)),
+					Content: fmt.Sprintf("<@%s>: ❗ **Command output was invalid!** %s", m.Author.ID, c.prettyBillingDetails(commandName, meta, guildVars, resp)),
 					Embed: &discordgo.MessageEmbed{
 						Color:       0xb50000,
 						Description: fmt.Sprintf("```%s```", iErr.Error()),
@@ -563,7 +573,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			sigil = "✅"
 		}
 
-		messageSend.Content = fmt.Sprintf("<@!%s>: %s %s", m.Author.ID, sigil, c.prettyBillingDetails(commandName, requirements, guildVars, resp))
+		messageSend.Content = fmt.Sprintf("<@%s>: %s %s", m.Author.ID, sigil, c.prettyBillingDetails(commandName, meta, guildVars, resp))
 
 		if _, err := s.ChannelMessageSendComplex(m.ChannelID, messageSend); err != nil {
 			return err
@@ -573,9 +583,9 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		sig := waitStatus.Signal()
 		switch sig {
 		case syscall.SIGKILL:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Took too long!** %s", m.Author.ID, c.prettyBillingDetails(commandName, requirements, guildVars, resp)))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Took too long!** %s", m.Author.ID, c.prettyBillingDetails(commandName, meta, guildVars, resp)))
 		default:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@!%s>: ❗ **Script was killed by %s!** %s", m.Author.ID, sig.String(), c.prettyBillingDetails(commandName, requirements, guildVars, resp)))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Script was killed by %s!** %s", m.Author.ID, sig.String(), c.prettyBillingDetails(commandName, meta, guildVars, resp)))
 		}
 	} else {
 		stderr := resp.Stderr
@@ -583,7 +593,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			stderr = stderr[:1500]
 		}
 
-		billingDetails := c.prettyBillingDetails(commandName, requirements, guildVars, resp)
+		billingDetails := c.prettyBillingDetails(commandName, meta, guildVars, resp)
 		var embed discordgo.MessageEmbed
 		embed.Color = 0xb50000
 		if len(stderr) > 0 {
@@ -593,7 +603,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		}
 
 		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@!%s>: ❗ **Error occurred!** %s", m.Author.ID, billingDetails),
+			Content: fmt.Sprintf("<@%s>: ❗ **Error occurred!** %s", m.Author.ID, billingDetails),
 			Embed:   &embed,
 		})
 	}

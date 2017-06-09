@@ -3,7 +3,8 @@ create table guild_vars (
     script_command_prefix character varying not null,
     bank_command_prefix character varying not null,
     currency_name character varying not null,
-    quiet boolean not null
+    quiet boolean not null,
+    admin_role_id character varying not null
 );
 
 create table channel_vars (

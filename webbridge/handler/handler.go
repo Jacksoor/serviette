@@ -274,7 +274,7 @@ func (h *Handler) scriptCreate(w http.ResponseWriter, r *http.Request, ps httpro
 	if _, err := h.scriptsClient.Create(r.Context(), &scriptspb.CreateRequest{
 		AccountHandle: scriptAccountHandle,
 		Name:          scriptName,
-		Requirements:  &scriptspb.Requirements{},
+		Meta:          &scriptspb.Meta{},
 		Content:       contentBuf.Bytes(),
 	}); err != nil {
 		glog.Errorf("Failed to create script: %v", err)
@@ -308,12 +308,12 @@ func (h *Handler) scriptGet(w http.ResponseWriter, r *http.Request, ps httproute
 		return
 	}
 
-	getRequirementsResp, err := h.scriptsClient.GetRequirements(r.Context(), &scriptspb.GetRequirementsRequest{
+	getMetaResp, err := h.scriptsClient.GetMeta(r.Context(), &scriptspb.GetMetaRequest{
 		AccountHandle: scriptAccountHandle,
 		Name:          scriptName,
 	})
 	if err != nil {
-		glog.Errorf("Failed to get script requirements: %v", err)
+		glog.Errorf("Failed to get script meta: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -322,12 +322,12 @@ func (h *Handler) scriptGet(w http.ResponseWriter, r *http.Request, ps httproute
 		ScriptAccountHandle string
 		ScriptName          string
 		ScriptContent       string
-		Requirements        *scriptspb.Requirements
+		Meta                *scriptspb.Meta
 	}{
 		base64.RawURLEncoding.EncodeToString(scriptAccountHandle),
 		scriptName,
 		string(contentResp.Content),
-		getRequirementsResp.Requirements,
+		getMetaResp.Meta,
 	})
 }
 
@@ -371,7 +371,8 @@ func (h *Handler) scriptUpdate(w http.ResponseWriter, r *http.Request, ps httpro
 	if _, err := h.scriptsClient.Create(r.Context(), &scriptspb.CreateRequest{
 		AccountHandle: scriptAccountHandle,
 		Name:          scriptName,
-		Requirements: &scriptspb.Requirements{
+		Meta: &scriptspb.Meta{
+			Description:      r.Form.Get("description"),
 			BillUsageToOwner: r.Form.Get("bill_usage_to_owner") == "on",
 			NeedsEscrow:      r.Form.Get("needs_escrow") == "on",
 		},

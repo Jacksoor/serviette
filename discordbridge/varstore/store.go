@@ -28,6 +28,7 @@ type GuildVars struct {
 	BankCommandPrefix   string
 	CurrencyName        string
 	Quiet               bool
+	AdminRoleID         string
 }
 
 type Store struct {
@@ -154,10 +155,10 @@ func (s *Store) GuildVars(ctx context.Context, tx *sql.Tx, guildID string) (*Gui
 	guildVars := &GuildVars{}
 
 	if err := tx.QueryRowContext(ctx, `
-		select script_command_prefix, bank_command_prefix, currency_name, quiet
+		select script_command_prefix, bank_command_prefix, currency_name, quiet, admin_role_id
 		from guild_vars
 		where guild_id = ?
-	`, guildID).Scan(&guildVars.ScriptCommandPrefix, &guildVars.BankCommandPrefix, &guildVars.CurrencyName, &guildVars.Quiet); err != nil {
+	`, guildID).Scan(&guildVars.ScriptCommandPrefix, &guildVars.BankCommandPrefix, &guildVars.CurrencyName, &guildVars.Quiet, &guildVars.AdminRoleID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
@@ -178,9 +179,9 @@ func (s *Store) SetGuildVars(ctx context.Context, tx *sql.Tx, guildID string, gu
 		`, guildID)
 	} else {
 		r, err = tx.ExecContext(ctx, `
-			insert or update into guild_vars (guild_id, script_command_prefix, bank_command_prefix, currency_name, quiet)
+			insert or replace into guild_vars (guild_id, script_command_prefix, bank_command_prefix, currency_name, quiet, admin_role_id)
 			values (?, ?, ?, ?, ?)
-		`, guildID, guildVars.ScriptCommandPrefix, guildVars.BankCommandPrefix, guildVars.CurrencyName, guildVars.Quiet)
+		`, guildID, guildVars.ScriptCommandPrefix, guildVars.BankCommandPrefix, guildVars.CurrencyName, guildVars.Quiet, guildVars.AdminRoleID)
 	}
 
 	if err != nil {
@@ -242,6 +243,7 @@ func (s *Store) GuildAlias(ctx context.Context, tx *sql.Tx, guildID string, alia
 		from guild_aliases
 		where guild_id = ? and
 		      alias_name = ?
+		order by alias_name
 	`, guildID, aliasName).Scan(&alias.AccountHandle, &alias.ScriptName); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
@@ -264,7 +266,7 @@ func (s *Store) SetGuildAlias(ctx context.Context, tx *sql.Tx, guildID string, a
 		`, guildID, aliasName)
 	} else {
 		r, err = tx.ExecContext(ctx, `
-			insert or update into guild_aliases (guild_id, alias_name, account_handle, script_name)
+			insert or replace into guild_aliases (guild_id, alias_name, account_handle, script_name)
 			values (?, ?, ?, ?)
 		`, guildID, aliasName, alias.AccountHandle, alias.ScriptName)
 	}

@@ -78,7 +78,7 @@ func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.Create
 		return nil, grpc.Errorf(codes.Internal, "failed to create script")
 	}
 
-	if err := script.SetRequirements(req.Requirements); err != nil {
+	if err := script.SetMeta(req.Meta); err != nil {
 		script.Delete()
 		glog.Errorf("Failed to set xattr on file: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to create script")
@@ -144,14 +144,14 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
-	requirements, err := script.Requirements()
+	meta, err := script.Meta()
 	if err != nil {
-		glog.Errorf("Failed to get requirements: %v", err)
+		glog.Errorf("Failed to get meta: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
 
 	billingAccountHandle := req.ExecutingAccountHandle
-	if requirements.BillUsageToOwner {
+	if meta.BillUsageToOwner {
 		billingAccountHandle = req.ScriptAccountHandle
 	}
 
@@ -282,7 +282,7 @@ func (s *Service) GetContent(ctx context.Context, req *pb.GetContentRequest) (*p
 	}, nil
 }
 
-func (s *Service) GetRequirements(ctx context.Context, req *pb.GetRequirementsRequest) (*pb.GetRequirementsResponse, error) {
+func (s *Service) GetMeta(ctx context.Context, req *pb.GetMetaRequest) (*pb.GetMetaResponse, error) {
 	script, err := s.scripts.Open(ctx, req.AccountHandle, req.Name)
 
 	if err != nil {
@@ -296,13 +296,13 @@ func (s *Service) GetRequirements(ctx context.Context, req *pb.GetRequirementsRe
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
-	reqs, err := script.Requirements()
+	reqs, err := script.Meta()
 	if err != nil {
-		glog.Errorf("Failed to get requirements: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to get requirements")
+		glog.Errorf("Failed to get meta: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to get meta")
 	}
 
-	return &pb.GetRequirementsResponse{
-		Requirements: reqs,
+	return &pb.GetMetaResponse{
+		Meta: reqs,
 	}, nil
 }

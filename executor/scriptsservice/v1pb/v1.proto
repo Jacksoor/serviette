@@ -4,9 +4,10 @@ package kobun4.executor.scripts.v1;
 
 option go_package = "v1pb";
 
-message Requirements {
-    bool bill_usage_to_owner = 1;
-    bool needs_escrow = 2;
+message Meta {
+    string description = 1;
+    bool bill_usage_to_owner = 2;
+    bool needs_escrow = 3;
 }
 
 message Context {
@@ -35,7 +36,7 @@ message Context {
 message CreateRequest {
     bytes account_handle = 1;
     string name = 2;
-    Requirements requirements = 3;
+    Meta meta = 3;
     bytes content = 4;
 }
 
@@ -60,15 +61,17 @@ message DeleteResponse {
 
 message ExecuteRequest {
     bytes executing_account_handle = 1;
-    bytes script_account_handle = 2;
+    bytes executing_account_key = 2;
 
-    string name = 3;
-    string rest = 4;
-    Context context = 5;
+    bytes script_account_handle = 3;
 
-    string network_info_service_target = 6;
+    string name = 4;
+    string rest = 5;
+    Context context = 6;
 
-    int64 escrowed_funds = 7;
+    string network_info_service_target = 7;
+
+    int64 escrowed_funds = 8;
 }
 
 message ExecuteResponse {
@@ -98,13 +101,13 @@ message GetContentResponse {
     bytes content = 1;
 }
 
-message GetRequirementsRequest {
+message GetMetaRequest {
     bytes account_handle = 1;
     string name = 2;
 }
 
-message GetRequirementsResponse {
-    Requirements requirements = 1;
+message GetMetaResponse {
+    Meta meta = 1;
 }
 
 service Scripts {
@@ -115,5 +118,5 @@ service Scripts {
 
     rpc GetContent(GetContentRequest) returns (GetContentResponse) { }
 
-    rpc GetRequirements(GetRequirementsRequest) returns (GetRequirementsResponse) { }
+    rpc GetMeta(GetMetaRequest) returns (GetMetaResponse) { }
 }
