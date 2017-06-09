@@ -315,6 +315,9 @@ func bankCmd(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *d
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s/%s` not found**", m.Author.ID, base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName))
 			}
 			return nil
+		} else if grpc.Code(err) == codes.InvalidArgument {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Invalid script name**", m.Author.ID))
+			return nil
 		}
 		return err
 	}
@@ -733,6 +736,9 @@ func bankAdminSetAlias(ctx context.Context, c *Client, guildVars *varstore.Guild
 	if err != nil {
 		if grpc.Code(err) == codes.NotFound {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Script not found**", m.Author.ID))
+			return nil
+		} else if grpc.Code(err) == codes.InvalidArgument {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Invalid script name**", m.Author.ID))
 			return nil
 		}
 		return err
