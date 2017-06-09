@@ -243,7 +243,6 @@ func (s *Store) GuildAlias(ctx context.Context, tx *sql.Tx, guildID string, alia
 		from guild_aliases
 		where guild_id = ? and
 		      alias_name = ?
-		order by alias_name
 	`, guildID, aliasName).Scan(&alias.AccountHandle, &alias.ScriptName); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound

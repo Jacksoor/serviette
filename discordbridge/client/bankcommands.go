@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -373,6 +374,12 @@ func bankCmds(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *
 		return true, nil
 	}()
 
+	aliasNames := make([]string, 0, len(aliases))
+	for aliasName, _ := range aliases {
+		aliasNames = append(aliasNames, aliasName)
+	}
+	sort.Strings(aliasNames)
+
 	if err != nil {
 		return err
 	}
@@ -385,19 +392,20 @@ func bankCmds(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *
 
 	var wg sync.WaitGroup
 
-	i := 0
-	for name, alias := range aliases {
+	for i, aliasName := range aliasNames {
 		wg.Add(1)
 
-		go func(i int, name string, alias *varstore.Alias) {
+		go func(i int, aliasName string) {
 			defer wg.Done()
+
+			alias := aliases[aliasName]
 
 			getMeta, err := c.scriptsClient.GetMeta(ctx, &scriptspb.GetMetaRequest{
 				AccountHandle: alias.AccountHandle,
 				Name:          alias.ScriptName,
 			})
 
-			prefix := fmt.Sprintf("`%s%s`", guildVars.ScriptCommandPrefix, name)
+			prefix := fmt.Sprintf("`%s%s`", guildVars.ScriptCommandPrefix, aliasName)
 
 			if err != nil {
 				if grpc.Code(err) == codes.NotFound {
@@ -425,7 +433,7 @@ func bankCmds(ctx context.Context, c *Client, guildVars *varstore.GuildVars, s *
 				Name:  prefix,
 				Value: description,
 			}
-		}(i, name, alias)
+		}(i, aliasName)
 		i++
 	}
 
