@@ -2,9 +2,9 @@ package client
 
 func explainBillUsageToOwner(c *Client, v bool) string {
 	if v {
-		return "to owner"
+		return "to script owner"
 	} else {
-		return "to **you**"
+		return "to executing user"
 	}
 }
 

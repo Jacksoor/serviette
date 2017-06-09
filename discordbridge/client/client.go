@@ -583,7 +583,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		sig := waitStatus.Signal()
 		switch sig {
 		case syscall.SIGKILL:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Took too long!** %s", m.Author.ID, c.prettyBillingDetails(commandName, meta, guildVars, resp)))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Script used too many resources!** %s", m.Author.ID, c.prettyBillingDetails(commandName, meta, guildVars, resp)))
 		default:
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Script was killed by %s!** %s", m.Author.ID, sig.String(), c.prettyBillingDetails(commandName, meta, guildVars, resp)))
 		}

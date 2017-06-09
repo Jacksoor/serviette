@@ -89,6 +89,8 @@ func (f *Worker) Run(ctx context.Context, nsjailArgs []string) (*WorkerResult, e
 		"--group", "nogroup",
 		"--hostname", "kobun4",
 		"--cgroup_mem_max", fmt.Sprintf("%d", f.opts.MemoryLimit),
+		"--cgroup_mem_parent", "user.slice/kobun4-executor",
+		"--cgroup_pids_parent", "user.slice/kobun4-executor",
 		"--rlimit_cpu", fmt.Sprintf("%d", timeLimit/time.Second),
 		"--time_limit", fmt.Sprintf("%d", timeLimit/time.Second),
 		"--chroot", f.opts.Chroot,

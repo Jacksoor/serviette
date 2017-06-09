@@ -843,8 +843,18 @@ For further information, check out the user documentation at https://kobun4.read
 			Color: 0x009100,
 			Fields: []*discordgo.MessageEmbedField{
 				{
-					Name:  fmt.Sprintf("`%s<command name>`", guildVars.ScriptCommandPrefix),
-					Value: fmt.Sprintf(`Runs the named script command. A full list is available at %s/scripts`, c.opts.WebURL),
+					Name:  fmt.Sprintf("`%s<command name> [...]`", guildVars.ScriptCommandPrefix),
+					Value: `Runs the command.`,
+				},
+				{
+					Name: fmt.Sprintf("`%scommand <command name>`", guildVars.BankCommandPrefix),
+					Value: `**Also available as:** ` + "`" + `cmd` + "`" + `
+Get information on the command, which may either be a long name or a short name.`,
+				},
+				{
+					Name: fmt.Sprintf("`%scommands`", guildVars.BankCommandPrefix),
+					Value: `**Also available as:** ` + "`" + `cmds` + "`" + `
+Get information on all short named commands available.`,
 				},
 				{
 					Name: fmt.Sprintf("`%sbalance [<@mention>/<handle>]`", guildVars.BankCommandPrefix),
@@ -859,16 +869,6 @@ Get a user's account information. Leave out the username to get your own account
 				{
 					Name:  fmt.Sprintf("`%spay <amount> [<@mention>/<handle>]`", guildVars.BankCommandPrefix),
 					Value: `Send a payment to another user's account.`,
-				},
-				{
-					Name: fmt.Sprintf("`%scommand <command name>`", guildVars.BankCommandPrefix),
-					Value: `**Also available as:** ` + "`" + `cmd` + "`" + `
-Get information on the named script command.`,
-				},
-				{
-					Name: fmt.Sprintf("`%scommands`", guildVars.BankCommandPrefix),
-					Value: `**Also available as:** ` + "`" + `cmds` + "`" + `
-Get information on all short commands available.`,
 				},
 				{
 					Name: fmt.Sprintf("`%skey`", guildVars.BankCommandPrefix),
