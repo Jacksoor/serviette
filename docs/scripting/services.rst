@@ -26,7 +26,7 @@ NetworkInfo
 
 The network information service provides scripts with the ability to interact with the network they're running on.
 
-.. py:function:: NetworkInfo.GetUserInfo(id : string) -> {name: string, accountHandle: string, extra: object}
+.. py:function:: NetworkInfo.GetUserInfo(id : string) -> {name: string, extra: object}
 
    Looks up a user's information by their user ID.
 
@@ -62,55 +62,6 @@ The network information service provides scripts with the ability to interact wi
    :param groupId: The ID of the group the user is a member of.
    :param userId: The user ID of the member to look up.
    :return: Information about the group member. ``name`` may contain their group-specific username – if group-specific usernames do not exist, their regular username will be returned. ``extra`` contains additional network-specific information.
-
-Money
------
-
-The money service provides scripts to charge and pay the user executing the script.
-
-.. py:function:: Money.Charge(targetAccountHandle: string, amount: number)
-
-   Charges a user and deposits their money into ``targetAccountHandle``.
-
-   .. note:: Charges can only be made from :ref:`escrowed <escrow>` funds, and will be reported to the user directly after the script finishes.
-
-   :param targetAccountHandle: The account to deposit the charge into.
-   :param amount: The amount to charge.
-
-.. py:function:: Money.Pay(targetAccountHandle: string, amount: number)
-
-   Pays a user, depositing the money into ``targetAccountHandle``.
-
-   :param targetAccountHandle: The account to deposit the payment into.
-   :param amount: The amount to pay.
-
-.. py:function:: Money.Transfer(sourceAccountHandle: string, sourceAccountKey: string, targetAccountHandle: string, amount: number)
-
-   Initiates a direct transfer of money from the source account.
-
-   .. warning:: Transfers are **direct** and will bypass the escrow limit. Withdrawals done via transfer will also not be reported.
-
-   :param sourceAccountHandle: The account to withdraw from.
-   :param sourceAccountKey: The key of the account to withdraw from.
-   :param targetAccountHandle: The account to deposit into.
-   :param amount: The amount to transfer.
-
-.. py:function:: Money.GetBalance(accountHandle: string) -> number
-
-   Gets the balance of an account.
-
-   :param accountHandle: The account to get the balance of.
-   :return: The account's balance.
-
-.. py:function:: Money.GetEscrowedFunds() -> number
-
-   Gets the amount of money that was placed into :ref:`escrow <escrow>`.
-
-   The return value will decrease every time a charge is made. The number will always be monotonically decreasing during a single execution of a script.
-
-   .. note:: This may exceed the balance of the user and the entire amount of escrowed funds may not be chargeable.
-
-   :return: The amount of escrowed funds.
 
 Output
 ------

@@ -3,13 +3,11 @@
 Scripting Documentation
 =======================
 
-kobun4's non-bank commands (generally prefixed with ``!``) are all user scriptable. Scripts are associated with :ref:`accounts <accounts>`, i.e. every script is owned by an account.
+kobun4's commands (generally prefixed with ``.``) are all user scriptable. Scripts are associated with :ref:`accounts <accounts>`, i.e. every script is owned by an account.
 
 Scripts can be written via the web interface and are run in a :ref:`sandbox <sandbox>`, which has certain limitations you should be aware of. They can be written in any executable format, and will be directly ``exec``\ed by the executor in the sandbox (a ``#!`` on the first line is required for specifying the script interpreter).
 
-To access the web interface, issue ``$help`` to get the URL. You may authenticate using the details provided by ``$key`` in a one-on-one conversation.
-
-When a user executes a script (via ``!<command name>``), a script is ``exec``\ed in the sandbox and the argument sent to its stdin. Its stdout and stderr, up to a limit (generally 5MB each) are captured and sent to the bridge requesting execution, as well as exit code.
+When a user executes a script (via ``.<command name>``), a script is ``exec``\ed in the sandbox and the argument sent to its stdin. Its stdout and stderr, up to a limit (generally 5MB each) are captured and sent to the bridge requesting execution, as well as exit code.
 
  * On exit code 0, the bridge will report success, along with the contents of stdout (success).
 
@@ -21,8 +19,6 @@ When a user executes a script (via ``!<command name>``), a script is ``exec``\ed
 
  * On any other signal, the bridge will report the signal details.
 
-Scripts are subject to :ref:`billing <billing>`, but usage may be optionally billed to the owner of the script.
-
 .. toctree::
    :caption: Topics
 
@@ -31,4 +27,3 @@ Scripts are subject to :ref:`billing <billing>`, but usage may be optionally bil
    context
    services
    storage
-   aliases

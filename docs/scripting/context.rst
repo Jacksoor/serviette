@@ -35,18 +35,6 @@ The following fields are always available:
 
    The ID of the network the command was executed on.
 
-.. py:data:: scriptAccountHandle
-
-   The account handle of the owner of the script.
-
-.. py:data:: billingAccountHandle
-
-   The account handle of where usage is billed to.
-
-.. py:data:: executingAccountHandle
-
-   The account handle of the user executing the script.
-
 .. py:data:: currencyName
 
    The name of the currency.
@@ -55,9 +43,9 @@ The following fields are always available:
 
    The prefix for script commands (usually ``!``).
 
-.. py:data:: bankCommandPrefix
+.. py:data:: metaCommandPrefix
 
-   The prefix for bank commands (usually ``$``).
+   The prefix for meta commands (usually ``$``).
 
 .. py:data:: extra
 
