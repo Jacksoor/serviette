@@ -27,19 +27,19 @@ func (s *Store) BeginTx(ctx context.Context) (*sql.Tx, error) {
 
 type GuildVars struct {
 	ScriptCommandPrefix string
-	MetaCommandPrefix   string
 	Quiet               bool
 	AdminRoleID         string
+	Announcement        string
 }
 
 func (s *Store) GuildVars(ctx context.Context, tx *sql.Tx, guildID string) (*GuildVars, error) {
 	guildVars := &GuildVars{}
 
 	if err := tx.QueryRowContext(ctx, `
-		select script_command_prefix, meta_command_prefix, quiet, admin_role_id
+		select script_command_prefix, quiet, admin_role_id, announcement
 		from guild_vars
 		where guild_id = ?
-	`, guildID).Scan(&guildVars.ScriptCommandPrefix, &guildVars.MetaCommandPrefix, &guildVars.Quiet, &guildVars.AdminRoleID); err != nil {
+	`, guildID).Scan(&guildVars.ScriptCommandPrefix, &guildVars.Quiet, &guildVars.AdminRoleID, &guildVars.Announcement); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
@@ -60,9 +60,9 @@ func (s *Store) SetGuildVars(ctx context.Context, tx *sql.Tx, guildID string, gu
 		`, guildID)
 	} else {
 		r, err = tx.ExecContext(ctx, `
-			insert or replace into guild_vars (guild_id, script_command_prefix, meta_command_prefix, quiet, admin_role_id)
+			insert or replace into guild_vars (guild_id, script_command_prefix, quiet, admin_role_id, announcement)
 			values (?, ?, ?, ?, ?)
-		`, guildID, guildVars.ScriptCommandPrefix, guildVars.MetaCommandPrefix, guildVars.Quiet, guildVars.AdminRoleID)
+		`, guildID, guildVars.ScriptCommandPrefix, guildVars.Quiet, guildVars.AdminRoleID, guildVars.Announcement)
 	}
 
 	if err != nil {

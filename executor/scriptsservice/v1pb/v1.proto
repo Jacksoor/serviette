@@ -20,7 +20,6 @@ message Context {
 
     // Flavor.
     string script_command_prefix = 31;
-    string meta_command_prefix = 32;
 
     map<string, string> extra = 1000;
 }

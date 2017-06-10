@@ -1,9 +1,9 @@
 create table guild_vars (
     guild_id character varying primary key not null,
     script_command_prefix character varying not null,
-    meta_command_prefix character varying not null,
     quiet boolean not null,
-    admin_role_id character varying not null
+    admin_role_id character varying not null,
+    announcement character varying not null
 );
 
 create table guild_aliases (

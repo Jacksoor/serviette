@@ -2,11 +2,13 @@ package client
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"syscall"
 
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -77,8 +79,18 @@ func (c *Client) ready(s *discordgo.Session, r *discordgo.Ready) {
 
 var GuildVars *varstore.GuildVars = &varstore.GuildVars{
 	ScriptCommandPrefix: ".",
-	MetaCommandPrefix:   "$",
 	Quiet:               true,
+}
+
+var adminCommandPrefix = "kobun$"
+
+func memberIsAdmin(adminRoleID string, member *discordgo.Member) bool {
+	for _, roleID := range member.Roles {
+		if roleID == adminRoleID {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Client) serverVarsOrDefault(ctx context.Context, guildID string) (*varstore.GuildVars, error) {
@@ -127,20 +139,32 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 	content := strings.TrimSpace(m.Content)
 
 	if content == fmt.Sprintf("<@!%s> help", s.State.User.ID) || content == fmt.Sprintf("<@%s> help", s.State.User.ID) {
-		if err := metaHelp(ctx, c, guildVars, m.Message, channel, ""); err != nil {
-			glog.Errorf("Failed to run run help command: %v", err)
+		if err := showHelp(ctx, c, guildVars, m.Message, channel); err != nil {
+			glog.Errorf("Failed to run help command: %v", err)
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
 		}
 		return
 	}
 
-	if strings.HasPrefix(content, guildVars.MetaCommandPrefix) {
+	if strings.HasPrefix(content, adminCommandPrefix) {
 		if fail {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
 			return
 		}
 
-		rest := content[len(guildVars.MetaCommandPrefix):]
+		member, err := c.session.GuildMember(channel.GuildID, m.Author.ID)
+		if err != nil {
+			glog.Errorf("Failed to get member: %v", err)
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
+			return
+		}
+
+		if !memberIsAdmin(guildVars.AdminRoleID, member) {
+			c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: 🚫 **Not authorized**", m.Author.ID))
+			return
+		}
+
+		rest := content[len(adminCommandPrefix):]
 		firstSpaceIndex := strings.Index(rest, " ")
 
 		var commandName string
@@ -152,16 +176,16 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 			rest = strings.TrimSpace(rest[firstSpaceIndex+1:])
 		}
 
-		cmd, ok := metaCommands[commandName]
+		cmd, ok := adminCommands[commandName]
 		if !ok {
 			if !guildVars.Quiet {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s%s` not found**", m.Author.ID, guildVars.MetaCommandPrefix, commandName))
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s%s` not found**", m.Author.ID, adminCommandPrefix, commandName))
 			}
 			return
 		}
 
 		if err := cmd(ctx, c, guildVars, m.Message, channel, rest); err != nil {
-			glog.Errorf("Failed to run meta command %s: %v", commandName, err)
+			glog.Errorf("Failed to run admin command %s: %v", commandName, err)
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
 			return
 		}
@@ -197,6 +221,168 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 	}
 }
 
+type ByFieldName []*discordgo.MessageEmbedField
+
+func (s ByFieldName) Len() int {
+	return len(s)
+}
+
+func (s ByFieldName) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s ByFieldName) Less(i, j int) bool {
+	return s[i].Name < s[j].Name
+}
+
+func showHelp(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel) error {
+	var aliases map[string]*varstore.Alias
+	ok, err := func() (bool, error) {
+		tx, err := c.vars.BeginTx(ctx)
+		if err != nil {
+			return false, err
+		}
+		defer tx.Rollback()
+
+		aliases, err = c.vars.GuildAliases(ctx, tx, channel.GuildID)
+		if err != nil {
+			return false, err
+		}
+
+		return true, nil
+	}()
+
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		return nil
+	}
+
+	// Find all distinct commands to request.
+	aliasNames := make([]string, 0, len(aliases))
+	for aliasName, _ := range aliases {
+		aliasNames = append(aliasNames, aliasName)
+	}
+
+	aliasGroups := make(map[string][]int, 0)
+	for i, aliasName := range aliasNames {
+		alias := aliases[aliasName]
+
+		qualifiedName := fmt.Sprintf("%s/%s", alias.OwnerName, alias.ScriptName)
+		if aliasGroups[qualifiedName] == nil {
+			aliasGroups[qualifiedName] = make([]int, 0)
+		}
+		aliasGroups[qualifiedName] = append(aliasGroups[qualifiedName], i)
+	}
+
+	uniqueAliases := make([]*varstore.Alias, 0, len(aliasGroups))
+	for _, indexes := range aliasGroups {
+		uniqueAliases = append(uniqueAliases, aliases[aliasNames[indexes[0]]])
+	}
+
+	uniqueAliasMetas := make([]*scriptspb.Meta, len(aliasGroups))
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	for i, alias := range uniqueAliases {
+		i := i
+		alias := alias
+
+		g.Go(func() error {
+			getMeta, err := c.scriptsClient.GetMeta(ctx, &scriptspb.GetMetaRequest{
+				OwnerName: alias.OwnerName,
+				Name:      alias.ScriptName,
+			})
+
+			if err != nil {
+				if grpc.Code(err) == codes.NotFound {
+					return nil
+				}
+				return err
+			}
+
+			uniqueAliasMetas[i] = getMeta.Meta
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	fields := make([]*discordgo.MessageEmbedField, len(uniqueAliases))
+	for i, alias := range uniqueAliases {
+		qualifiedName := fmt.Sprintf("%s/%s", alias.OwnerName, alias.ScriptName)
+		group := aliasGroups[qualifiedName]
+
+		formattedNames := make([]string, len(group))
+		for j, k := range group {
+			formattedNames[j] = fmt.Sprintf("`%s%s`", guildVars.ScriptCommandPrefix, aliasNames[k])
+		}
+
+		meta := uniqueAliasMetas[i]
+		description := "**Command not found. Contact an administrator.**"
+		if meta != nil {
+			description = strings.TrimSpace(meta.Description)
+			if description == "" {
+				description = "_No description set._"
+			}
+		}
+
+		sort.Strings(formattedNames)
+
+		fields[i] = &discordgo.MessageEmbedField{
+			Name:  strings.Join(formattedNames, ", "),
+			Value: description,
+		}
+	}
+
+	sort.Sort(ByFieldName(fields))
+
+	member, err := c.session.GuildMember(channel.GuildID, m.Author.ID)
+	if err != nil {
+		return err
+	}
+
+	if memberIsAdmin(guildVars.AdminRoleID, member) {
+		fields = append(fields,
+			&discordgo.MessageEmbedField{
+				Name: fmt.Sprintf("`%saliasinfo <command name>`", adminCommandPrefix),
+				Value: `**Administrators only.**
+Get extended information on any command beginning with ` + "`" + guildVars.ScriptCommandPrefix + "`",
+			},
+			&discordgo.MessageEmbedField{
+				Name: fmt.Sprintf("`%ssetalias <command name> <script name>`", adminCommandPrefix),
+				Value: `**Administrators only.**
+Alias a command name (short name) to a script name (long name). If the alias already exists, it will be replaced.`,
+			},
+			&discordgo.MessageEmbedField{
+				Name: fmt.Sprintf("`%sdelalias <command name>`", adminCommandPrefix),
+				Value: `**Administrators only.**
+Remove a command name's alias.`,
+			},
+		)
+	}
+
+	formattedAnnouncement := ""
+	if guildVars.Announcement != "" {
+		formattedAnnouncement = fmt.Sprintf("\n\n📣 **%s**", guildVars.Announcement)
+	}
+
+	c.session.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		Content: fmt.Sprintf("<@%s>: ✅", m.Author.ID),
+		Embed: &discordgo.MessageEmbed{
+			Title:       "ℹ Help",
+			URL:         "http://kobun.life",
+			Description: fmt.Sprintf(`Here's a listing of my commands.%s`, formattedAnnouncement),
+			Color:       0x009100,
+			Fields:      fields,
+		},
+	})
+	return nil
+}
+
 func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.GuildVars, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, commandName string, rest string) error {
 	ownerName, scriptName, aliased, err := resolveScriptName(ctx, c, channel.GuildID, commandName)
 	if err != nil {
@@ -208,6 +394,18 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			return nil
 		}
 		return err
+	}
+
+	member, err := c.session.GuildMember(channel.GuildID, m.Author.ID)
+	if err != nil {
+		return err
+	}
+
+	if !aliased && !memberIsAdmin(guildVars.AdminRoleID, member) {
+		if !guildVars.Quiet {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Only administrators may run unaliased commands**", m.Author.ID))
+		}
+		return nil
 	}
 
 	waitMsg, err := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ⌛ **Please wait, running your command...**", m.Author.ID))
@@ -230,7 +428,6 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			NetworkId: "discord",
 
 			ScriptCommandPrefix: guildVars.ScriptCommandPrefix,
-			MetaCommandPrefix:   guildVars.MetaCommandPrefix,
 		},
 		NetworkInfoServiceTarget: c.networkInfoServiceTarget,
 	})

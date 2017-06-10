@@ -37,11 +37,7 @@ The following fields are always available:
 
 .. py:data:: scriptCommandPrefix
 
-   The prefix for script commands (usually ``!``).
-
-.. py:data:: metaCommandPrefix
-
-   The prefix for meta commands (usually ``$``).
+   The prefix for script commands (usually ``.``).
 
 .. py:data:: extra
 

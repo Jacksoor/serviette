@@ -3,11 +3,8 @@ package client
 import (
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
-	"sync"
 
-	"github.com/golang/glog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -19,22 +16,17 @@ import (
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
-type metaCommand func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, rest string) error
+type adminCommand func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, rest string) error
 
-var metaCommands map[string]metaCommand = map[string]metaCommand{
-	"command": metaCmd,
-	"cmd":     metaCmd,
-
-	"admin.setalias": metaAdminSetAlias,
-	"admin.delalias": metaAdminDelAlias,
-
-	"?":    metaHelp,
-	"help": metaHelp,
+var adminCommands map[string]adminCommand = map[string]adminCommand{
+	"aliasinfo": metaAdminAliasInfo,
+	"setalias":  metaAdminSetAlias,
+	"delalias":  metaAdminDelAlias,
 }
 
 var discordMentionRegexp = regexp.MustCompile(`<@!?(\d+)>`)
 
-func metaCmd(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+func metaAdminAliasInfo(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
 	commandName := rest
 
 	ownerName, scriptName, aliased, err := resolveScriptName(ctx, c, channel.GuildID, commandName)
@@ -93,30 +85,11 @@ func metaCmd(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *d
 	return nil
 }
 
-func memberIsAdmin(adminRoleID string, member *discordgo.Member) bool {
-	for _, roleID := range member.Roles {
-		if roleID == adminRoleID {
-			return true
-		}
-	}
-	return false
-}
-
 func metaAdminSetAlias(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
-	member, err := c.session.GuildMember(channel.GuildID, m.Author.ID)
-	if err != nil {
-		return err
-	}
-
-	if !memberIsAdmin(guildVars.AdminRoleID, member) {
-		c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: 🚫 **Not authorized**", m.Author.ID))
-		return nil
-	}
-
 	parts := strings.SplitN(rest, " ", 2)
 
 	if len(parts) != 2 {
-		c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Expecting `%sadmin.setalias <command name> <qualified script name>`**", m.Author.ID, guildVars.MetaCommandPrefix))
+		c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Expecting `%ssetalias <command name> <qualified script name>`**", m.Author.ID, adminCommandPrefix))
 		return nil
 	}
 
@@ -195,16 +168,6 @@ func metaAdminSetAlias(ctx context.Context, c *Client, guildVars *varstore.Guild
 }
 
 func metaAdminDelAlias(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
-	member, err := c.session.GuildMember(channel.GuildID, m.Author.ID)
-	if err != nil {
-		return err
-	}
-
-	if !memberIsAdmin(guildVars.AdminRoleID, member) {
-		c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: 🚫 **Not authorized**", m.Author.ID))
-		return nil
-	}
-
 	commandName := rest
 
 	tx, err := c.vars.BeginTx(ctx)
@@ -228,117 +191,5 @@ func metaAdminDelAlias(ctx context.Context, c *Client, guildVars *varstore.Guild
 		},
 	})
 
-	return nil
-}
-
-func metaHelp(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
-	var aliases map[string]*varstore.Alias
-	ok, err := func() (bool, error) {
-		tx, err := c.vars.BeginTx(ctx)
-		if err != nil {
-			return false, err
-		}
-		defer tx.Rollback()
-
-		aliases, err = c.vars.GuildAliases(ctx, tx, channel.GuildID)
-		if err != nil {
-			return false, err
-		}
-
-		return true, nil
-	}()
-
-	aliasNames := make([]string, 0, len(aliases))
-	for aliasName, _ := range aliases {
-		aliasNames = append(aliasNames, aliasName)
-	}
-	sort.Strings(aliasNames)
-
-	if err != nil {
-		return err
-	}
-
-	if !ok {
-		return nil
-	}
-
-	fields := make([]*discordgo.MessageEmbedField, len(aliases))
-
-	var wg sync.WaitGroup
-
-	for i, aliasName := range aliasNames {
-		wg.Add(1)
-
-		go func(i int, aliasName string) {
-			defer wg.Done()
-
-			alias := aliases[aliasName]
-
-			getMeta, err := c.scriptsClient.GetMeta(ctx, &scriptspb.GetMetaRequest{
-				OwnerName: alias.OwnerName,
-				Name:      alias.ScriptName,
-			})
-
-			prefix := fmt.Sprintf("`%s%s`", guildVars.ScriptCommandPrefix, aliasName)
-
-			if err != nil {
-				if grpc.Code(err) == codes.NotFound {
-					fields[i] = &discordgo.MessageEmbedField{
-						Name:  fmt.Sprintf("%s (NOT FOUND)", prefix),
-						Value: fmt.Sprintf("_Script was not found._"),
-					}
-					return
-				}
-
-				fields[i] = &discordgo.MessageEmbedField{
-					Name:  fmt.Sprintf("%s (ERROR)", prefix),
-					Value: fmt.Sprintf("_Internal server error._"),
-				}
-				glog.Errorf("Failed to get script meta: %v", err)
-				return
-			}
-
-			description := getMeta.Meta.Description
-			if description == "" {
-				description = "_No description available._"
-			}
-
-			fields[i] = &discordgo.MessageEmbedField{
-				Name:  prefix,
-				Value: description,
-			}
-		}(i, aliasName)
-		i++
-	}
-
-	wg.Wait()
-
-	c.session.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-		Content: fmt.Sprintf("<@%s>: ✅", m.Author.ID),
-		Embed: &discordgo.MessageEmbed{
-			Title: "Help",
-			Description: `Here's a listing of my commands.
-
-For further information, check out the user documentation at https://kobun4.readthedocs.io/en/latest/users/index.html`,
-			Color: 0x009100,
-			Fields: append(fields,
-				&discordgo.MessageEmbedField{
-					Name: fmt.Sprintf("`%scommand <command name>`", guildVars.MetaCommandPrefix),
-					Value: `**Also available as:** ` + "`" + `cmd` + "`" + `
-Get extended information on any command beginning with ` + "`" + guildVars.ScriptCommandPrefix + "`",
-				},
-				&discordgo.MessageEmbedField{
-					Name: fmt.Sprintf("`%sadmin.setalias <command name> <script name>`", guildVars.MetaCommandPrefix),
-					Value: `**Administrators only.**
-Alias a command name (short name) to a script name (long name). If the alias already exists, it will be replaced.`,
-				},
-				&discordgo.MessageEmbedField{
-					Name: fmt.Sprintf("`%sadmin.delalias <command name>`", guildVars.MetaCommandPrefix),
-					Value: `**Administrators only.**
-Remove a command name's alias.`,
-				},
-			),
-		},
-	})
 	return nil
 }

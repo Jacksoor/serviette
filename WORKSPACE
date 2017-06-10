@@ -65,6 +65,12 @@ new_go_repository(
 )
 
 new_go_repository(
+    name = "org_golang_x_sync",
+    commit = "f52d1811a62927559de87708c8913c1650ce4f26",
+    importpath = "golang.org/x/sync",
+)
+
+new_go_repository(
     name = "com_github_mattn_go_sqlite3",
     commit = "cf7286f069c3ef596efcc87781a4653a2e7607bd",
     importpath = "github.com/mattn/go-sqlite3",
@@ -107,5 +113,5 @@ new_go_repository(
     name = "com_github_justinas_nosurf",
     commit = "8e15682772641a1e39c431233e6a9338a32def32",
     importpath = "github.com/justinas/nosurf",
-
 )
+
