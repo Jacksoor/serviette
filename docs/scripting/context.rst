@@ -35,10 +35,6 @@ The following fields are always available:
 
    The ID of the network the command was executed on.
 
-.. py:data:: currencyName
-
-   The name of the currency.
-
 .. py:data:: scriptCommandPrefix
 
    The prefix for script commands (usually ``!``).
