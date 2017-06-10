@@ -1,7 +1,6 @@
 package scripts
 
 import (
-	"encoding/base64"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -35,21 +34,22 @@ func getxattr(path, name string) ([]byte, error) {
 }
 
 type Script struct {
-	rootPath      string
-	accountHandle []byte
-	name          string
+	rootPath string
+
+	ownerName string
+	name      string
 }
 
 func (s *Script) QualifiedName() string {
-	return filepath.Join(base64.RawURLEncoding.EncodeToString(s.accountHandle), s.name)
+	return filepath.Join(s.ownerName, s.name)
 }
 
 func (s *Script) Path() string {
 	return filepath.Join(s.rootPath, s.QualifiedName())
 }
 
-func (s *Script) AccountHandle() []byte {
-	return s.accountHandle
+func (s *Script) OwnerName() string {
+	return s.ownerName
 }
 
 func (s *Script) Name() string {

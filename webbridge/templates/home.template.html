@@ -1,29 +1,17 @@
-{{define "title"}}{{.AccountHandle}}{{end}}
+{{define "title"}}{{.Username}}{{end}}
 
 {{define "body"}}
-<p>Hi, and welcome to your account page.</p>
-<dl>
-    <dt>Account Handle</dt>
-    <dd><samp>{{.AccountHandle}}</samp></dd>
-
-    <dt>Account Key (keep this secret!)</dt>
-    <dd><span class="secret"><samp>{{.AccountKey}}</samp></span></dd>
-
-    <dt>Balance</dt>
-    <dd>{{.Balance}}</dd>
-</dl>
-
-<h2>Scripts Owned <small><a href="/scripts">view all scripts</a></small></h2>
+<h2>Scripts Owned</h2>
 <p>
     You own the following scripts.
 </p>
 <ul>
 {{range $_, $name := .ScriptNames}}
-    <li><a href="/scripts/{{$.AccountHandle}}/{{$name}}"><samp>{{$name}}</samp></a></li>
+    <li><a href="/scripts/{{$.Username}}/{{$name}}"><samp>{{$name}}</samp></a></li>
 {{end}}
 </ul>
 
-<form method="POST" action="/scripts/{{.AccountHandle}}">
+<form method="POST" action="/scripts/{{.Username}}">
     <input type="text" name="name">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <button type="submit">Create new script</button>

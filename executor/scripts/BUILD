@@ -1,7 +1,5 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
-exports_files(["schema.sql"])
-
 go_library(
     name = "go_default_library",
     srcs = [

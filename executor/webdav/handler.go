@@ -1,79 +1,56 @@
 package webdav
 
 import (
-	"encoding/base64"
 	"net/http"
 
 	"github.com/golang/glog"
 	"golang.org/x/net/webdav"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 
+	"github.com/porpoises/kobun4/executor/accounts"
 	"github.com/porpoises/kobun4/executor/scripts"
-
-	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
 )
 
 type Handler struct {
-	mounter        *scripts.Mounter
-	accountsClient accountspb.AccountsClient
+	mounter  *scripts.Mounter
+	accounts *accounts.Store
 }
 
-func NewHandler(mounter *scripts.Mounter, accountsClient accountspb.AccountsClient) *Handler {
+func NewHandler(mounter *scripts.Mounter, accounts *accounts.Store) *Handler {
 	return &Handler{
-		mounter:        mounter,
-		accountsClient: accountsClient,
+		mounter:  mounter,
+		accounts: accounts,
 	}
 }
 
-func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) ([]byte, []byte, error) {
-	rawHandle, rawKey, _ := r.BasicAuth()
+func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) (string, error) {
+	username, password, _ := r.BasicAuth()
 
-	accountHandle, err := base64.RawURLEncoding.DecodeString(rawHandle)
-	if err != nil {
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return nil, nil, err
-	}
-	accountKey, err := base64.RawURLEncoding.DecodeString(rawKey)
-	if err != nil {
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return nil, nil, err
-	}
-
-	getResp, err := h.accountsClient.Get(r.Context(), &accountspb.GetRequest{
-		AccountHandle: accountHandle,
-	})
-
-	if err != nil {
-		if grpc.Code(err) == codes.NotFound {
+	if err := h.accounts.Authenticate(r.Context(), username, password); err != nil {
+		switch err {
+		case accounts.ErrNotFound:
 			w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return nil, nil, err
+			return "", err
+		case accounts.ErrUnauthenticated:
+			w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return "", err
 		}
-
-		glog.Errorf("Failed to check account: %v", err)
+		glog.Errorf("Failed to load account: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return nil, nil, err
+		return "", err
 	}
 
-	if string(getResp.AccountKey) != string(accountKey) {
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return nil, nil, err
-	}
-
-	return accountHandle, accountKey, nil
+	return username, nil
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	accountHandle, _, err := h.authenticate(w, r)
+	username, err := h.authenticate(w, r)
 	if err != nil {
 		return
 	}
 
-	mountPath, err := h.mounter.Mount(accountHandle)
+	mountPath, err := h.mounter.Mount(username)
 	if err != nil {
 		glog.Errorf("Failed to mount account directory: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

@@ -5,8 +5,6 @@ go_library(
     srcs = ["main.go"],
     visibility = ["//visibility:private"],
     deps = [
-        "//bank/accountsservice/v1pb:go_default_library",
-        "//bank/moneyservice/v1pb:go_default_library",
         "//discordbridge/client:go_default_library",
         "//discordbridge/networkinfoservice:go_default_library",
         "//discordbridge/varstore:go_default_library",

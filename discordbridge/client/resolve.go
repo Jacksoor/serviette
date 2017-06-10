@@ -1,8 +1,6 @@
 package client
 
 import (
-	"database/sql"
-	"encoding/base64"
 	"errors"
 	"strings"
 
@@ -12,42 +10,15 @@ import (
 )
 
 var (
-	errNotFound         error = errors.New("not found")
-	errBadAccountHandle       = errors.New("bad account handle")
+	errNotFound error = errors.New("not found")
 )
 
-func resolveAccountTarget(ctx context.Context, tx *sql.Tx, c *Client, target string) ([]byte, error) {
-	matches := discordMentionRegexp.FindStringSubmatch(target)
-	if len(matches) > 0 && matches[0] == target {
-		userVars, err := c.vars.UserVars(ctx, tx, matches[1])
-		if err != nil {
-			if err == varstore.ErrNotFound {
-				return nil, errNotFound
-			}
-			return nil, err
-		}
-
-		return userVars.AccountHandle, nil
-	}
-
-	accountHandle, err := base64.RawURLEncoding.DecodeString(target)
-	if err != nil {
-		return nil, errBadAccountHandle
-	}
-
-	return accountHandle, nil
-}
-
-func resolveScriptName(ctx context.Context, c *Client, guildID string, commandName string) ([]byte, string, bool, error) {
+func resolveScriptName(ctx context.Context, c *Client, guildID string, commandName string) (string, string, bool, error) {
 	if sepIndex := strings.Index(commandName, "/"); sepIndex != -1 {
 		// Look up via qualified name.
-		encodedScriptHandle := commandName[:sepIndex]
-		scriptHandle, err := base64.RawURLEncoding.DecodeString(encodedScriptHandle)
-		if err != nil {
-			return nil, "", false, errNotFound
-		}
+		ownerName := commandName[:sepIndex]
 		name := commandName[sepIndex+1:]
-		return scriptHandle, name, false, nil
+		return ownerName, name, false, nil
 	}
 
 	// Look up via an alias name.
@@ -63,10 +34,10 @@ func resolveScriptName(ctx context.Context, c *Client, guildID string, commandNa
 		return err
 	}(); err != nil {
 		if err == varstore.ErrNotFound {
-			return nil, "", true, errNotFound
+			return "", "", true, errNotFound
 		}
-		return nil, "", true, err
+		return "", "", true, err
 	}
 
-	return alias.AccountHandle, alias.ScriptName, true, nil
+	return alias.OwnerName, alias.ScriptName, true, nil
 }

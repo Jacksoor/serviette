@@ -7,7 +7,6 @@ sh_binary(
     name = "run",
     srcs = ["run.sh"],
     data = [
-        "//bank",
         "//discordbridge",
         "//executor",
         "//webbridge",
@@ -19,7 +18,6 @@ sh_binary(
     name = "init",
     srcs = ["init.sh"],
     data = [
-        "//bank/accounts:schema.sql",
     ],
     visibility = ["//visibility:public"],
 )
@@ -29,19 +27,17 @@ pkg_tar(
     extension = "tar.gz",
     files = [
         ":init.sh",
-        "//bank",
-        "//bank/accounts:schema.sql",
         "//clients",
         "//discordbridge",
+        "//discordbridge/varstore:schema.sql",
         "//executor",
-        "//executor/scripts:schema.sql",
+        "//executor/accounts:schema.sql",
         "//webbridge",
         "//webbridge/static",
         "//webbridge/templates",
     ],
     modes = {
         ":init.sh": "0755",
-        "//bank": "0755",
         "//discordbridge": "0755",
         "//executor": "0755",
         "//webbridge": "0755",

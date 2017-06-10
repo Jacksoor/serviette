@@ -1,8 +1,6 @@
 package networkinfoservice
 
 import (
-	"encoding/base64"
-
 	"golang.org/x/net/context"
 
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
@@ -21,9 +19,8 @@ func New(networkInfoClient networkinfopb.NetworkInfoClient) *Service {
 func (s *Service) GetUserInfo(req *struct {
 	ID string `json:"id"`
 }, resp *struct {
-	Name          string            `json:"name"`
-	AccountHandle string            `json:"accountHandle"`
-	Extra         map[string]string `json:"extra"`
+	Name  string            `json:"name"`
+	Extra map[string]string `json:"extra"`
 }) error {
 	grpcResp, err := s.networkInfoClient.GetUserInfo(context.Background(), &networkinfopb.GetUserInfoRequest{
 		UserId: req.ID,
@@ -33,7 +30,6 @@ func (s *Service) GetUserInfo(req *struct {
 	}
 
 	resp.Name = grpcResp.Name
-	resp.AccountHandle = base64.RawURLEncoding.EncodeToString(grpcResp.AccountHandle)
 	resp.Extra = grpcResp.Extra
 	return nil
 }

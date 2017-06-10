@@ -9,8 +9,7 @@ go_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//bank/accountsservice/v1pb:go_default_library",
-        "//bank/moneyservice/v1pb:go_default_library",
+        "//executor/accountsservice/v1pb:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_hako_durafmt//:go_default_library",

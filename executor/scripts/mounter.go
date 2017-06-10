@@ -1,7 +1,6 @@
 package scripts
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -39,13 +38,11 @@ func (m *Mounter) MountsRoot() string {
 	return m.mountsRoot
 }
 
-func (m *Mounter) Mount(scriptAccountHandle []byte) (string, error) {
+func (m *Mounter) Mount(ownerName string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	encodedHandle := base64.RawURLEncoding.EncodeToString(scriptAccountHandle)
-
-	mountPath := filepath.Join(m.mountsRoot, encodedHandle)
+	mountPath := filepath.Join(m.mountsRoot, ownerName)
 	if err := os.Mkdir(mountPath, 0700); err != nil {
 		if !os.IsExist(err) {
 			return "", err
@@ -53,7 +50,7 @@ func (m *Mounter) Mount(scriptAccountHandle []byte) (string, error) {
 		return mountPath, nil
 	}
 
-	imagePath := filepath.Join(m.imagesRoot, encodedHandle)
+	imagePath := filepath.Join(m.imagesRoot, ownerName)
 	if _, err := os.Stat(imagePath); err != nil {
 		if !os.IsNotExist(err) {
 			return "", err

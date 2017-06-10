@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -17,8 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
-	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
-	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
+	accountspb "github.com/porpoises/kobun4/executor/accountsservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
@@ -33,7 +31,6 @@ type Handler struct {
 	templatePath string
 
 	accountsClient accountspb.AccountsClient
-	moneyClient    moneypb.MoneyClient
 	scriptsClient  scriptspb.ScriptsClient
 }
 
@@ -51,72 +48,56 @@ var funcMap template.FuncMap = template.FuncMap{
 	},
 }
 
-func New(staticPath string, templatePath string, accountsClient accountspb.AccountsClient, moneyClient moneypb.MoneyClient, scriptsClient scriptspb.ScriptsClient) (http.Handler, error) {
+func New(staticPath string, templatePath string, accountsClient accountspb.AccountsClient, scriptsClient scriptspb.ScriptsClient) (http.Handler, error) {
 	router := httprouter.New()
+	csrfHandler := nosurf.New(router)
 
 	h := &Handler{
-		Handler: nosurf.New(router),
+		Handler: csrfHandler,
 
 		staticPath:   staticPath,
 		templatePath: templatePath,
 
 		accountsClient: accountsClient,
-		moneyClient:    moneyClient,
 		scriptsClient:  scriptsClient,
 	}
 
 	router.ServeFiles("/static/*filepath", http.Dir(staticPath))
 
+	csrfHandler.SetFailureHandler(http.HandlerFunc(h.csrfFailure))
 	router.GET("/", h.home)
-	router.GET("/scripts", h.scriptIndex)
-	router.GET("/scripts/:scriptAccountHandle", h.scriptAccountIndex)
-	router.POST("/scripts/:scriptAccountHandle", h.scriptCreate)
-	router.GET("/scripts/:scriptAccountHandle/:scriptName", h.scriptGet)
-	router.POST("/scripts/:scriptAccountHandle/:scriptName", h.scriptUpdate)
-	router.POST("/scripts/:scriptAccountHandle/:scriptName/delete", h.scriptDelete)
+	router.GET("/scripts/:ownerName", h.scriptAccountIndex)
+	router.POST("/scripts/:ownerName", h.scriptCreate)
+	router.GET("/scripts/:ownerName/:scriptName", h.scriptGet)
+	router.POST("/scripts/:ownerName/:scriptName", h.scriptUpdate)
+	router.POST("/scripts/:ownerName/:scriptName/delete", h.scriptDelete)
 
 	return h, nil
 }
 
-func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) ([]byte, []byte, error) {
-	rawHandle, rawKey, _ := r.BasicAuth()
+func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) (string, error) {
+	username, password, _ := r.BasicAuth()
 
-	accountHandle, err := base64.RawURLEncoding.DecodeString(rawHandle)
-	if err != nil {
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return nil, nil, err
-	}
-	accountKey, err := base64.RawURLEncoding.DecodeString(rawKey)
-	if err != nil {
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return nil, nil, err
-	}
-
-	getResp, err := h.accountsClient.Get(r.Context(), &accountspb.GetRequest{
-		AccountHandle: accountHandle,
-	})
-
-	if err != nil {
-		if grpc.Code(err) == codes.NotFound {
+	if _, err := h.accountsClient.Authenticate(r.Context(), &accountspb.AuthenticateRequest{
+		Username: username,
+		Password: password,
+	}); err != nil {
+		switch grpc.Code(err) {
+		case codes.NotFound:
 			w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return nil, nil, err
+			return "", err
+		case codes.PermissionDenied:
+			w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return "", err
 		}
-
-		glog.Errorf("Failed to check account: %v", err)
+		glog.Errorf("Failed to load account: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return nil, nil, err
+		return "", err
 	}
 
-	if string(getResp.AccountKey) != string(accountKey) {
-		w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return nil, nil, err
-	}
-
-	return accountHandle, accountKey, nil
+	return username, nil
 }
 
 func (h *Handler) renderTemplate(w http.ResponseWriter, files []string, data interface{}) {
@@ -139,23 +120,19 @@ func (h *Handler) renderTemplate(w http.ResponseWriter, files []string, data int
 	}
 }
 
-func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	accountHandle, accountKey, err := h.authenticate(w, r)
-	if err != nil {
-		return
-	}
+func (h *Handler) csrfFailure(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, fmt.Sprintf("Forbidden: %s", nosurf.Reason(r)), http.StatusForbidden)
+	return
+}
 
-	balanceResp, err := h.moneyClient.GetBalance(r.Context(), &moneypb.GetBalanceRequest{
-		AccountHandle: accountHandle,
-	})
+func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username, err := h.authenticate(w, r)
 	if err != nil {
-		glog.Errorf("Failed to get balance: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	scriptsListResp, err := h.scriptsClient.List(r.Context(), &scriptspb.ListRequest{
-		AccountHandle: accountHandle,
+		OwnerName: username,
 	})
 	if err != nil {
 		glog.Errorf("Failed to get script names: %v", err)
@@ -164,64 +141,23 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	}
 
 	h.renderTemplate(w, []string{"_layout", "home"}, struct {
-		AccountHandle string
-		AccountKey    string
-		Balance       int64
-		ScriptNames   []string
+		Username    string
+		ScriptNames []string
 
 		CSRFToken string
 	}{
-		base64.RawURLEncoding.EncodeToString(accountHandle),
-		base64.RawURLEncoding.EncodeToString(accountKey),
-		balanceResp.Balance,
+		username,
 		scriptsListResp.Name,
 
 		nosurf.Token(r),
 	})
 }
 
-func (h *Handler) scriptIndex(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	listResp, err := h.accountsClient.List(r.Context(), &accountspb.ListRequest{})
-	if err != nil {
-		glog.Errorf("Failed to list accounts: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	accountScripts := make(map[string][]string, len(listResp.AccountHandle))
-	for _, accountHandle := range listResp.AccountHandle {
-		listResp, err := h.scriptsClient.List(r.Context(), &scriptspb.ListRequest{
-			AccountHandle: accountHandle,
-		})
-
-		if len(listResp.Name) == 0 {
-			continue
-		}
-
-		if err != nil {
-			glog.Errorf("Failed to get script names: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-		accountScripts[base64.RawURLEncoding.EncodeToString(accountHandle)] = listResp.Name
-	}
-
-	h.renderTemplate(w, []string{"_layout", "scriptindex"}, struct {
-		AccountScripts map[string][]string
-	}{
-		accountScripts,
-	})
-}
-
 func (h *Handler) scriptAccountIndex(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	scriptAccountHandle, err := base64.RawURLEncoding.DecodeString(ps.ByName("scriptAccountHandle"))
-	if err != nil {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
-	}
+	ownerName := ps.ByName("ownerName")
 
 	listResp, err := h.scriptsClient.List(r.Context(), &scriptspb.ListRequest{
-		AccountHandle: scriptAccountHandle,
+		OwnerName: ownerName,
 	})
 	if err != nil {
 		glog.Errorf("Failed to get script names: %v", err)
@@ -230,27 +166,21 @@ func (h *Handler) scriptAccountIndex(w http.ResponseWriter, r *http.Request, ps 
 	}
 
 	h.renderTemplate(w, []string{"_layout", "scriptaccountindex"}, struct {
-		ScriptAccountHandle string
-		Names               []string
+		OwnerName string
+		Names     []string
 	}{
-		base64.RawURLEncoding.EncodeToString(scriptAccountHandle),
+		ownerName,
 		listResp.Name,
 	})
 }
 
 func (h *Handler) scriptCreate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	accountHandle, _, err := h.authenticate(w, r)
+	username, err := h.authenticate(w, r)
 	if err != nil {
 		return
 	}
 
-	scriptAccountHandle, err := base64.RawURLEncoding.DecodeString(ps.ByName("scriptAccountHandle"))
-	if err != nil {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
-	}
-
-	if string(accountHandle) != string(scriptAccountHandle) {
+	if username != ps.ByName("ownerName") {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -277,30 +207,26 @@ func (h *Handler) scriptCreate(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 
 	if _, err := h.scriptsClient.Create(r.Context(), &scriptspb.CreateRequest{
-		AccountHandle: scriptAccountHandle,
-		Name:          scriptName,
-		Meta:          &scriptspb.Meta{},
-		Content:       contentBuf.Bytes(),
+		OwnerName: username,
+		Name:      scriptName,
+		Meta:      &scriptspb.Meta{},
+		Content:   contentBuf.Bytes(),
 	}); err != nil {
 		glog.Errorf("Failed to create script: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/scripts/%s/%s", base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName), http.StatusMovedPermanently)
+	http.Redirect(w, r, fmt.Sprintf("/scripts/%s/%s", username, scriptName), http.StatusMovedPermanently)
 }
 
 func (h *Handler) scriptGet(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	scriptName := ps.ByName("scriptName")
-	scriptAccountHandle, err := base64.RawURLEncoding.DecodeString(ps.ByName("scriptAccountHandle"))
-	if err != nil {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
-	}
+	ownerName := ps.ByName("ownerName")
 
 	contentResp, err := h.scriptsClient.GetContent(r.Context(), &scriptspb.GetContentRequest{
-		AccountHandle: scriptAccountHandle,
-		Name:          scriptName,
+		OwnerName: ownerName,
+		Name:      scriptName,
 	})
 	if err != nil {
 		if grpc.Code(err) == codes.NotFound {
@@ -314,8 +240,8 @@ func (h *Handler) scriptGet(w http.ResponseWriter, r *http.Request, ps httproute
 	}
 
 	getMetaResp, err := h.scriptsClient.GetMeta(r.Context(), &scriptspb.GetMetaRequest{
-		AccountHandle: scriptAccountHandle,
-		Name:          scriptName,
+		OwnerName: ownerName,
+		Name:      scriptName,
 	})
 	if err != nil {
 		glog.Errorf("Failed to get script meta: %v", err)
@@ -324,14 +250,14 @@ func (h *Handler) scriptGet(w http.ResponseWriter, r *http.Request, ps httproute
 	}
 
 	h.renderTemplate(w, []string{"_layout", "scriptview"}, struct {
-		ScriptAccountHandle string
-		ScriptName          string
-		ScriptContent       string
-		Meta                *scriptspb.Meta
+		OwnerName     string
+		ScriptName    string
+		ScriptContent string
+		Meta          *scriptspb.Meta
 
 		CSRFToken string
 	}{
-		base64.RawURLEncoding.EncodeToString(scriptAccountHandle),
+		ownerName,
 		scriptName,
 		string(contentResp.Content),
 		getMetaResp.Meta,
@@ -341,19 +267,14 @@ func (h *Handler) scriptGet(w http.ResponseWriter, r *http.Request, ps httproute
 }
 
 func (h *Handler) scriptUpdate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	accountHandle, _, err := h.authenticate(w, r)
+	username, err := h.authenticate(w, r)
 	if err != nil {
 		return
 	}
 
 	scriptName := ps.ByName("scriptName")
-	scriptAccountHandle, err := base64.RawURLEncoding.DecodeString(ps.ByName("scriptAccountHandle"))
-	if err != nil {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
-	}
 
-	if string(accountHandle) != string(scriptAccountHandle) {
+	if username != ps.ByName("ownerName") {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -364,8 +285,8 @@ func (h *Handler) scriptUpdate(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 
 	if _, err := h.scriptsClient.Delete(r.Context(), &scriptspb.DeleteRequest{
-		AccountHandle: scriptAccountHandle,
-		Name:          scriptName,
+		OwnerName: username,
+		Name:      scriptName,
 	}); err != nil {
 		if grpc.Code(err) == codes.NotFound {
 			http.Error(w, "Not found", http.StatusNotFound)
@@ -378,12 +299,10 @@ func (h *Handler) scriptUpdate(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 
 	if _, err := h.scriptsClient.Create(r.Context(), &scriptspb.CreateRequest{
-		AccountHandle: scriptAccountHandle,
-		Name:          scriptName,
+		OwnerName: username,
+		Name:      scriptName,
 		Meta: &scriptspb.Meta{
-			Description:      r.Form.Get("description"),
-			BillUsageToOwner: r.Form.Get("bill_usage_to_owner") == "on",
-			NeedsEscrow:      r.Form.Get("needs_escrow") == "on",
+			Description: r.Form.Get("description"),
 		},
 		Content: []byte(strings.Replace(r.Form.Get("content"), "\r", "", -1)),
 	}); err != nil {
@@ -392,23 +311,18 @@ func (h *Handler) scriptUpdate(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/scripts/%s/%s", base64.RawURLEncoding.EncodeToString(scriptAccountHandle), scriptName), http.StatusMovedPermanently)
+	http.Redirect(w, r, fmt.Sprintf("/scripts/%s/%s", username, scriptName), http.StatusMovedPermanently)
 }
 
 func (h *Handler) scriptDelete(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	accountHandle, _, err := h.authenticate(w, r)
+	username, err := h.authenticate(w, r)
 	if err != nil {
 		return
 	}
 
 	scriptName := ps.ByName("scriptName")
-	scriptAccountHandle, err := base64.RawURLEncoding.DecodeString(ps.ByName("scriptAccountHandle"))
-	if err != nil {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
-	}
 
-	if string(accountHandle) != string(scriptAccountHandle) {
+	if username != ps.ByName("ownerName") {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -419,8 +333,8 @@ func (h *Handler) scriptDelete(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 
 	if _, err := h.scriptsClient.Delete(r.Context(), &scriptspb.DeleteRequest{
-		AccountHandle: scriptAccountHandle,
-		Name:          scriptName,
+		OwnerName: username,
+		Name:      scriptName,
 	}); err != nil {
 		if grpc.Code(err) == codes.NotFound {
 			http.Error(w, "Not found", http.StatusNotFound)

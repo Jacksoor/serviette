@@ -1,4 +1,4 @@
-{{define "title"}}{{.ScriptAccountHandle}}/{{.ScriptName}} | Scripts{{end}}
+{{define "title"}}{{.OwnerName}}/{{.ScriptName}} | Scripts{{end}}
 
 {{define "head"}}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.26.0/codemirror.min.js"></script>
@@ -12,8 +12,8 @@
 {{end}}
 
 {{define "body"}}
-<h1>Script: <samp>{{.ScriptAccountHandle}}/{{.ScriptName}}</samp></h1>
-<form method="POST" action="/scripts/{{.ScriptAccountHandle}}/{{.ScriptName}}" id="editorForm">
+<h1>Script: <samp>{{.OwnerName}}/{{.ScriptName}}</samp></h1>
+<form method="POST" action="/scripts/{{.OwnerName}}/{{.ScriptName}}" id="editorForm">
     <p>
         <label>
             <strong>Description</strong><br>
@@ -30,33 +30,19 @@
     </p>
 
     <p>
-        <label>
-            <input type="checkbox" name="bill_usage_to_owner" {{if .Meta.BillUsageToOwner}}checked{{end}}> <strong>Bill usage to owner?</strong><br>
-            If checked, all usage costs that would usually be billed to the executor of the script will be billed to the owner (you!).
-        </label>
-    </p>
-    <p>
-        <label>
-            <input type="checkbox" name="needs_escrow" {{if .Meta.NeedsEscrow}}checked{{end}}> <strong>Needs escrow?</strong><br>
-            If checked, the first argument to the command will be considered escrowed funds. The remaining argument will be sent to stdin.
-        </label>
-    </p>
-
-    <p>
         <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
         <button type="submit">Save</button>
     </p>
 </form>
 
-<form method="POST" action="/scripts/{{.ScriptAccountHandle}}/{{.ScriptName}}/delete" id="deleteForm">
+<form method="POST" action="/scripts/{{.OwnerName}}/{{.ScriptName}}/delete" id="deleteForm">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <button type="submit" onclick="return confirm('Are you sure you want to delete this script? This is IRREVERSIBLE!')">Delete</button>
 </form>
 
 <nav>
     <ul>
-        <li><a href="/scripts/{{.ScriptAccountHandle}}">Return to account script index</a></li>
-        <li><a href="/scripts">Return to script index</a></li>
+        <li><a href="/scripts/{{.OwnerName}}">Return to account script index</a></li>
         <li><a href="/">Return to account home page</a></li>
     </ul>
 </nav>

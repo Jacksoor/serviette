@@ -1,8 +1,6 @@
 package scripts
 
 import (
-	"database/sql"
-	"encoding/base64"
 	"errors"
 	"io/ioutil"
 	"os"
@@ -13,31 +11,29 @@ import (
 )
 
 var (
-	ErrInvalidName   error = errors.New("invalid name")
-	ErrAlreadyExists       = errors.New("already exists")
-	ErrNotFound            = errors.New("not found")
+	ErrInvalidName   error = errors.New("scripts: invalid name")
+	ErrAlreadyExists       = errors.New("scripts: already exists")
+	ErrNotFound            = errors.New("scripts: not found")
 )
 
 type Store struct {
 	rootPath string
-	db       *sql.DB
 }
 
-func NewStore(rootPath string, db *sql.DB) *Store {
+func NewStore(rootPath string) *Store {
 	return &Store{
 		rootPath: rootPath,
-		db:       db,
 	}
 }
 
 var nameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-func (s *Store) load(ctx context.Context, accountHandle []byte, name string) (*Script, error) {
+func (s *Store) load(ctx context.Context, ownerName string, name string) (*Script, error) {
 	if !nameRegexp.MatchString(name) {
 		return nil, ErrInvalidName
 	}
 
-	accountRoot := filepath.Join(s.rootPath, base64.RawURLEncoding.EncodeToString(accountHandle))
+	accountRoot := filepath.Join(s.rootPath, ownerName)
 	path := filepath.Join(accountRoot, name)
 
 	if filepath.Dir(path) != accountRoot {
@@ -45,9 +41,9 @@ func (s *Store) load(ctx context.Context, accountHandle []byte, name string) (*S
 	}
 
 	return &Script{
-		rootPath:      s.rootPath,
-		accountHandle: accountHandle,
-		name:          name,
+		rootPath:  s.rootPath,
+		ownerName: ownerName,
+		name:      name,
 	}, nil
 }
 
@@ -55,8 +51,8 @@ func (s *Store) RootPath() string {
 	return s.rootPath
 }
 
-func (s *Store) Create(ctx context.Context, accountHandle []byte, name string) (*Script, error) {
-	script, err := s.load(ctx, accountHandle, name)
+func (s *Store) Create(ctx context.Context, ownerName string, name string) (*Script, error) {
+	script, err := s.load(ctx, ownerName, name)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +65,7 @@ func (s *Store) Create(ctx context.Context, accountHandle []byte, name string) (
 		return nil, ErrAlreadyExists
 	}
 
-	accountRoot := filepath.Join(s.rootPath, base64.RawURLEncoding.EncodeToString(accountHandle))
+	accountRoot := filepath.Join(s.rootPath, ownerName)
 	if err := os.MkdirAll(accountRoot, 0700); err != nil {
 		return nil, err
 	}
@@ -77,8 +73,8 @@ func (s *Store) Create(ctx context.Context, accountHandle []byte, name string) (
 	return script, nil
 }
 
-func (s *Store) Open(ctx context.Context, accountHandle []byte, name string) (*Script, error) {
-	script, err := s.load(ctx, accountHandle, name)
+func (s *Store) Open(ctx context.Context, ownerName string, name string) (*Script, error) {
+	script, err := s.load(ctx, ownerName, name)
 	if err != nil {
 		return nil, err
 	}
@@ -93,13 +89,13 @@ func (s *Store) Open(ctx context.Context, accountHandle []byte, name string) (*S
 	return script, nil
 }
 
-func (s *Store) AccountScripts(ctx context.Context, accountHandle []byte) ([]*Script, error) {
-	accountRoot := filepath.Join(s.rootPath, base64.RawURLEncoding.EncodeToString(accountHandle))
+func (s *Store) AccountScripts(ctx context.Context, ownerName string) ([]*Script, error) {
+	accountRoot := filepath.Join(s.rootPath, ownerName)
 
 	infos, err := ioutil.ReadDir(accountRoot)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return nil, ErrNotFound
 		}
 		return nil, err
 	}
@@ -107,9 +103,9 @@ func (s *Store) AccountScripts(ctx context.Context, accountHandle []byte) ([]*Sc
 	scripts := make([]*Script, len(infos))
 	for i, info := range infos {
 		scripts[i] = &Script{
-			rootPath:      s.rootPath,
-			accountHandle: accountHandle,
-			name:          info.Name(),
+			rootPath:  s.rootPath,
+			ownerName: ownerName,
+			name:      info.Name(),
 		}
 	}
 

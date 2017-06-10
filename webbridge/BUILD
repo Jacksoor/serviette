@@ -5,8 +5,7 @@ go_library(
     srcs = ["main.go"],
     visibility = ["//visibility:private"],
     deps = [
-        "//bank/accountsservice/v1pb:go_default_library",
-        "//bank/moneyservice/v1pb:go_default_library",
+        "//executor/accountsservice/v1pb:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "//webbridge/handler:go_default_library",
         "@com_github_golang_glog//:go_default_library",

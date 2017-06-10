@@ -23,8 +23,6 @@ import (
 	"github.com/porpoises/kobun4/discordbridge/networkinfoservice"
 	"github.com/porpoises/kobun4/discordbridge/varstore"
 
-	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
-	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
@@ -38,11 +36,6 @@ var (
 
 	sqliteDBPath = flag.String("sqlite_db_path", "discordbridge.db", "Path to SQLite database")
 
-	bankCommandPrefix   = flag.String("bank_command_prefix", "$", "Bank command prefix")
-	scriptCommandPrefix = flag.String("script_command_prefix", "!", "Script command prefix")
-	currencyName        = flag.String("currency_name", "coins", "Currency name")
-
-	bankTarget     = flag.String("bank_target", "localhost:5901", "Bank target")
 	executorTarget = flag.String("executor_target", "localhost:5902", "Executor target")
 
 	webURL = flag.String("web_url", "http://kobun", "URL to web UI")
@@ -65,12 +58,6 @@ func main() {
 
 	go http.Serve(debugLis, nil)
 
-	bankConn, err := grpc.Dial(*bankTarget, grpc.WithInsecure())
-	if err != nil {
-		glog.Fatalf("did not connect to bank: %v", err)
-	}
-	defer bankConn.Close()
-
 	executorConn, err := grpc.Dial(*executorTarget, grpc.WithInsecure())
 	if err != nil {
 		glog.Fatalf("did not connect to executor: %v", err)
@@ -87,7 +74,7 @@ func main() {
 	client, err := client.New(*discordToken, &client.Options{
 		Status: *status,
 		WebURL: *webURL,
-	}, *bindSocket, vars, accountspb.NewAccountsClient(bankConn), moneypb.NewMoneyClient(bankConn), scriptspb.NewScriptsClient(executorConn))
+	}, *bindSocket, vars, scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}

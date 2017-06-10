@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"golang.org/x/net/trace"
 	"net/http"
@@ -20,13 +19,13 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/porpoises/kobun4/executor/accounts"
 	"github.com/porpoises/kobun4/executor/scripts"
 	"github.com/porpoises/kobun4/executor/webdav"
 	"github.com/porpoises/kobun4/executor/worker"
 
-	accountspb "github.com/porpoises/kobun4/bank/accountsservice/v1pb"
-	moneypb "github.com/porpoises/kobun4/bank/moneyservice/v1pb"
-
+	"github.com/porpoises/kobun4/executor/accountsservice"
+	accountspb "github.com/porpoises/kobun4/executor/accountsservice/v1pb"
 	"github.com/porpoises/kobun4/executor/scriptsservice"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
@@ -36,8 +35,6 @@ var (
 	bindDebugSocket  = flag.String("bind_debug_socket", "localhost:5912", "Bind for socket")
 	bindWebdavSocket = flag.String("bind_webdav_socket", "localhost:5922", "Bind for WebDAV socket")
 
-	bankTarget = flag.String("bank_target", "localhost:5901", "Bank target")
-
 	sqliteDBPath = flag.String("sqlite_db_path", "executor.db", "Path to SQLite database")
 
 	k4LibraryPath   = flag.String("k4_library_path", "clients", "Path to library root")
@@ -46,13 +43,6 @@ var (
 
 	imagesRootPath = flag.String("images_root_path", "images", "Path to image root")
 	imageSize      = flag.Int64("image_size", 20*1024*1024, "Image size for new images")
-
-	timeLimit   = flag.Duration("time_limit", 5*time.Second, "Time limit")
-	memoryLimit = flag.Int64("memory_limit", 20*1024*1024, "Memory limit")
-	tmpfsSize   = flag.Int64("tmpfs_size", 4*1024*1024, "Memory limit")
-
-	durationPerUnitCost = flag.Duration("duration_per_unit_cost", time.Second, "Duration per unit cost")
-	baseUsageCost       = flag.Int64("base_usage_cost", 0, "Base cost to charge for usage")
 
 	kafelSeccompPolicy = flag.String("kafel_seccomp_policy", "POLICY default { KILL { ptrace, process_vm_readv, process_vm_writev } } USE default DEFAULT ALLOW", "Kafel policy to use for seccomp")
 
@@ -84,14 +74,6 @@ func main() {
 		glog.Fatalf("failed to open db: %v", err)
 	}
 
-	bankConn, err := grpc.Dial(*bankTarget, grpc.WithInsecure())
-	if err != nil {
-		glog.Fatalf("did not connect to bank: %v", err)
-	}
-	defer bankConn.Close()
-
-	accountsClient := accountspb.NewAccountsClient(bankConn)
-
 	mounter, err := scripts.NewMounter(*imagesRootPath, *imageSize)
 	if err != nil {
 		glog.Fatalf("could not create scripts service: %v", err)
@@ -102,10 +84,10 @@ func main() {
 		}
 	}()
 
-	supervisor := worker.NewSupervisor(&worker.WorkerOptions{
-		TimeLimit:          *timeLimit,
-		MemoryLimit:        *memoryLimit,
-		TmpfsSize:          *tmpfsSize,
+	accountStore := accounts.NewStore(db)
+
+	s := grpc.NewServer()
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scripts.NewStore(*scriptsRootPath), accountStore, mounter, *k4LibraryPath, &worker.Options{
 		Chroot:             *chrootPath,
 		KafelSeccompPolicy: *kafelSeccompPolicy,
 		Network: &worker.NetworkOptions{
@@ -114,10 +96,8 @@ func main() {
 			Netmask:   *macvlanVsNM,
 			Gateway:   *macvlanVsGW,
 		},
-	})
-
-	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scripts.NewStore(*scriptsRootPath, db), mounter, *k4LibraryPath, moneypb.NewMoneyClient(bankConn), accountsClient, *durationPerUnitCost, *baseUsageCost, supervisor))
+	}))
+	accountspb.RegisterAccountsServer(s, accountsservice.New(accountStore))
 	reflection.Register(s)
 
 	signalChan := make(chan os.Signal, 1)
@@ -144,7 +124,7 @@ func main() {
 	glog.Infof("WebDAV listening on: %s", webdavLis.Addr())
 
 	httpServer := &http.Server{
-		Handler: webdav.NewHandler(mounter, accountsClient),
+		Handler: webdav.NewHandler(mounter, accountStore),
 	}
 	go func() {
 		errChan <- httpServer.Serve(webdavLis)

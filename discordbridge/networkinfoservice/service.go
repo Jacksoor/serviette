@@ -30,36 +30,8 @@ func (s *Service) GetUserInfo(ctx context.Context, req *pb.GetUserInfoRequest) (
 		return nil, err
 	}
 
-	var userVars *varstore.UserVars
-
-	if err := func() error {
-		tx, err := s.vars.BeginTx(ctx)
-		if err != nil {
-			return err
-		}
-
-		userVars, err = s.vars.UserVars(ctx, tx, req.UserId)
-		if err != nil {
-			if err == varstore.ErrNotFound {
-				userVars = nil
-				return nil
-			}
-			return err
-		}
-
-		return nil
-	}(); err != nil {
-		return nil, err
-	}
-
-	var accountHandle []byte
-	if userVars != nil {
-		accountHandle = userVars.AccountHandle
-	}
-
 	return &pb.GetUserInfoResponse{
-		Name:          fmt.Sprintf("%s#%s", user.Username, user.Discriminator),
-		AccountHandle: accountHandle,
+		Name: fmt.Sprintf("%s#%s", user.Username, user.Discriminator),
 	}, nil
 }
 

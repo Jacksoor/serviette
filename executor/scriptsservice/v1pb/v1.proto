@@ -6,8 +6,6 @@ option go_package = "v1pb";
 
 message Meta {
     string description = 1;
-    bool bill_usage_to_owner = 2;
-    bool needs_escrow = 3;
 }
 
 message Context {
@@ -20,21 +18,15 @@ message Context {
     string group_id = 13;
     string network_id = 14;
 
-    // Accounts.
-    string script_account_handle = 21;
-    string billing_account_handle = 22;
-    string executing_account_handle = 23;
-
     // Flavor.
-    string currency_name = 31;
-    string script_command_prefix = 32;
-    string bank_command_prefix = 33;
+    string script_command_prefix = 31;
+    string meta_command_prefix = 32;
 
     map<string, string> extra = 1000;
 }
 
 message CreateRequest {
-    bytes account_handle = 1;
+    string owner_name = 1;
     string name = 2;
     Meta meta = 3;
     bytes content = 4;
@@ -44,7 +36,7 @@ message CreateResponse {
 }
 
 message ListRequest {
-    bytes account_handle = 1;
+    string owner_name = 1;
 }
 
 message ListResponse {
@@ -52,7 +44,7 @@ message ListResponse {
 }
 
 message DeleteRequest {
-    bytes account_handle = 1;
+    string owner_name = 1;
     string name = 2;
 }
 
@@ -60,40 +52,22 @@ message DeleteResponse {
 }
 
 message ExecuteRequest {
-    bytes executing_account_handle = 1;
-    bytes executing_account_key = 2;
-
-    bytes script_account_handle = 3;
-
-    string name = 4;
-    string rest = 5;
-    Context context = 6;
-
-    string network_info_service_target = 7;
-
-    int64 escrowed_funds = 8;
+    string owner_name = 1;
+    string name = 2;
+    bytes stdin = 3;
+    string network_info_service_target = 4;
+    Context context = 5;
 }
 
 message ExecuteResponse {
-    message Charge {
-        bytes target_account_handle = 1;
-        int64 amount = 2;
-    }
-
     uint32 wait_status = 1;
     bytes stdout = 2;
     bytes stderr = 3;
-
-    int64 usage_cost = 4;
-
-    repeated Charge charge = 5;
-    int64 escrowed_funds = 6;
-
-    string output_format = 7;
+    string output_format = 4;
 }
 
 message GetContentRequest {
-    bytes account_handle = 1;
+    string owner_name = 1;
     string name = 2;
 }
 
@@ -102,7 +76,7 @@ message GetContentResponse {
 }
 
 message GetMetaRequest {
-    bytes account_handle = 1;
+    string owner_name = 1;
     string name = 2;
 }
 

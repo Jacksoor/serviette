@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package kobun4.executor.accounts.v1;
+
+option go_package = "v1pb";
+
+message AuthenticateRequest {
+    string username = 1;
+    string password = 2;
+}
+
+message AuthenticateResponse { }
+
+service Accounts {
+    rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse) { }
+}
