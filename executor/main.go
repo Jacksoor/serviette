@@ -86,8 +86,13 @@ func main() {
 
 	accountStore := accounts.NewStore(db)
 
+	scriptsStore, err := scripts.NewStore(*scriptsRootPath)
+	if err != nil {
+		glog.Fatalf("failed to open scripts store: %v", err)
+	}
+
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scripts.NewStore(*scriptsRootPath), accountStore, mounter, *k4LibraryPath, &worker.Options{
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scriptsStore, accountStore, mounter, *k4LibraryPath, &worker.Options{
 		Chroot:             *chrootPath,
 		KafelSeccompPolicy: *kafelSeccompPolicy,
 		Network: &worker.NetworkOptions{

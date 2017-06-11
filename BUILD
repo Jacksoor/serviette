@@ -35,6 +35,7 @@ pkg_tar(
         "//webbridge",
         "//webbridge/static",
         "//webbridge/templates",
+        "//systemd",
     ],
     modes = {
         ":init.sh": "0755",

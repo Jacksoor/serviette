@@ -86,7 +86,7 @@ func (w *Worker) Run(ctx context.Context) (*WorkerResult, error) {
 
 	nsjailArgs := []string{
 		"--mode", "o",
-		"--log", "/proc/self/fd/4",
+		"--log_fd", "4",
 		"--pass_fd", "3",
 		"--user", "nobody",
 		"--group", "nogroup",

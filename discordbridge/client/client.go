@@ -138,7 +138,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 
 	content := strings.TrimSpace(m.Content)
 
-	if content == fmt.Sprintf("<@!%s> help", s.State.User.ID) || content == fmt.Sprintf("<@%s> help", s.State.User.ID) {
+	if (content == fmt.Sprintf("<@!%s> help", s.State.User.ID) || content == fmt.Sprintf("<@%s> help", s.State.User.ID)) && channel.GuildID != "" {
 		if err := showHelp(ctx, c, guildVars, m.Message, channel); err != nil {
 			glog.Errorf("Failed to run help command: %v", err)
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
@@ -374,7 +374,7 @@ Remove a command name's alias.`,
 		Content: fmt.Sprintf("<@%s>: ✅", m.Author.ID),
 		Embed: &discordgo.MessageEmbed{
 			Title:       "ℹ Help",
-			URL:         "http://kobun.life",
+			URL:         c.opts.WebURL,
 			Description: fmt.Sprintf(`Here's a listing of my commands.%s`, formattedAnnouncement),
 			Color:       0x009100,
 			Fields:      fields,
@@ -396,16 +396,18 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		return err
 	}
 
-	member, err := c.session.GuildMember(channel.GuildID, m.Author.ID)
-	if err != nil {
-		return err
-	}
-
-	if !aliased && !memberIsAdmin(guildVars.AdminRoleID, member) {
-		if !guildVars.Quiet {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Only administrators may run unaliased commands**", m.Author.ID))
+	if channel.GuildID != "" {
+		member, err := c.session.GuildMember(channel.GuildID, m.Author.ID)
+		if err != nil {
+			return err
 		}
-		return nil
+
+		if !aliased && !memberIsAdmin(guildVars.AdminRoleID, member) {
+			if !guildVars.Quiet {
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Only administrators may run unaliased commands**", m.Author.ID))
+			}
+			return nil
+		}
 	}
 
 	waitMsg, err := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ⌛ **Please wait, running your command...**", m.Author.ID))
@@ -434,7 +436,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 	if err != nil {
 		if grpc.Code(err) == codes.NotFound {
 			if aliased {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Command alias references invalid script name**", m.Author.ID, commandName))
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Command alias references invalid script name**", m.Author.ID))
 			} else if !guildVars.Quiet {
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s%s/%s` not found**", m.Author.ID, guildVars.ScriptCommandPrefix, ownerName, scriptName))
 			}

@@ -1,0 +1,22 @@
+[Unit]
+Description=Kobun4 Web Bridge
+
+[Service]
+Restart=on-failure
+StartLimitInterval=86400
+StartLimitBurst=5
+
+User=kobun4
+Group=nogroup
+
+WorkingDirectory=/var/lib/kobun4/webbridge
+ExecStart=/opt/kobun4/webbridge/webbridge -template_path=/opt/kobun4/webbridge/templates -static_path=/opt/kobun4/webbridge/static -logtostderr
+
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=full
+ProtectHome=true
+ReadWriteDirectories=/var/lib/kobun4/webbridge
+
+[Install]
+WantedBy=multi-user.target

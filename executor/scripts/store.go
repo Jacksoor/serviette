@@ -20,10 +20,15 @@ type Store struct {
 	rootPath string
 }
 
-func NewStore(rootPath string) *Store {
-	return &Store{
-		rootPath: rootPath,
+func NewStore(rootPath string) (*Store, error) {
+	path, err := filepath.Abs(rootPath)
+	if err != nil {
+		return nil, err
 	}
+
+	return &Store{
+		rootPath: path,
+	}, nil
 }
 
 var nameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
