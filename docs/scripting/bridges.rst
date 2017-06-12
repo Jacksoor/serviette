@@ -6,7 +6,7 @@ Bridges are kobun4's way of communicating with chat services.
 Discord
 -------
 
-.. image:: https://discordapp.com/api/guilds/323659543622057984/embed.png
+.. image:: https://discordapp.com/api/guilds/323659543622057984/embed.png?style=banner2
    :alt: Discord
    :target: https://discord.gg/MNqc3f8
 
