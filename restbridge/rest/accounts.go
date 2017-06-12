@@ -12,8 +12,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
+	accountspb "github.com/porpoises/kobun4/executor/accountsservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
+
+type Index struct {
+	Accounts []string `json:"accounts"`
+}
 
 type Account struct {
 	Name    string   `json:"name"`
@@ -29,14 +34,16 @@ type Script struct {
 type AccountsResource struct {
 	tokenSecret []byte
 
-	scriptsClient scriptspb.ScriptsClient
+	accountsClient accountspb.AccountsClient
+	scriptsClient  scriptspb.ScriptsClient
 }
 
-func NewAccountsResource(tokenSecret []byte, scriptsClient scriptspb.ScriptsClient) *AccountsResource {
+func NewAccountsResource(tokenSecret []byte, accountsClient accountspb.AccountsClient, scriptsClient scriptspb.ScriptsClient) *AccountsResource {
 	return &AccountsResource{
 		tokenSecret: tokenSecret,
 
-		scriptsClient: scriptsClient,
+		accountsClient: accountsClient,
+		scriptsClient:  scriptsClient,
 	}
 }
 
@@ -47,6 +54,10 @@ func (a AccountsResource) WebService() *restful.WebService {
 		Doc("Account information.").
 		Consumes(restful.MIME_JSON).
 		Produces(restful.MIME_JSON)
+
+	ws.Route(ws.GET("").To(a.list).
+		Doc("Lists accounts.").
+		Writes(Index{}))
 
 	ws.Route(ws.GET("/{accountName}").To(a.read).
 		Doc("Reads an account.").
@@ -77,6 +88,21 @@ func (a AccountsResource) WebService() *restful.WebService {
 		Reads(Script{}))
 
 	return ws
+}
+
+func (a AccountsResource) list(req *restful.Request, resp *restful.Response) {
+	listResp, err := a.accountsClient.List(req.Request.Context(), &accountspb.ListRequest{})
+
+	if err != nil {
+		glog.Errorf("Failed to list accounts: %v", err)
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	resp.WriteEntity(Index{
+		Accounts: listResp.Name,
+	})
 }
 
 func (a AccountsResource) read(req *restful.Request, resp *restful.Response) {

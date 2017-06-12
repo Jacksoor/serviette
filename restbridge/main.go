@@ -67,7 +67,7 @@ func main() {
 
 	secret := []byte(*tokenSecret)
 
-	accountsResource := rest.NewAccountsResource(secret, scriptsClient)
+	accountsResource := rest.NewAccountsResource(secret, accountsClient, scriptsClient)
 	loginResource := rest.NewLoginResource(secret, *tokenDuration, accountsClient)
 
 	wsContainer.Add(accountsResource.WebService())

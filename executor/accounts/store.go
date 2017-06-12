@@ -52,6 +52,32 @@ func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
 	return account, nil
 }
 
+func (s *Store) AccountNames(ctx context.Context) ([]string, error) {
+	names := make([]string, 0)
+
+	rows, err := s.db.QueryContext(ctx, `
+		select name from accounts
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+
+		names = append(names, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return names, nil
+}
+
 func (s *Store) Authenticate(ctx context.Context, userName string, password string) error {
 	account, err := s.Account(ctx, userName)
 	if err != nil {

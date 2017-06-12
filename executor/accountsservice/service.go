@@ -35,3 +35,15 @@ func (s *Service) Authenticate(ctx context.Context, req *pb.AuthenticateRequest)
 
 	return &pb.AuthenticateResponse{}, nil
 }
+
+func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
+	names, err := s.accounts.AccountNames(ctx)
+	if err != nil {
+		glog.Errorf("Failed to list accounts: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to list accounts")
+	}
+
+	return &pb.ListResponse{
+		Name: names,
+	}, nil
+}
