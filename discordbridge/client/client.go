@@ -396,20 +396,6 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		return err
 	}
 
-	if channel.GuildID != "" {
-		member, err := c.session.GuildMember(channel.GuildID, m.Author.ID)
-		if err != nil {
-			return err
-		}
-
-		if !aliased && !memberIsAdmin(guildVars.AdminRoleID, member) {
-			if !guildVars.Quiet {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Only administrators may run unaliased commands**", m.Author.ID))
-			}
-			return nil
-		}
-	}
-
 	waitMsg, err := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ⌛ **Please wait, running your command...**", m.Author.ID))
 	if err != nil {
 		return err
