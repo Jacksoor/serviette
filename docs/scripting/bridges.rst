@@ -7,7 +7,7 @@ Discord
 -------
 
 .. image:: https://discordapp.com/api/guilds/323659543622057984/embed.png
-   :alt: merc-devel
+   :alt: Discord
    :target: https://discord.gg/MNqc3f8
 
 The ``discord`` bridge connects to the `Discord <https://discordapp.com>`_ chat service.
