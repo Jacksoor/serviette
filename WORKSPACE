@@ -115,3 +115,15 @@ new_go_repository(
     importpath = "github.com/justinas/nosurf",
 )
 
+new_go_repository(
+    name = "com_github_emicklei_go_restful",
+    commit = "ff4f55a206334ef123e4f79bbf348980da81ca46",
+    importpath = "github.com/emicklei/go-restful",
+)
+
+
+new_go_repository(
+    name = "com_github_dgrijalva_jwt_go",
+    commit = "a539ee1a749a2b895533f979515ac7e6e0f5b650",
+    importpath = "github.com/dgrijalva/jwt-go",
+)

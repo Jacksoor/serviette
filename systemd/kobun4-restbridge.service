@@ -1,0 +1,23 @@
+[Unit]
+Description=Kobun4 REST Bridge
+
+[Service]
+Restart=on-failure
+StartLimitInterval=86400
+StartLimitBurst=5
+
+User=kobun4
+Group=nogroup
+
+EnvironmentFile=/etc/kobun4/restbridge
+WorkingDirectory=/var/lib/kobun4/restbridge
+ExecStart=/opt/kobun4/restbridge/restbridge -token_secret=${KOBUN4_RESTBRIDGE_TOKEN_SECRET} -logtostderr
+
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=full
+ProtectHome=true
+ReadWriteDirectories=/var/lib/kobun4/restbridge
+
+[Install]
+WantedBy=multi-user.target

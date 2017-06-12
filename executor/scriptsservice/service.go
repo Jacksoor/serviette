@@ -74,14 +74,17 @@ func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.Create
 }
 
 func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
-	scripts, err := s.scripts.AccountScripts(ctx, req.OwnerName)
+	accountScripts, err := s.scripts.AccountScripts(ctx, req.OwnerName)
 	if err != nil {
+		if err == scripts.ErrNotFound {
+			return nil, grpc.Errorf(codes.NotFound, "account not found")
+		}
 		glog.Errorf("Failed to list scripts: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to list scripts")
 	}
 
-	names := make([]string, len(scripts))
-	for i, script := range scripts {
+	names := make([]string, len(accountScripts))
+	for i, script := range accountScripts {
 		names[i] = script.Name()
 	}
 
