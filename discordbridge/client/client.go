@@ -55,6 +55,7 @@ func New(token string, opts *Options, networkInfoServiceTarget string, vars *var
 	}
 
 	session.AddHandler(client.ready)
+	session.AddHandler(client.guildCreate)
 	session.AddHandler(client.messageCreate)
 
 	if err := session.Open(); err != nil {
@@ -77,11 +78,6 @@ func (c *Client) ready(s *discordgo.Session, r *discordgo.Ready) {
 	s.UpdateStatus(0, c.opts.Status)
 }
 
-var GuildVars *varstore.GuildVars = &varstore.GuildVars{
-	ScriptCommandPrefix: ".",
-	Quiet:               true,
-}
-
 var adminCommandPrefix = "kobun$"
 
 func memberIsAdmin(adminRoleID string, member *discordgo.Member) bool {
@@ -93,22 +89,32 @@ func memberIsAdmin(adminRoleID string, member *discordgo.Member) bool {
 	return false
 }
 
-func (c *Client) serverVarsOrDefault(ctx context.Context, guildID string) (*varstore.GuildVars, error) {
-	tx, err := c.vars.BeginTx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
+func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
+	ctx := context.Background()
 
-	guildVars, err := c.vars.GuildVars(ctx, tx, guildID)
-	if err != nil {
-		if err == varstore.ErrNotFound {
-			return GuildVars, nil
+	var guildVars *varstore.GuildVars
+	if err := func() error {
+		tx, err := c.vars.BeginTx(ctx)
+		if err != nil {
+			return err
 		}
-		return nil, err
-	}
+		defer tx.Rollback()
 
-	return guildVars, nil
+		guildVars, err = c.vars.GuildVars(ctx, tx, m.Guild.ID)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}(); err != nil {
+		if err != varstore.ErrNotFound {
+			panic(fmt.Sprintf("Failed to get guild vars: %v", err))
+		}
+		glog.Infof("No guild vars found for %s, leaving.", m.Guild.ID)
+		s.GuildLeave(m.Guild.ID)
+	} else {
+		glog.Infof("Guild vars for %s: %+v", m.Guild.ID, guildVars)
+	}
 }
 
 func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -130,10 +136,22 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 		return
 	}
 
-	guildVars, err := c.serverVarsOrDefault(ctx, channel.GuildID)
-	if err != nil {
-		glog.Errorf("Failed to get server vars: %v", err)
-		return
+	var guildVars *varstore.GuildVars
+	if err := func() error {
+		tx, err := c.vars.BeginTx(ctx)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+
+		guildVars, err = c.vars.GuildVars(ctx, tx, channel.GuildID)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}(); err != nil {
+		glog.Errorf("Failed to get guild vars: %v", err)
 	}
 
 	content := strings.TrimSpace(m.Content)
