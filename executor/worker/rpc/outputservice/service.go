@@ -1,22 +1,27 @@
 package outputservice
 
 type Service struct {
-	format string
+	Format  string
+	Private bool
 }
 
 func New(format string) *Service {
 	return &Service{
-		format: format,
+		Format:  format,
+		Private: false,
 	}
-}
-
-func (s *Service) Format() string {
-	return s.format
 }
 
 func (s *Service) SetFormat(req *struct {
 	Format string `json:"format"`
 }, resp *struct{}) error {
-	s.format = req.Format
+	s.Format = req.Format
+	return nil
+}
+
+func (s *Service) SetPrivate(req *struct {
+	Private bool `json:"private"`
+}, resp *struct{}) error {
+	s.Private = req.Private
 	return nil
 }

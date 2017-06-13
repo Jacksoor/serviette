@@ -204,7 +204,8 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		WaitStatus:   uint32(waitStatus),
 		Stdout:       r.Stdout,
 		Stderr:       r.Stderr,
-		OutputFormat: outputService.Format(),
+		OutputFormat: outputService.Format,
+		Private:      outputService.Private,
 	}, nil
 }
 

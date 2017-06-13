@@ -110,7 +110,7 @@ func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
 		if err != varstore.ErrNotFound {
 			panic(fmt.Sprintf("Failed to get guild vars: %v", err))
 		}
-		glog.Infof("No guild vars found for %s, leaving.", m.Guild.ID)
+		glog.Warningf("No guild vars found for %s, leaving.", m.Guild.ID)
 		s.GuildLeave(m.Guild.ID)
 	} else {
 		glog.Infof("Guild vars for %s: %+v", m.Guild.ID, guildVars)
@@ -414,6 +414,21 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		return err
 	}
 
+	if _, err := c.scriptsClient.GetMeta(ctx, &scriptspb.GetMetaRequest{
+		OwnerName: ownerName,
+		Name:      scriptName,
+	}); err != nil {
+		if grpc.Code(err) == codes.NotFound {
+			if aliased {
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Command alias references invalid script name**", m.Author.ID))
+			} else if !guildVars.Quiet {
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s%s/%s` not found**", m.Author.ID, guildVars.ScriptCommandPrefix, ownerName, scriptName))
+			}
+			return nil
+		}
+		return err
+	}
+
 	waitMsg, err := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ⌛ **Please wait, running your command...**", m.Author.ID))
 	if err != nil {
 		return err
@@ -438,15 +453,17 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		NetworkInfoServiceTarget: c.networkInfoServiceTarget,
 	})
 	if err != nil {
-		if grpc.Code(err) == codes.NotFound {
-			if aliased {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Command alias references invalid script name**", m.Author.ID))
-			} else if !guildVars.Quiet {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s%s/%s` not found**", m.Author.ID, guildVars.ScriptCommandPrefix, ownerName, scriptName))
-			}
-			return nil
-		}
 		return err
+	}
+
+	channelID := m.ChannelID
+	if resp.Private {
+		channel, err := s.UserChannelCreate(m.Author.ID)
+		if err != nil {
+			return err
+		}
+
+		channelID = channel.ID
 	}
 
 	waitStatus := syscall.WaitStatus(resp.WaitStatus)
@@ -454,14 +471,14 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 	if waitStatus.ExitStatus() == 0 || waitStatus.ExitStatus() == 2 {
 		outputFormatter, ok := outputFormatters[resp.OutputFormat]
 		if !ok {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Output format `%s` unknown!**", m.Author.ID, resp.OutputFormat))
+			s.ChannelMessageSend(channelID, fmt.Sprintf("<@%s>: ❗ **Output format `%s` unknown!**", m.Author.ID, resp.OutputFormat))
 			return nil
 		}
 
 		messageSend, err := outputFormatter(resp)
 		if err != nil {
 			if iErr, ok := err.(invalidOutputError); ok {
-				s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+				s.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
 					Content: fmt.Sprintf("<@%s>: ❗ **Command output was invalid!**", m.Author.ID),
 					Embed: &discordgo.MessageEmbed{
 						Color:       0xb50000,
@@ -482,7 +499,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 
 		messageSend.Content = fmt.Sprintf("<@%s>: %s", m.Author.ID, sigil)
 
-		if _, err := s.ChannelMessageSendComplex(m.ChannelID, messageSend); err != nil {
+		if _, err := s.ChannelMessageSendComplex(channelID, messageSend); err != nil {
 			return err
 		}
 		return nil
@@ -490,9 +507,9 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		sig := waitStatus.Signal()
 		switch sig {
 		case syscall.SIGKILL:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Script used too many resources!**", m.Author.ID))
+			s.ChannelMessageSend(channelID, fmt.Sprintf("<@%s>: ❗ **Script used too many resources!**", m.Author.ID))
 		default:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Script was killed by %s!**", m.Author.ID, sig.String()))
+			s.ChannelMessageSend(channelID, fmt.Sprintf("<@%s>: ❗ **Script was killed by %s!**", m.Author.ID, sig.String()))
 		}
 	} else {
 		stderr := resp.Stderr
@@ -508,7 +525,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			embed.Description = "(stderr was empty)"
 		}
 
-		s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		s.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
 			Content: fmt.Sprintf("<@%s>: ❗ **Error occurred!**", m.Author.ID),
 			Embed:   &embed,
 		})

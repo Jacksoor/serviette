@@ -63,6 +63,7 @@ message ExecuteResponse {
     bytes stdout = 2;
     bytes stderr = 3;
     string output_format = 4;
+    bool private = 5;
 }
 
 message GetContentRequest {
