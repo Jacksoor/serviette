@@ -6,10 +6,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//executor/accounts:go_default_library",
+        "//executor/messagingservice/v1pb:go_default_library",
         "//executor/networkinfoservice/v1pb:go_default_library",
         "//executor/scripts:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "//executor/worker:go_default_library",
+        "//executor/worker/rpc/messagingservice:go_default_library",
         "//executor/worker/rpc/networkinfoservice:go_default_library",
         "//executor/worker/rpc/outputservice:go_default_library",
         "@com_github_golang_glog//:go_default_library",

@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"net"
 	"sort"
 	"strings"
 	"syscall"
@@ -29,14 +30,14 @@ type Client struct {
 
 	opts *Options
 
-	networkInfoServiceTarget string
+	rpcTarget net.Addr
 
 	vars *varstore.Store
 
 	scriptsClient scriptspb.ScriptsClient
 }
 
-func New(token string, opts *Options, networkInfoServiceTarget string, vars *varstore.Store, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
+func New(token string, opts *Options, rpcTarget net.Addr, vars *varstore.Store, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 	if err != nil {
 		return nil, err
@@ -47,7 +48,7 @@ func New(token string, opts *Options, networkInfoServiceTarget string, vars *var
 
 		opts: opts,
 
-		networkInfoServiceTarget: networkInfoServiceTarget,
+		rpcTarget: rpcTarget,
 
 		vars: vars,
 
@@ -117,6 +118,11 @@ func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
 	}
 }
 
+var privateGuildVars = &varstore.GuildVars{
+	ScriptCommandPrefix: "",
+	Quiet:               false,
+}
+
 func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	ctx := context.Background()
 
@@ -137,21 +143,26 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 	}
 
 	var guildVars *varstore.GuildVars
-	if err := func() error {
-		tx, err := c.vars.BeginTx(ctx)
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback()
+	if channel.IsPrivate {
+		guildVars = privateGuildVars
+	} else {
+		if err := func() error {
+			tx, err := c.vars.BeginTx(ctx)
+			if err != nil {
+				return err
+			}
+			defer tx.Rollback()
 
-		guildVars, err = c.vars.GuildVars(ctx, tx, channel.GuildID)
-		if err != nil {
-			return err
-		}
+			guildVars, err = c.vars.GuildVars(ctx, tx, channel.GuildID)
+			if err != nil {
+				return err
+			}
 
-		return nil
-	}(); err != nil {
-		glog.Errorf("Failed to get guild vars: %v", err)
+			return nil
+		}(); err != nil {
+			glog.Errorf("Failed to get guild vars: %v", err)
+			return
+		}
 	}
 
 	content := strings.TrimSpace(m.Content)
@@ -161,6 +172,33 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 			glog.Errorf("Failed to run help command: %v", err)
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
 		}
+		return
+	}
+
+	if strings.HasPrefix(content, guildVars.ScriptCommandPrefix) {
+		if fail {
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
+			return
+		}
+
+		rest := m.Content[len(guildVars.ScriptCommandPrefix):]
+		firstSpaceIndex := strings.Index(rest, " ")
+
+		var commandName string
+		if firstSpaceIndex == -1 {
+			commandName = rest
+			rest = ""
+		} else {
+			commandName = rest[:firstSpaceIndex]
+			rest = strings.TrimSpace(rest[firstSpaceIndex+1:])
+		}
+
+		if err := c.runScriptCommand(ctx, guildVars, s, m.Message, channel, commandName, rest); err != nil {
+			glog.Errorf("Failed to run command %s: %v", commandName, err)
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
+			return
+		}
+
 		return
 	}
 
@@ -204,33 +242,6 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 
 		if err := cmd(ctx, c, guildVars, m.Message, channel, rest); err != nil {
 			glog.Errorf("Failed to run admin command %s: %v", commandName, err)
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
-			return
-		}
-
-		return
-	}
-
-	if strings.HasPrefix(content, guildVars.ScriptCommandPrefix) {
-		if fail {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
-			return
-		}
-
-		rest := m.Content[len(guildVars.ScriptCommandPrefix):]
-		firstSpaceIndex := strings.Index(rest, " ")
-
-		var commandName string
-		if firstSpaceIndex == -1 {
-			commandName = rest
-			rest = ""
-		} else {
-			commandName = rest[:firstSpaceIndex]
-			rest = strings.TrimSpace(rest[firstSpaceIndex+1:])
-		}
-
-		if err := c.runScriptCommand(ctx, guildVars, s, m.Message, channel, commandName, rest); err != nil {
-			glog.Errorf("Failed to run command %s: %v", commandName, err)
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
 			return
 		}
@@ -418,7 +429,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		OwnerName: ownerName,
 		Name:      scriptName,
 	}); err != nil {
-		if grpc.Code(err) == codes.NotFound {
+		if grpc.Code(err) == codes.NotFound || grpc.Code(err) == codes.InvalidArgument {
 			if aliased {
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Command alias references invalid script name**", m.Author.ID))
 			} else if !guildVars.Quiet {
@@ -450,36 +461,40 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 
 			ScriptCommandPrefix: guildVars.ScriptCommandPrefix,
 		},
-		NetworkInfoServiceTarget: c.networkInfoServiceTarget,
+		NetworkInfoServiceTarget: c.rpcTarget.String(),
+		MessagingServiceTarget:   c.rpcTarget.String(),
 	})
 	if err != nil {
 		return err
 	}
 
 	channelID := m.ChannelID
-	if resp.Private {
+	if resp.OutputParams.Private {
 		channel, err := s.UserChannelCreate(m.Author.ID)
 		if err != nil {
 			return err
 		}
-
 		channelID = channel.ID
 	}
 
 	waitStatus := syscall.WaitStatus(resp.WaitStatus)
 
 	if waitStatus.ExitStatus() == 0 || waitStatus.ExitStatus() == 2 {
-		outputFormatter, ok := outputFormatters[resp.OutputFormat]
+		outputFormatter, ok := OutputFormatters[resp.OutputParams.Format]
 		if !ok {
-			s.ChannelMessageSend(channelID, fmt.Sprintf("<@%s>: ❗ **Output format `%s` unknown!**", m.Author.ID, resp.OutputFormat))
+			s.ChannelMessageSend(channelID, fmt.Sprintf("<@%s> ❗ **Output format `%s` unknown!**", m.Author.ID, resp.OutputParams.Format))
 			return nil
 		}
 
-		messageSend, err := outputFormatter(resp)
+		if len(resp.Stdout) == 0 {
+			return nil
+		}
+
+		messageSend, err := outputFormatter(m.Author.ID, resp.Stdout, syscall.WaitStatus(resp.WaitStatus).ExitStatus() == 0)
 		if err != nil {
 			if iErr, ok := err.(invalidOutputError); ok {
 				s.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
-					Content: fmt.Sprintf("<@%s>: ❗ **Command output was invalid!**", m.Author.ID),
+					Content: fmt.Sprintf("<@%s> ❗ **Command output was invalid!**", m.Author.ID),
 					Embed: &discordgo.MessageEmbed{
 						Color:       0xb50000,
 						Description: fmt.Sprintf("```%s```", iErr.Error()),
@@ -490,15 +505,6 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			return err
 		}
 
-		var sigil string
-		if syscall.WaitStatus(resp.WaitStatus).ExitStatus() != 0 {
-			sigil = "❎"
-		} else {
-			sigil = "✅"
-		}
-
-		messageSend.Content = fmt.Sprintf("<@%s>: %s", m.Author.ID, sigil)
-
 		if _, err := s.ChannelMessageSendComplex(channelID, messageSend); err != nil {
 			return err
 		}
@@ -507,9 +513,9 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		sig := waitStatus.Signal()
 		switch sig {
 		case syscall.SIGKILL:
-			s.ChannelMessageSend(channelID, fmt.Sprintf("<@%s>: ❗ **Script used too many resources!**", m.Author.ID))
+			s.ChannelMessageSend(channelID, fmt.Sprintf("<@%s> ❗ **Script used too many resources!**", m.Author.ID))
 		default:
-			s.ChannelMessageSend(channelID, fmt.Sprintf("<@%s>: ❗ **Script was killed by %s!**", m.Author.ID, sig.String()))
+			s.ChannelMessageSend(channelID, fmt.Sprintf("<@%s> ❗ **Script was killed by %s!**", m.Author.ID, sig.String()))
 		}
 	} else {
 		stderr := resp.Stderr
@@ -526,7 +532,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		}
 
 		s.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@%s>: ❗ **Error occurred!**", m.Author.ID),
+			Content: fmt.Sprintf("<@%s> ❗ **Error occurred!**", m.Author.ID),
 			Embed:   &embed,
 		})
 	}

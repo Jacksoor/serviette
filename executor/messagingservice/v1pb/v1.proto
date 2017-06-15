@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package kobun4.executor.messaging.v1;
+
+option go_package = "v1pb";
+
+message MessageRequest {
+    bytes content = 1;
+    string format = 2;
+    oneof target {
+        string channel_id = 3;
+        string user_id = 4;
+    }
+}
+
+message MessageResponse {
+}
+
+service Messaging {
+    rpc Message(MessageRequest) returns (MessageResponse) { }
+}

@@ -6,6 +6,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//executor/accounts:go_default_library",
-        "//executor/scriptsservice/v1pb:go_default_library",
+        "//executor/messagingservice/v1pb:go_default_library",
+        "@org_golang_x_net//context:go_default_library",
     ],
 )

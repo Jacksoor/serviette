@@ -1,27 +1,40 @@
 package outputservice
 
+import (
+	"errors"
+
+	"github.com/porpoises/kobun4/executor/accounts"
+
+	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
+)
+
 type Service struct {
-	Format  string
-	Private bool
+	account      *accounts.Account
+	OutputParams *scriptspb.OutputParams
 }
 
-func New(format string) *Service {
+func New(account *accounts.Account) *Service {
 	return &Service{
-		Format:  format,
-		Private: false,
+		account: account,
+		OutputParams: &scriptspb.OutputParams{
+			Format: "text",
+		},
 	}
 }
 
 func (s *Service) SetFormat(req *struct {
 	Format string `json:"format"`
 }, resp *struct{}) error {
-	s.Format = req.Format
+	if req.Format == "raw" && !s.account.AllowRawOutput {
+		return errors.New("raw format requested but account is not allowed to send raw output")
+	}
+	s.OutputParams.Format = req.Format
 	return nil
 }
 
 func (s *Service) SetPrivate(req *struct {
 	Private bool `json:"private"`
 }, resp *struct{}) error {
-	s.Private = req.Private
+	s.OutputParams.Private = req.Private
 	return nil
 }

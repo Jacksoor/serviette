@@ -166,10 +166,14 @@ func (a AccountsResource) readScript(req *restful.Request, resp *restful.Respons
 	})
 
 	if err := g.Wait(); err != nil {
-		if grpc.Code(err) == codes.NotFound {
+		switch grpc.Code(err) {
+		case codes.InvalidArgument:
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusBadRequest, "script name invalid")
+		case codes.NotFound:
 			resp.AddHeader("Content-Type", "text/plain")
 			resp.WriteErrorString(http.StatusNotFound, "script not found")
-		} else {
+		default:
 			glog.Errorf("Failed to get script: %v", err)
 			resp.AddHeader("Content-Type", "text/plain")
 			resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
@@ -239,9 +243,18 @@ func (a AccountsResource) createScript(req *restful.Request, resp *restful.Respo
 		},
 		Content: []byte(strings.Replace(script.Content, "\r", "", -1)),
 	}); err != nil {
-		glog.Errorf("Failed to create script: %v", err)
-		resp.AddHeader("Content-Type", "text/plain")
-		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		switch grpc.Code(err) {
+		case codes.InvalidArgument:
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusBadRequest, "script name invalid")
+		case codes.AlreadyExists:
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusConflict, "script already exists")
+		default:
+			glog.Errorf("Failed to create script: %v", err)
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		}
 		return
 	}
 
@@ -279,11 +292,15 @@ func (a AccountsResource) updateScript(req *restful.Request, resp *restful.Respo
 		OwnerName: accountName,
 		Name:      scriptName,
 	}); err != nil {
-		if grpc.Code(err) == codes.NotFound {
+		switch grpc.Code(err) {
+		case codes.InvalidArgument:
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusBadRequest, "script name invalid")
+		case codes.NotFound:
 			resp.AddHeader("Content-Type", "text/plain")
 			resp.WriteErrorString(http.StatusNotFound, "script not found")
-		} else {
-			glog.Errorf("Failed to get script: %v", err)
+		default:
+			glog.Errorf("Failed to delete script: %v", err)
 			resp.AddHeader("Content-Type", "text/plain")
 			resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
 		}
@@ -330,11 +347,15 @@ func (a AccountsResource) deleteScript(req *restful.Request, resp *restful.Respo
 		OwnerName: accountName,
 		Name:      scriptName,
 	}); err != nil {
-		if grpc.Code(err) == codes.NotFound {
+		switch grpc.Code(err) {
+		case codes.InvalidArgument:
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusBadRequest, "script name invalid")
+		case codes.NotFound:
 			resp.AddHeader("Content-Type", "text/plain")
 			resp.WriteErrorString(http.StatusNotFound, "script not found")
-		} else {
-			glog.Errorf("Failed to get script: %v", err)
+		default:
+			glog.Errorf("Failed to delete script: %v", err)
 			resp.AddHeader("Content-Type", "text/plain")
 			resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
 		}

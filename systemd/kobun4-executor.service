@@ -2,9 +2,8 @@
 Description=Kobun4 Executor
 
 [Service]
-Restart=on-failure
-StartLimitInterval=86400
-StartLimitBurst=5
+Restart=always
+RestartSec=3
 
 User=kobun4
 Group=nogroup

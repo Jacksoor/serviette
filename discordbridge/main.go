@@ -20,9 +20,11 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/porpoises/kobun4/discordbridge/client"
+	"github.com/porpoises/kobun4/discordbridge/messagingservice"
 	"github.com/porpoises/kobun4/discordbridge/networkinfoservice"
 	"github.com/porpoises/kobun4/discordbridge/varstore"
 
+	messagingpb "github.com/porpoises/kobun4/executor/messagingservice/v1pb"
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
@@ -71,10 +73,17 @@ func main() {
 
 	vars := varstore.New(db)
 
+	lis, err := net.Listen("tcp", *bindSocket)
+	if err != nil {
+		glog.Fatalf("failed to listen: %v", err)
+	}
+	defer lis.Close()
+	glog.Infof("Listening on: %s", lis.Addr())
+
 	client, err := client.New(*discordToken, &client.Options{
 		Status: *status,
 		WebURL: *webURL,
-	}, *bindSocket, vars, scriptspb.NewScriptsClient(executorConn))
+	}, lis.Addr(), vars, scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}
@@ -84,17 +93,11 @@ func main() {
 
 	s := grpc.NewServer()
 	networkinfopb.RegisterNetworkInfoServer(s, networkinfoservice.New(client.Session(), vars))
+	messagingpb.RegisterMessagingServer(s, messagingservice.New(client.Session(), vars))
 	reflection.Register(s)
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGTERM)
-
-	lis, err := net.Listen("tcp", *bindSocket)
-	if err != nil {
-		glog.Fatalf("failed to listen: %v", err)
-	}
-	defer lis.Close()
-	glog.Infof("Listening on: %s", lis.Addr())
 
 	errChan := make(chan error)
 	go func() {

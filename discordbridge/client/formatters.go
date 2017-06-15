@@ -11,14 +11,11 @@ import (
 	"mime/multipart"
 	"net/mail"
 	"strings"
-	"syscall"
 
 	"github.com/bwmarrin/discordgo"
-
-	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
-type outputFormatter func(r *scriptspb.ExecuteResponse) (*discordgo.MessageSend, error)
+type OutputFormatter func(authorID string, content []byte, ok bool) (*discordgo.MessageSend, error)
 
 type invalidOutputError struct {
 	error
@@ -38,44 +35,66 @@ func copyPart(dest io.Writer, part *multipart.Part) (int64, error) {
 	return 0, fmt.Errorf("unknown Content-Transfer-Encoding: %s", encoding)
 }
 
-var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
-	"text": func(r *scriptspb.ExecuteResponse) (*discordgo.MessageSend, error) {
+var sigils = map[bool]string{
+	true:  "✅",
+	false: "❎",
+}
+
+var OutputFormatters map[string]OutputFormatter = map[string]OutputFormatter{
+	"raw": func(authorID string, content []byte, ok bool) (*discordgo.MessageSend, error) {
+		return &discordgo.MessageSend{Content: string(content)}, nil
+	},
+
+	"text": func(authorID string, content []byte, ok bool) (*discordgo.MessageSend, error) {
 		embed := &discordgo.MessageEmbed{
 			Fields: []*discordgo.MessageEmbedField{},
 		}
 
-		if syscall.WaitStatus(r.WaitStatus).ExitStatus() != 0 {
-			embed.Color = 0xb50000
-		} else {
+		if ok {
 			embed.Color = 0x009100
+		} else {
+			embed.Color = 0xb50000
 		}
 
-		stdout := r.Stdout
-		if len(stdout) > 1500 {
-			stdout = stdout[:1500]
+		if len(content) > 1500 {
+			content = content[:1500]
 		}
 
-		embed.Description = string(stdout)
+		embed.Description = string(content)
 
-		return &discordgo.MessageSend{Embed: embed}, nil
-	},
-
-	"discord.embed": func(r *scriptspb.ExecuteResponse) (*discordgo.MessageSend, error) {
-		embed := &discordgo.MessageEmbed{}
-
-		if err := json.Unmarshal(r.Stdout, embed); err != nil {
-			return nil, invalidOutputError{err}
+		note := sigils[ok]
+		if authorID != "" {
+			note = fmt.Sprintf("<@%s>: %s", authorID, sigils[ok])
 		}
 
 		return &discordgo.MessageSend{
-			Embed: embed,
+			Content: note,
+			Embed:   embed,
 		}, nil
 	},
 
-	"discord.embed_multipart": func(r *scriptspb.ExecuteResponse) (*discordgo.MessageSend, error) {
+	"discord.embed": func(authorID string, content []byte, ok bool) (*discordgo.MessageSend, error) {
 		embed := &discordgo.MessageEmbed{}
 
-		msg, err := mail.ReadMessage(bytes.NewReader(r.Stdout))
+		if err := json.Unmarshal(content, embed); err != nil {
+			return nil, invalidOutputError{err}
+		}
+
+		note := sigils[ok]
+		if authorID != "" {
+			note = fmt.Sprintf("<@%s>: %s", authorID, sigils[ok])
+		}
+
+		return &discordgo.MessageSend{
+			Content: note,
+			Embed:   embed,
+		}, nil
+	},
+
+	"discord.embed_multipart": func(authorID string, content []byte, ok bool) (*discordgo.MessageSend, error) {
+		embed := &discordgo.MessageEmbed{}
+
+		msg, err := mail.ReadMessage(bytes.NewReader(content))
 		if err != nil {
 			return nil, invalidOutputError{err}
 		}
@@ -135,9 +154,15 @@ var outputFormatters map[string]outputFormatter = map[string]outputFormatter{
 			})
 		}
 
+		note := sigils[ok]
+		if authorID != "" {
+			note = fmt.Sprintf("<@%s>: %s", authorID, sigils[ok])
+		}
+
 		return &discordgo.MessageSend{
-			Embed: embed,
-			Files: files,
+			Content: note,
+			Embed:   embed,
+			Files:   files,
 		}, nil
 	},
 }

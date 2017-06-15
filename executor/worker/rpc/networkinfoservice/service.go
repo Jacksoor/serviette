@@ -7,11 +7,13 @@ import (
 )
 
 type Service struct {
+	ctx               context.Context
 	networkInfoClient networkinfopb.NetworkInfoClient
 }
 
-func New(networkInfoClient networkinfopb.NetworkInfoClient) *Service {
+func New(ctx context.Context, networkInfoClient networkinfopb.NetworkInfoClient) *Service {
 	return &Service{
+		ctx:               ctx,
 		networkInfoClient: networkInfoClient,
 	}
 }
@@ -22,7 +24,7 @@ func (s *Service) GetUserInfo(req *struct {
 	Name  string            `json:"name"`
 	Extra map[string]string `json:"extra"`
 }) error {
-	grpcResp, err := s.networkInfoClient.GetUserInfo(context.Background(), &networkinfopb.GetUserInfoRequest{
+	grpcResp, err := s.networkInfoClient.GetUserInfo(s.ctx, &networkinfopb.GetUserInfoRequest{
 		UserId: req.ID,
 	})
 	if err != nil {
@@ -41,7 +43,7 @@ func (s *Service) GetChannelInfo(req *struct {
 	IsOneOnOne bool              `json:"isOneOnOne"`
 	Extra      map[string]string `json:"extra"`
 }) error {
-	grpcResp, err := s.networkInfoClient.GetChannelInfo(context.Background(), &networkinfopb.GetChannelInfoRequest{
+	grpcResp, err := s.networkInfoClient.GetChannelInfo(s.ctx, &networkinfopb.GetChannelInfoRequest{
 		ChannelId: req.ID,
 	})
 	if err != nil {
@@ -60,7 +62,7 @@ func (s *Service) GetGroupInfo(req *struct {
 	Name  string            `json:"name"`
 	Extra map[string]string `json:"extra"`
 }) error {
-	grpcResp, err := s.networkInfoClient.GetGroupInfo(context.Background(), &networkinfopb.GetGroupInfoRequest{
+	grpcResp, err := s.networkInfoClient.GetGroupInfo(s.ctx, &networkinfopb.GetGroupInfoRequest{
 		GroupId: req.ID,
 	})
 	if err != nil {
@@ -79,7 +81,7 @@ func (s *Service) GetChannelMemberInfo(req *struct {
 	Name  string            `json:"name"`
 	Extra map[string]string `json:"extra"`
 }) error {
-	grpcResp, err := s.networkInfoClient.GetChannelMemberInfo(context.Background(), &networkinfopb.GetChannelMemberInfoRequest{
+	grpcResp, err := s.networkInfoClient.GetChannelMemberInfo(s.ctx, &networkinfopb.GetChannelMemberInfoRequest{
 		ChannelId: req.ChannelID,
 		UserId:    req.UserID,
 	})
@@ -99,7 +101,7 @@ func (s *Service) GetGroupMemberInfo(req *struct {
 	Name  string            `json:"name"`
 	Extra map[string]string `json:"extra"`
 }) error {
-	grpcResp, err := s.networkInfoClient.GetGroupMemberInfo(context.Background(), &networkinfopb.GetGroupMemberInfoRequest{
+	grpcResp, err := s.networkInfoClient.GetGroupMemberInfo(s.ctx, &networkinfopb.GetGroupMemberInfoRequest{
 		GroupId: req.GroupID,
 		UserId:  req.UserID,
 	})

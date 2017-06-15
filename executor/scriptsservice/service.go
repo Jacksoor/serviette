@@ -12,11 +12,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
+	messagingpb "github.com/porpoises/kobun4/executor/messagingservice/v1pb"
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
 
 	"github.com/porpoises/kobun4/executor/accounts"
 	"github.com/porpoises/kobun4/executor/scripts"
 	"github.com/porpoises/kobun4/executor/worker"
+	"github.com/porpoises/kobun4/executor/worker/rpc/messagingservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/networkinfoservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/outputservice"
 
@@ -171,7 +173,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	w := worker.New(workerOpts, filepath.Join("/mnt/scripts", script.QualifiedName()), []string{}, bytes.NewBuffer(req.Stdin))
 
-	outputService := outputservice.New("text")
+	outputService := outputservice.New(account)
 	w.RegisterService("Output", outputService)
 
 	networkInfoConn, err := grpc.Dial(req.NetworkInfoServiceTarget, grpc.WithInsecure())
@@ -180,8 +182,19 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 	defer networkInfoConn.Close()
 
-	networkInfoService := networkinfoservice.New(networkinfopb.NewNetworkInfoClient(networkInfoConn))
+	networkInfoService := networkinfoservice.New(ctx, networkinfopb.NewNetworkInfoClient(networkInfoConn))
 	w.RegisterService("NetworkInfo", networkInfoService)
+
+	if account.AllowMessagingService {
+		messagingConn, err := grpc.Dial(req.MessagingServiceTarget, grpc.WithInsecure())
+		if err != nil {
+			return nil, grpc.Errorf(codes.Unavailable, "network info service unavailable")
+		}
+		defer messagingConn.Close()
+
+		messagingService := messagingservice.New(ctx, account, messagingpb.NewMessagingClient(messagingConn))
+		w.RegisterService("Messaging", messagingService)
+	}
 
 	r, err := w.Run(ctx)
 	if r == nil {
@@ -201,11 +214,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 
 	return &pb.ExecuteResponse{
-		WaitStatus:   uint32(waitStatus),
-		Stdout:       r.Stdout,
-		Stderr:       r.Stderr,
-		OutputFormat: outputService.Format,
-		Private:      outputService.Private,
+		WaitStatus: uint32(waitStatus),
+		Stdout:     r.Stdout,
+		Stderr:     r.Stderr,
+
+		OutputParams: outputService.OutputParams,
 	}, nil
 }
 

@@ -6,8 +6,10 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//discordbridge/client:go_default_library",
+        "//discordbridge/messagingservice:go_default_library",
         "//discordbridge/networkinfoservice:go_default_library",
         "//discordbridge/varstore:go_default_library",
+        "//executor/messagingservice/v1pb:go_default_library",
         "//executor/networkinfoservice/v1pb:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "@com_github_golang_glog//:go_default_library",
