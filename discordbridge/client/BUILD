@@ -3,9 +3,9 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = [
-        "admincommands.go",
         "client.go",
         "formatters.go",
+        "metacommands.go",
         "resolve.go",
     ],
     visibility = ["//visibility:public"],

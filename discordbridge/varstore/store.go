@@ -81,17 +81,17 @@ func (s *Store) SetGuildVars(ctx context.Context, tx *sql.Tx, guildID string, gu
 	return nil
 }
 
-type Alias struct {
+type Link struct {
 	OwnerName  string
 	ScriptName string
 }
 
-func (s *Store) GuildAliases(ctx context.Context, tx *sql.Tx, guildID string) (map[string]*Alias, error) {
-	aliases := make(map[string]*Alias)
+func (s *Store) GuildLinks(ctx context.Context, tx *sql.Tx, guildID string) (map[string]*Link, error) {
+	links := make(map[string]*Link)
 
 	rows, err := tx.QueryContext(ctx, `
-		select alias_name, owner_name, script_name
-		from guild_aliases
+		select link_name, owner_name, script_name
+		from guild_links
 		where guild_id = ?
 	`, guildID)
 	if err != nil {
@@ -100,55 +100,55 @@ func (s *Store) GuildAliases(ctx context.Context, tx *sql.Tx, guildID string) (m
 	defer rows.Close()
 
 	for rows.Next() {
-		var aliasName string
-		alias := &Alias{}
+		var linkName string
+		link := &Link{}
 
-		if err := rows.Scan(&aliasName, &alias.OwnerName, &alias.ScriptName); err != nil {
+		if err := rows.Scan(&linkName, &link.OwnerName, &link.ScriptName); err != nil {
 			return nil, err
 		}
 
-		aliases[aliasName] = alias
+		links[linkName] = link
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return aliases, nil
+	return links, nil
 }
 
-func (s *Store) GuildAlias(ctx context.Context, tx *sql.Tx, guildID string, aliasName string) (*Alias, error) {
-	alias := &Alias{}
+func (s *Store) GuildLink(ctx context.Context, tx *sql.Tx, guildID string, linkName string) (*Link, error) {
+	link := &Link{}
 
 	if err := tx.QueryRowContext(ctx, `
 		select owner_name, script_name
-		from guild_aliases
+		from guild_links
 		where guild_id = ? and
-		      alias_name = ?
-	`, guildID, aliasName).Scan(&alias.OwnerName, &alias.ScriptName); err != nil {
+		      link_name = ?
+	`, guildID, linkName).Scan(&link.OwnerName, &link.ScriptName); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
 
-	return alias, nil
+	return link, nil
 }
 
-func (s *Store) SetGuildAlias(ctx context.Context, tx *sql.Tx, guildID string, aliasName string, alias *Alias) error {
+func (s *Store) SetGuildLink(ctx context.Context, tx *sql.Tx, guildID string, linkName string, link *Link) error {
 	var r sql.Result
 	var err error
 
-	if alias == nil {
+	if link == nil {
 		r, err = tx.ExecContext(ctx, `
-			delete from guild_aliases
+			delete from guild_links
 			where guild_id = ? and
-			      alias_name = ?
-		`, guildID, aliasName)
+			      link_name = ?
+		`, guildID, linkName)
 	} else {
 		r, err = tx.ExecContext(ctx, `
-			insert or replace into guild_aliases (guild_id, alias_name, owner_name, script_name)
+			insert or replace into guild_links (guild_id, link_name, owner_name, script_name)
 			values (?, ?, ?, ?)
-		`, guildID, aliasName, alias.OwnerName, alias.ScriptName)
+		`, guildID, linkName, link.OwnerName, link.ScriptName)
 	}
 
 	if err != nil {

@@ -13,16 +13,20 @@ var (
 	errNotFound error = errors.New("not found")
 )
 
-func resolveScriptName(ctx context.Context, c *Client, guildID string, commandName string) (string, string, bool, error) {
+func commandNameIsLinked(commandName string) bool {
+	return !strings.Contains(commandName, "/")
+}
+
+func resolveScriptName(ctx context.Context, c *Client, guildID string, commandName string) (string, string, error) {
 	if sepIndex := strings.Index(commandName, "/"); sepIndex != -1 {
 		// Look up via qualified name.
 		ownerName := commandName[:sepIndex]
 		name := commandName[sepIndex+1:]
-		return ownerName, name, false, nil
+		return ownerName, name, nil
 	}
 
-	// Look up via an alias name.
-	var alias *varstore.Alias
+	// Look up via an link name.
+	var link *varstore.Link
 	if err := func() error {
 		tx, err := c.vars.BeginTx(ctx)
 		if err != nil {
@@ -30,14 +34,14 @@ func resolveScriptName(ctx context.Context, c *Client, guildID string, commandNa
 		}
 		defer tx.Rollback()
 
-		alias, err = c.vars.GuildAlias(ctx, tx, guildID, commandName)
+		link, err = c.vars.GuildLink(ctx, tx, guildID, commandName)
 		return err
 	}(); err != nil {
 		if err == varstore.ErrNotFound {
-			return "", "", true, errNotFound
+			return "", "", errNotFound
 		}
-		return "", "", true, err
+		return "", "", err
 	}
 
-	return alias.OwnerName, alias.ScriptName, true, nil
+	return link.OwnerName, link.ScriptName, nil
 }

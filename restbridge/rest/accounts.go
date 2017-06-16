@@ -28,7 +28,7 @@ type Account struct {
 type Script struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	Content     string `json:"content"`
+	Content     string `json:"content,omitempty"`
 }
 
 type AccountsResource struct {
