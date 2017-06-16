@@ -152,18 +152,20 @@ func (a AccountsResource) readScript(req *restful.Request, resp *restful.Respons
 		return nil
 	})
 
-	g.Go(func() error {
-		contentResp, err := a.scriptsClient.GetContent(req.Request.Context(), &scriptspb.GetContentRequest{
-			OwnerName: accountName,
-			Name:      scriptName,
-		})
-		if err != nil {
-			return err
-		}
+	if req.QueryParameter("getContent") != "" {
+		g.Go(func() error {
+			contentResp, err := a.scriptsClient.GetContent(req.Request.Context(), &scriptspb.GetContentRequest{
+				OwnerName: accountName,
+				Name:      scriptName,
+			})
+			if err != nil {
+				return err
+			}
 
-		content = string(contentResp.Content)
-		return nil
-	})
+			content = string(contentResp.Content)
+			return nil
+		})
+	}
 
 	if err := g.Wait(); err != nil {
 		switch grpc.Code(err) {

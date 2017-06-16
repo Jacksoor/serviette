@@ -100,10 +100,15 @@ func (w *Worker) Run(ctx context.Context) (*WorkerResult, error) {
 		"--tmpfsmount", "/tmp",
 		"--tmpfs_size", fmt.Sprintf("%d", w.opts.TmpfsSize),
 		"--seccomp_string", w.opts.KafelSeccompPolicy,
-		"--macvlan_iface", w.opts.Network.Interface,
-		"--macvlan_vs_ip", w.opts.Network.IP,
-		"--macvlan_vs_nm", w.opts.Network.Netmask,
-		"--macvlan_vs_gw", w.opts.Network.Gateway,
+	}
+
+	if w.opts.Network != nil {
+		nsjailArgs = append(nsjailArgs,
+			"--macvlan_iface", w.opts.Network.Interface,
+			"--macvlan_vs_ip", w.opts.Network.IP,
+			"--macvlan_vs_nm", w.opts.Network.Netmask,
+			"--macvlan_vs_gw", w.opts.Network.Gateway,
+		)
 	}
 
 	nsjailArgs = append(nsjailArgs, w.opts.ExtraNsjailArgs...)

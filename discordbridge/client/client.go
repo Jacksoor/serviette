@@ -404,7 +404,9 @@ Remove a command name's alias.`,
 		Embed: &discordgo.MessageEmbed{
 			Title:       "ℹ Help",
 			URL:         c.opts.WebURL,
-			Description: fmt.Sprintf(`Here's a listing of my commands.%s`, formattedAnnouncement),
+			Description: fmt.Sprintf(`Here's a listing of commands that are aliased on this server.
+
+More commands may be available. The full list of commands and their source listings are available at %s/commands%s`, c.opts.WebURL, formattedAnnouncement),
 			Color:       0x009100,
 			Fields:      fields,
 		},

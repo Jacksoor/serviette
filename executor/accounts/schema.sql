@@ -5,5 +5,6 @@ create table accounts (
     memory_limit integer not null,
     tmpfs_size integer not null,
     allow_messaging_service boolean not null,
-    allow_raw_output boolean not null
+    allow_raw_output boolean not null,
+    allow_network_access boolean not null
 );

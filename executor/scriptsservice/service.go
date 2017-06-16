@@ -163,6 +163,9 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	workerOpts.TimeLimit = account.TimeLimit
 	workerOpts.MemoryLimit = account.MemoryLimit
 	workerOpts.TmpfsSize = account.TmpfsSize
+	if !account.AllowNetworkAccess {
+		workerOpts.Network = nil
+	}
 	workerOpts.ExtraNsjailArgs = append(workerOpts.ExtraNsjailArgs,
 		"--bindmount", fmt.Sprintf("%s:/mnt/storage", mountPath),
 		"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", s.scripts.RootPath()),

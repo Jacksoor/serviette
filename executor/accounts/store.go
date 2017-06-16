@@ -32,6 +32,7 @@ type Account struct {
 
 	AllowMessagingService bool
 	AllowRawOutput        bool
+	AllowNetworkAccess    bool
 }
 
 func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
@@ -40,10 +41,10 @@ func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
 	var timeLimitSeconds int64
 
 	if err := s.db.QueryRowContext(ctx, `
-		select password_hash, time_limit_seconds, memory_limit, tmpfs_size, allow_messaging_service, allow_raw_output
+		select password_hash, time_limit_seconds, memory_limit, tmpfs_size, allow_messaging_service, allow_raw_output, allow_network_access
 		from accounts
 		where name = ?
-	`, name).Scan(&account.PasswordHash, &timeLimitSeconds, &account.MemoryLimit, &account.TmpfsSize, &account.AllowMessagingService, &account.AllowRawOutput); err != nil {
+	`, name).Scan(&account.PasswordHash, &timeLimitSeconds, &account.MemoryLimit, &account.TmpfsSize, &account.AllowMessagingService, &account.AllowRawOutput, &account.AllowNetworkAccess); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
