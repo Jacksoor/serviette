@@ -77,6 +77,7 @@ func (s *Service) GetGroupMemberInfo(ctx context.Context, req *pb.GetGroupMember
 
 	return &pb.GetGroupMemberInfoResponse{
 		Name: name,
+		Role: member.Roles,
 	}, nil
 }
 
@@ -93,6 +94,7 @@ func (s *Service) GetChannelMemberInfo(ctx context.Context, req *pb.GetChannelMe
 		return nil, err
 	}
 
+	var roles []string
 	if channel.GuildID != "" {
 		member, err := s.session.GuildMember(channel.GuildID, req.UserId)
 		if err != nil {
@@ -102,9 +104,12 @@ func (s *Service) GetChannelMemberInfo(ctx context.Context, req *pb.GetChannelMe
 		if member.Nick != "" {
 			name = member.Nick
 		}
+
+		roles = member.Roles
 	}
 
 	return &pb.GetChannelMemberInfoResponse{
 		Name: name,
+		Role: roles,
 	}, nil
 }

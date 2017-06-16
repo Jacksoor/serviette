@@ -19,13 +19,13 @@ import (
 
 type metaCommand struct {
 	adminOnly bool
-	f         func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, rest string) error
+	f         func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, member *discordgo.Member, rest string) error
 }
 
 var metaCommands map[string]metaCommand = map[string]metaCommand{
-	"help": metaCommand{
+	"help": {
 		adminOnly: false,
-		f: func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+		f: func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
 			var links map[string]*varstore.Link
 			ok, err := func() (bool, error) {
 				tx, err := c.vars.BeginTx(ctx)
@@ -130,11 +130,6 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 
 			sort.Sort(ByFieldName(fields))
 
-			member, err := c.session.GuildMember(channel.GuildID, m.Author.ID)
-			if err != nil {
-				return err
-			}
-
 			fields = append(fields,
 				&discordgo.MessageEmbedField{
 					Name:  fmt.Sprintf("@%s help", c.session.State.User.Username),
@@ -142,7 +137,7 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 				},
 				&discordgo.MessageEmbedField{
 					Name:  fmt.Sprintf("@%s info <command name>", c.session.State.User.Username),
-					Value: `Get link information on any command beginning with ` + "`" + guildVars.ScriptCommandPrefix + "`",
+					Value: `Get information on any linked command beginning with ` + "`" + guildVars.ScriptCommandPrefix + "`",
 				},
 			)
 
@@ -150,8 +145,8 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 				fields = append(fields,
 					&discordgo.MessageEmbedField{
 						Name: fmt.Sprintf("@%s link <command name> <script name>", c.session.State.User.Username),
-						Value: `**Administrators only.**
-Link a command name to a script name. If the link already exists, it will be replaced.`,
+						Value: fmt.Sprintf(`**Administrators only.**
+Link a command name to a script name. If the link already exists, it will be replaced. A list of linkable script names can be found at %s/scripts`, c.opts.WebURL),
 					},
 					&discordgo.MessageEmbedField{
 						Name: fmt.Sprintf("@%s unlink <command name>", c.session.State.User.Username),
@@ -169,28 +164,31 @@ Remove a command name link.`,
 			c.session.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 				Content: fmt.Sprintf("<@%s>: ✅", m.Author.ID),
 				Embed: &discordgo.MessageEmbed{
-					Title: "ℹ Help",
-					URL:   c.opts.WebURL,
-					Description: fmt.Sprintf(`Here's a listing of commands that are linked on this server.
-
-More commands may be available. The full list of commands and their source listings are available at %s/commands%s`, c.opts.WebURL, formattedAnnouncement),
-					Color:  0x009100,
-					Fields: fields,
+					Title:       "ℹ Help",
+					URL:         c.opts.WebURL,
+					Description: fmt.Sprintf(`Here's a listing of commands that are linked on this server.%s`, formattedAnnouncement),
+					Color:       0x009100,
+					Fields:      fields,
 				},
 			})
 			return nil
 		},
 	},
-	"info": metaCommand{
+	"info": {
 		adminOnly: false,
-		f: func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+		f: func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
 			commandName := rest
 
 			linked := commandNameIsLinked(commandName)
+			if !linked {
+				c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Link `%s` not found**", m.Author.ID, commandName))
+				return nil
+			}
+
 			ownerName, scriptName, err := resolveScriptName(ctx, c, channel.GuildID, commandName)
 			if err != nil {
 				if err == errNotFound {
-					c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s` not found**", m.Author.ID, commandName))
+					c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Link `%s` not found**", m.Author.ID, commandName))
 					return nil
 				}
 				return err
@@ -201,18 +199,13 @@ More commands may be available. The full list of commands and their source listi
 				Name:      scriptName,
 			})
 			if err != nil {
-				if grpc.Code(err) == codes.NotFound {
-					if linked {
-						c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Command link references invalid script name**", m.Author.ID))
-					} else {
-						c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s/%s` not found**", m.Author.ID, ownerName, scriptName))
-					}
+				switch grpc.Code(err) {
+				case codes.NotFound, codes.InvalidArgument:
+					c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Link references invalid script name**", m.Author.ID))
 					return nil
-				} else if grpc.Code(err) == codes.InvalidArgument {
-					c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Invalid script name**", m.Author.ID))
-					return nil
+				default:
+					return err
 				}
-				return err
 			}
 
 			description := getMeta.Meta.Description
@@ -243,9 +236,9 @@ More commands may be available. The full list of commands and their source listi
 			return nil
 		},
 	},
-	"link": metaCommand{
+	"link": {
 		adminOnly: true,
-		f: func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+		f: func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
 			parts := strings.SplitN(rest, " ", 2)
 
 			if len(parts) != 2 {
@@ -327,9 +320,9 @@ More commands may be available. The full list of commands and their source listi
 			return nil
 		},
 	},
-	"unlink": metaCommand{
+	"unlink": {
 		adminOnly: true,
-		f: func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, rest string) error {
+		f: func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
 			commandName := rest
 
 			tx, err := c.vars.BeginTx(ctx)

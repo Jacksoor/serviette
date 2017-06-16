@@ -82,6 +82,10 @@ func (c *Client) ready(s *discordgo.Session, r *discordgo.Ready) {
 }
 
 func memberIsAdmin(adminRoleID string, member *discordgo.Member) bool {
+	if member == nil {
+		return false
+	}
+
 	for _, roleID := range member.Roles {
 		if roleID == adminRoleID {
 			return true
@@ -165,45 +169,48 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 
 	content := strings.TrimSpace(m.Content)
 
-	member, err := c.session.GuildMember(channel.GuildID, m.Author.ID)
-	if err != nil {
-		glog.Errorf("Failed to get member: %v", err)
-		return
-	}
-
-	if match := c.metaCommandRegexp.FindStringSubmatch(content); match != nil {
-		rest := match[1]
-		firstSpaceIndex := strings.Index(rest, " ")
-
-		var commandName string
-		if firstSpaceIndex == -1 {
-			commandName = rest
-			rest = ""
-		} else {
-			commandName = rest[:firstSpaceIndex]
-			rest = strings.TrimSpace(rest[firstSpaceIndex+1:])
+	var member *discordgo.Member
+	if channel.GuildID != "" {
+		member, err = c.session.GuildMember(channel.GuildID, m.Author.ID)
+		if err != nil {
+			glog.Errorf("Failed to get member: %v", err)
+			return
 		}
 
-		cmd, ok := metaCommands[commandName]
-		if !ok {
-			if !guildVars.Quiet {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Meta command `%s` not found**", m.Author.ID, commandName))
+		if match := c.metaCommandRegexp.FindStringSubmatch(content); match != nil {
+			rest := match[1]
+			firstSpaceIndex := strings.Index(rest, " ")
+
+			var commandName string
+			if firstSpaceIndex == -1 {
+				commandName = rest
+				rest = ""
+			} else {
+				commandName = rest[:firstSpaceIndex]
+				rest = strings.TrimSpace(rest[firstSpaceIndex+1:])
 			}
+
+			cmd, ok := metaCommands[commandName]
+			if !ok {
+				if !guildVars.Quiet {
+					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Meta command `%s` not found**", m.Author.ID, commandName))
+				}
+				return
+			}
+
+			if cmd.adminOnly && !memberIsAdmin(guildVars.AdminRoleID, member) {
+				c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: 🚫 **Not authorized**", m.Author.ID))
+				return
+			}
+
+			if err := cmd.f(ctx, c, guildVars, m.Message, channel, member, rest); err != nil {
+				glog.Errorf("Failed to run command %s: %v", commandName, err)
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
+				return
+			}
+
 			return
 		}
-
-		if cmd.adminOnly && !memberIsAdmin(guildVars.AdminRoleID, member) {
-			c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: 🚫 **Not authorized**", m.Author.ID))
-			return
-		}
-
-		if err := cmd.f(ctx, c, guildVars, m.Message, channel, rest); err != nil {
-			glog.Errorf("Failed to run admin command %s: %v", commandName, err)
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
-			return
-		}
-
-		return
 	}
 
 	if strings.HasPrefix(content, guildVars.ScriptCommandPrefix) {
@@ -245,9 +252,9 @@ func (s ByFieldName) Less(i, j int) bool {
 
 func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.GuildVars, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, member *discordgo.Member, commandName string, rest string) error {
 	linked := commandNameIsLinked(commandName)
-	if !linked && !memberIsAdmin(guildVars.AdminRoleID, member) {
+	if member != nil && !linked && !memberIsAdmin(guildVars.AdminRoleID, member) {
 		if !guildVars.Quiet {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Only Kobun administrators can run unlinked commands**", m.Author.ID))
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Only the server's Kobun administrators can run unlinked commands**", m.Author.ID))
 		}
 		return nil
 	}

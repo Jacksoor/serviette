@@ -79,6 +79,7 @@ func (s *Service) GetChannelMemberInfo(req *struct {
 	UserID    string `json:"userId"`
 }, resp *struct {
 	Name  string            `json:"name"`
+	Roles []string          `json:"roles"`
 	Extra map[string]string `json:"extra"`
 }) error {
 	grpcResp, err := s.networkInfoClient.GetChannelMemberInfo(s.ctx, &networkinfopb.GetChannelMemberInfoRequest{
@@ -90,6 +91,7 @@ func (s *Service) GetChannelMemberInfo(req *struct {
 	}
 
 	resp.Name = grpcResp.Name
+	resp.Roles = grpcResp.Role
 	resp.Extra = grpcResp.Extra
 	return nil
 }
@@ -99,6 +101,7 @@ func (s *Service) GetGroupMemberInfo(req *struct {
 	UserID  string `json:"userId"`
 }, resp *struct {
 	Name  string            `json:"name"`
+	Roles []string          `json:"roles"`
 	Extra map[string]string `json:"extra"`
 }) error {
 	grpcResp, err := s.networkInfoClient.GetGroupMemberInfo(s.ctx, &networkinfopb.GetGroupMemberInfoRequest{
@@ -110,6 +113,7 @@ func (s *Service) GetGroupMemberInfo(req *struct {
 	}
 
 	resp.Name = grpcResp.Name
+	resp.Roles = grpcResp.Role
 	resp.Extra = grpcResp.Extra
 	return nil
 }

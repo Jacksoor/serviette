@@ -42,6 +42,7 @@ message GetChannelMemberInfoRequest {
 
 message GetChannelMemberInfoResponse {
     string name = 1;
+    repeated string role = 2;
 
     map<string, string> extra = 1000;
 }
@@ -53,6 +54,7 @@ message GetGroupMemberInfoRequest {
 
 message GetGroupMemberInfoResponse {
     string name = 1;
+    repeated string role = 2;
 
     map<string, string> extra = 1000;
 }
