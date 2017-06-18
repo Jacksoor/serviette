@@ -56,31 +56,24 @@ type Service struct {
 	scripts  *scripts.Store
 	accounts *accounts.Store
 
-	storageRootPath string
-	k4LibraryPath   string
+	k4LibraryPath string
 
 	baseWorkerOptions *worker.Options
 }
 
-func New(scripts *scripts.Store, accounts *accounts.Store, storageRootPath string, k4LibraryPath string, baseWorkerOptions *worker.Options) (*Service, error) {
+func New(scripts *scripts.Store, accounts *accounts.Store, k4LibraryPath string, baseWorkerOptions *worker.Options) *Service {
 	prometheus.MustRegister(scriptRealExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptCPUExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptUsesByServer)
-
-	storageRootPath, err := filepath.Abs(storageRootPath)
-	if err != nil {
-		return nil, err
-	}
 
 	return &Service{
 		scripts:  scripts,
 		accounts: accounts,
 
-		storageRootPath: storageRootPath,
-		k4LibraryPath:   k4LibraryPath,
+		k4LibraryPath: k4LibraryPath,
 
 		baseWorkerOptions: baseWorkerOptions,
-	}, nil
+	}
 }
 
 func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.CreateResponse, error) {
@@ -196,7 +189,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 
 	workerOpts.ExtraNsjailArgs = append(workerOpts.ExtraNsjailArgs,
-		"--bindmount", fmt.Sprintf("%s:/mnt/storage", filepath.Join(s.storageRootPath, script.OwnerName)),
+		"--bindmount", fmt.Sprintf("%s:/mnt/storage", account.StoragePath()),
 		"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", s.scripts.RootPath()),
 		"--bindmount_ro", fmt.Sprintf("%s:/usr/lib/k4", s.k4LibraryPath),
 		"--cwd", "/mnt/storage",

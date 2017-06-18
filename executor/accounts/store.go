@@ -3,6 +3,8 @@ package accounts
 import (
 	"database/sql"
 	"errors"
+	"path/filepath"
+	"syscall"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -15,16 +17,22 @@ var (
 )
 
 type Store struct {
-	db *sql.DB
+	db              *sql.DB
+	storageRootPath string
 }
 
-func NewStore(db *sql.DB) *Store {
+func NewStore(db *sql.DB, storageRootPath string) *Store {
 	return &Store{
-		db: db,
+		db:              db,
+		storageRootPath: storageRootPath,
 	}
 }
 
 type Account struct {
+	storageRootPath string
+
+	Name string
+
 	PasswordHash []byte
 	TimeLimit    time.Duration
 	MemoryLimit  int64
@@ -35,16 +43,48 @@ type Account struct {
 	AllowNetworkAccess    bool
 }
 
+func (a *Account) StoragePath() string {
+	return filepath.Join(a.storageRootPath, a.Name)
+}
+
+func (a *Account) StorageInfo() (*StorageInfo, error) {
+	var statfsBuf syscall.Statfs_t
+	if err := syscall.Statfs(a.StoragePath(), &statfsBuf); err != nil {
+		return nil, err
+	}
+	return &StorageInfo{
+		StorageSize: uint64(statfsBuf.Bsize) * statfsBuf.Blocks,
+		FreeSize:    uint64(statfsBuf.Bsize) * statfsBuf.Bavail,
+	}, nil
+}
+
+func (a *Account) Authenticate(ctx context.Context, password string) error {
+	if err := bcrypt.CompareHashAndPassword(a.PasswordHash, []byte(password)); err != nil {
+		if err == bcrypt.ErrMismatchedHashAndPassword {
+			return ErrUnauthenticated
+		}
+	}
+
+	return nil
+}
+
+type StorageInfo struct {
+	StorageSize uint64
+	FreeSize    uint64
+}
+
 func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
-	account := &Account{}
+	account := &Account{
+		storageRootPath: s.storageRootPath,
+	}
 
 	var timeLimitSeconds int64
 
 	if err := s.db.QueryRowContext(ctx, `
-		select password_hash, time_limit_seconds, memory_limit, tmpfs_size, allow_messaging_service, allow_raw_output, allow_network_access
+		select name, password_hash, time_limit_seconds, memory_limit, tmpfs_size, allow_messaging_service, allow_raw_output, allow_network_access
 		from accounts
 		where name = $1
-	`, name).Scan(&account.PasswordHash, &timeLimitSeconds, &account.MemoryLimit, &account.TmpfsSize, &account.AllowMessagingService, &account.AllowRawOutput, &account.AllowNetworkAccess); err != nil {
+	`, name).Scan(&account.Name, &account.PasswordHash, &timeLimitSeconds, &account.MemoryLimit, &account.TmpfsSize, &account.AllowMessagingService, &account.AllowRawOutput, &account.AllowNetworkAccess); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
@@ -80,19 +120,4 @@ func (s *Store) AccountNames(ctx context.Context) ([]string, error) {
 	}
 
 	return names, nil
-}
-
-func (s *Store) Authenticate(ctx context.Context, userName string, password string) error {
-	account, err := s.Account(ctx, userName)
-	if err != nil {
-		return err
-	}
-
-	if err := bcrypt.CompareHashAndPassword(account.PasswordHash, []byte(password)); err != nil {
-		if err == bcrypt.ErrMismatchedHashAndPassword {
-			return ErrUnauthenticated
-		}
-	}
-
-	return nil
 }

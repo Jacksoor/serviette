@@ -18,7 +18,25 @@ message ListResponse {
     repeated string name = 1;
 }
 
+message GetRequest {
+    string username = 1;
+}
+
+message GetResponse {
+    uint64 storage_size = 1;
+    uint64 free_size = 2;
+
+    int64 time_limit_seconds = 3;
+    int64 memory_limit = 4;
+    int64 tmpfs_size = 5;
+
+    bool allow_messaging_service = 6;
+    bool allow_raw_output = 7;
+    bool allow_network_access = 8;
+}
+
 service Accounts {
     rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse) { }
     rpc List(ListRequest) returns (ListResponse) { }
+    rpc Get(GetRequest) returns (GetResponse) { }
 }

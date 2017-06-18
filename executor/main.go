@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"golang.org/x/net/trace"
@@ -74,14 +75,20 @@ func main() {
 		glog.Fatalf("failed to open db: %v", err)
 	}
 
-	accountStore := accounts.NewStore(db)
+	storageRootAbsPath, err := filepath.Abs(*storageRootPath)
+	if err != nil {
+		glog.Fatalf("failed to get storage root path: %v", err)
+	}
+
+	accountStore := accounts.NewStore(db, storageRootAbsPath)
 
 	scriptsStore, err := scripts.NewStore(*scriptsRootPath)
 	if err != nil {
 		glog.Fatalf("failed to open scripts store: %v", err)
 	}
 
-	scriptsService, err := scriptsservice.New(scriptsStore, accountStore, *storageRootPath, *k4LibraryPath, &worker.Options{
+	s := grpc.NewServer()
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scriptsStore, accountStore, *k4LibraryPath, &worker.Options{
 		Chroot:             *chrootPath,
 		KafelSeccompPolicy: *kafelSeccompPolicy,
 		Network: &worker.NetworkOptions{
@@ -90,13 +97,7 @@ func main() {
 			Netmask:   *macvlanVsNM,
 			Gateway:   *macvlanVsGW,
 		},
-	})
-	if err != nil {
-		glog.Fatalf("failed to create scripts service: %v", err)
-	}
-
-	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsService)
+	}))
 	accountspb.RegisterAccountsServer(s, accountsservice.New(accountStore))
 	reflection.Register(s)
 
@@ -124,7 +125,7 @@ func main() {
 	glog.Infof("WebDAV listening on: %s", webdavLis.Addr())
 
 	httpServer := &http.Server{
-		Handler: webdav.NewHandler(*storageRootPath, accountStore),
+		Handler: webdav.NewHandler(accountStore),
 	}
 	go func() {
 		errChan <- httpServer.Serve(webdavLis)

@@ -2,7 +2,6 @@ package webdav
 
 import (
 	"net/http"
-	"path/filepath"
 
 	"github.com/golang/glog"
 	"golang.org/x/net/webdav"
@@ -11,47 +10,53 @@ import (
 )
 
 type Handler struct {
-	storageRootPath string
-	accounts        *accounts.Store
+	accounts *accounts.Store
 }
 
-func NewHandler(storageRootPath string, accounts *accounts.Store) *Handler {
+func NewHandler(accounts *accounts.Store) *Handler {
 	return &Handler{
-		storageRootPath: storageRootPath,
-		accounts:        accounts,
+		accounts: accounts,
 	}
 }
 
-func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) (string, error) {
+func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) (*accounts.Account, error) {
 	username, password, _ := r.BasicAuth()
 
-	if err := h.accounts.Authenticate(r.Context(), username, password); err != nil {
-		switch err {
-		case accounts.ErrNotFound:
+	account, err := h.accounts.Account(r.Context(), username)
+	if err != nil {
+		if err == accounts.ErrNotFound {
 			w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return "", err
-		case accounts.ErrUnauthenticated:
-			w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return "", err
+			return nil, err
 		}
 		glog.Errorf("Failed to load account: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return "", err
+		return nil, err
 	}
 
-	return username, nil
+	if err := account.Authenticate(r.Context(), password); err != nil {
+		switch err {
+		case accounts.ErrUnauthenticated:
+			w.Header().Set("WWW-Authenticate", "Basic realm=\"Kobun\"")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return nil, err
+		}
+		glog.Errorf("Failed to authenticate account: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return nil, err
+	}
+
+	return account, nil
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	username, err := h.authenticate(w, r)
+	account, err := h.authenticate(w, r)
 	if err != nil {
 		return
 	}
 
 	(&webdav.Handler{
-		FileSystem: webdav.Dir(filepath.Join(h.storageRootPath, username)),
+		FileSystem: webdav.Dir(account.StoragePath()),
 		LockSystem: webdav.NewMemLS(),
 	}).ServeHTTP(w, r)
 }

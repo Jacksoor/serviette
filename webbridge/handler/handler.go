@@ -131,6 +131,15 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		return
 	}
 
+	accountResp, err := h.accountsClient.Get(r.Context(), &accountspb.GetRequest{
+		Username: username,
+	})
+	if err != nil {
+		glog.Errorf("Failed to get account: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	scriptsListResp, err := h.scriptsClient.List(r.Context(), &scriptspb.ListRequest{
 		OwnerName: username,
 	})
@@ -142,11 +151,13 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 
 	h.renderTemplate(w, []string{"_layout", "home"}, struct {
 		Username    string
+		Account     *accountspb.GetResponse
 		ScriptNames []string
 
 		CSRFToken string
 	}{
 		username,
+		accountResp,
 		scriptsListResp.Name,
 
 		nosurf.Token(r),
