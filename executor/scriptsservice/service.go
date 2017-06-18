@@ -55,27 +55,32 @@ var (
 type Service struct {
 	scripts  *scripts.Store
 	accounts *accounts.Store
-	mounter  *scripts.Mounter
 
-	k4LibraryPath string
+	storageRootPath string
+	k4LibraryPath   string
 
 	baseWorkerOptions *worker.Options
 }
 
-func New(scripts *scripts.Store, accounts *accounts.Store, mounter *scripts.Mounter, k4LibraryPath string, baseWorkerOptions *worker.Options) *Service {
+func New(scripts *scripts.Store, accounts *accounts.Store, storageRootPath string, k4LibraryPath string, baseWorkerOptions *worker.Options) (*Service, error) {
 	prometheus.MustRegister(scriptRealExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptCPUExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptUsesByServer)
 
+	storageRootPath, err := filepath.Abs(storageRootPath)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Service{
 		scripts:  scripts,
 		accounts: accounts,
-		mounter:  mounter,
 
-		k4LibraryPath: k4LibraryPath,
+		storageRootPath: storageRootPath,
+		k4LibraryPath:   k4LibraryPath,
 
 		baseWorkerOptions: baseWorkerOptions,
-	}
+	}, nil
 }
 
 func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.CreateResponse, error) {
@@ -175,13 +180,6 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
-	// Ensure disk and mount it.
-	mountPath, err := s.mounter.Mount(script.OwnerName)
-	if err != nil {
-		glog.Errorf("Failed to ensure and mount disk: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to run script")
-	}
-
 	rawCtx, err := marshaler.MarshalToString(req.Context)
 	if err != nil {
 		glog.Errorf("Failed to marshal context: %v", err)
@@ -198,7 +196,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 
 	workerOpts.ExtraNsjailArgs = append(workerOpts.ExtraNsjailArgs,
-		"--bindmount", fmt.Sprintf("%s:/mnt/storage", mountPath),
+		"--bindmount", fmt.Sprintf("%s:/mnt/storage", filepath.Join(s.storageRootPath, script.OwnerName)),
 		"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", s.scripts.RootPath()),
 		"--bindmount_ro", fmt.Sprintf("%s:/usr/lib/k4", s.k4LibraryPath),
 		"--cwd", "/mnt/storage",

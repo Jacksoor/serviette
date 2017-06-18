@@ -40,9 +40,7 @@ var (
 	k4LibraryPath   = flag.String("k4_library_path", "clients", "Path to library root")
 	chrootPath      = flag.String("chroot_path", "chroot", "Path to chroot")
 	scriptsRootPath = flag.String("scripts_root_path", "scripts", "Path to script root")
-
-	imagesRootPath = flag.String("images_root_path", "images", "Path to image root")
-	imageSize      = flag.Int64("image_size", 20*1024*1024, "Image size for new images")
+	storageRootPath = flag.String("storage_root_path", "storage", "Path to image root")
 
 	kafelSeccompPolicy = flag.String("kafel_seccomp_policy", "POLICY default { KILL { ptrace, process_vm_readv, process_vm_writev } } USE default DEFAULT ALLOW", "Kafel policy to use for seccomp")
 
@@ -76,16 +74,6 @@ func main() {
 		glog.Fatalf("failed to open db: %v", err)
 	}
 
-	mounter, err := scripts.NewMounter(*imagesRootPath, *imageSize)
-	if err != nil {
-		glog.Fatalf("could not create scripts service: %v", err)
-	}
-	defer func() {
-		if err := mounter.Close(); err != nil {
-			glog.Errorf("failed to close mounter: %v", err)
-		}
-	}()
-
 	accountStore := accounts.NewStore(db)
 
 	scriptsStore, err := scripts.NewStore(*scriptsRootPath)
@@ -93,8 +81,7 @@ func main() {
 		glog.Fatalf("failed to open scripts store: %v", err)
 	}
 
-	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scriptsStore, accountStore, mounter, *k4LibraryPath, &worker.Options{
+	scriptsService, err := scriptsservice.New(scriptsStore, accountStore, *storageRootPath, *k4LibraryPath, &worker.Options{
 		Chroot:             *chrootPath,
 		KafelSeccompPolicy: *kafelSeccompPolicy,
 		Network: &worker.NetworkOptions{
@@ -103,7 +90,13 @@ func main() {
 			Netmask:   *macvlanVsNM,
 			Gateway:   *macvlanVsGW,
 		},
-	}))
+	})
+	if err != nil {
+		glog.Fatalf("failed to create scripts service: %v", err)
+	}
+
+	s := grpc.NewServer()
+	scriptspb.RegisterScriptsServer(s, scriptsService)
 	accountspb.RegisterAccountsServer(s, accountsservice.New(accountStore))
 	reflection.Register(s)
 
@@ -131,7 +124,7 @@ func main() {
 	glog.Infof("WebDAV listening on: %s", webdavLis.Addr())
 
 	httpServer := &http.Server{
-		Handler: webdav.NewHandler(mounter, accountStore),
+		Handler: webdav.NewHandler(*storageRootPath, accountStore),
 	}
 	go func() {
 		errChan <- httpServer.Serve(webdavLis)

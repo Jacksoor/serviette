@@ -295,18 +295,24 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		OwnerName: ownerName,
 		Name:      scriptName,
 	}); err != nil {
-		if grpc.Code(err) == codes.NotFound || grpc.Code(err) == codes.InvalidArgument {
+		switch grpc.Code(err) {
+		case codes.NotFound, codes.InvalidArgument:
 			if linked {
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Command link references invalid script name**", m.Author.ID))
 			} else if !guildVars.Quiet {
 				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s%s/%s` not found**", m.Author.ID, guildVars.ScriptCommandPrefix, ownerName, scriptName))
 			}
 			return nil
+		case codes.Unavailable:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ⚠ **Currently unavailable, please try again later**", m.Author.ID))
+			return nil
+		default:
+			return err
 		}
-		return err
 	}
 
 	s.ChannelTyping(m.ChannelID)
+
 	resp, err := c.scriptsClient.Execute(ctx, &scriptspb.ExecuteRequest{
 		OwnerName: ownerName,
 		Name:      scriptName,
@@ -326,7 +332,20 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		MessagingServiceTarget:   c.rpcTarget.String(),
 	})
 	if err != nil {
-		return err
+		switch grpc.Code(err) {
+		case codes.NotFound, codes.InvalidArgument:
+			if linked {
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Command link references invalid script name**", m.Author.ID))
+			} else if !guildVars.Quiet {
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s%s/%s` not found**", m.Author.ID, guildVars.ScriptCommandPrefix, ownerName, scriptName))
+			}
+			return nil
+		case codes.Unavailable:
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ⚠ **Currently unavailable, please try again later**", m.Author.ID))
+			return nil
+		default:
+			return err
+		}
 	}
 
 	channelID := m.ChannelID

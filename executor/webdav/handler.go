@@ -2,23 +2,23 @@ package webdav
 
 import (
 	"net/http"
+	"path/filepath"
 
 	"github.com/golang/glog"
 	"golang.org/x/net/webdav"
 
 	"github.com/porpoises/kobun4/executor/accounts"
-	"github.com/porpoises/kobun4/executor/scripts"
 )
 
 type Handler struct {
-	mounter  *scripts.Mounter
-	accounts *accounts.Store
+	storageRootPath string
+	accounts        *accounts.Store
 }
 
-func NewHandler(mounter *scripts.Mounter, accounts *accounts.Store) *Handler {
+func NewHandler(storageRootPath string, accounts *accounts.Store) *Handler {
 	return &Handler{
-		mounter:  mounter,
-		accounts: accounts,
+		storageRootPath: storageRootPath,
+		accounts:        accounts,
 	}
 }
 
@@ -50,15 +50,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mountPath, err := h.mounter.Mount(username)
-	if err != nil {
-		glog.Errorf("Failed to mount account directory: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
 	(&webdav.Handler{
-		FileSystem: webdav.Dir(mountPath),
+		FileSystem: webdav.Dir(filepath.Join(h.storageRootPath, username)),
 		LockSystem: webdav.NewMemLS(),
 	}).ServeHTTP(w, r)
 }
