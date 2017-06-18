@@ -27,9 +27,9 @@ type Options struct {
 type Client struct {
 	session *discordgo.Session
 
-	opts *Options
-
-	rpcTarget net.Addr
+	opts            *Options
+	knownGuildsOnly bool
+	rpcTarget       net.Addr
 
 	vars *varstore.Store
 
@@ -38,7 +38,7 @@ type Client struct {
 	metaCommandRegexp *regexp.Regexp
 }
 
-func New(token string, opts *Options, rpcTarget net.Addr, vars *varstore.Store, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
+func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, vars *varstore.Store, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 	if err != nil {
 		return nil, err
@@ -47,9 +47,9 @@ func New(token string, opts *Options, rpcTarget net.Addr, vars *varstore.Store, 
 	client := &Client{
 		session: session,
 
-		opts: opts,
-
-		rpcTarget: rpcTarget,
+		opts:            opts,
+		knownGuildsOnly: knownGuildsOnly,
+		rpcTarget:       rpcTarget,
 
 		vars: vars,
 
@@ -78,7 +78,7 @@ func (c *Client) Session() *discordgo.Session {
 func (c *Client) ready(s *discordgo.Session, r *discordgo.Ready) {
 	glog.Info("Discord ready.")
 	s.UpdateStatus(0, c.opts.Status)
-	c.metaCommandRegexp = regexp.MustCompile(fmt.Sprintf(`^<@!?%s> (.+)$`, regexp.QuoteMeta(s.State.User.ID)))
+	c.metaCommandRegexp = regexp.MustCompile(fmt.Sprintf(`^<@!?%s>(.*)$`, regexp.QuoteMeta(s.State.User.ID)))
 }
 
 func memberIsAdmin(adminRoleID string, member *discordgo.Member) bool {
@@ -115,8 +115,12 @@ func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
 		if err != varstore.ErrNotFound {
 			panic(fmt.Sprintf("Failed to get guild vars: %v", err))
 		}
-		glog.Warningf("No guild vars found for %s, leaving.", m.Guild.ID)
-		s.GuildLeave(m.Guild.ID)
+		if c.knownGuildsOnly {
+			glog.Warningf("No guild vars found for %s, leaving.", m.Guild.ID)
+			s.GuildLeave(m.Guild.ID)
+		} else {
+			glog.Warningf("No guild vars found for %s, staying anyway.", m.Guild.ID)
+		}
 	} else {
 		glog.Infof("Guild vars for %s: %+v", m.Guild.ID, guildVars)
 	}
@@ -125,6 +129,11 @@ func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
 var privateGuildVars = &varstore.GuildVars{
 	ScriptCommandPrefix: "",
 	Quiet:               false,
+}
+
+var unknownGuildVars = &varstore.GuildVars{
+	ScriptCommandPrefix: ".",
+	Quiet:               true,
 }
 
 func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -157,6 +166,10 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 
 			guildVars, err = c.vars.GuildVars(ctx, tx, channel.GuildID)
 			if err != nil {
+				if err == varstore.ErrNotFound {
+					guildVars = unknownGuildVars
+					return nil
+				}
 				return err
 			}
 
@@ -178,7 +191,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 		}
 
 		if match := c.metaCommandRegexp.FindStringSubmatch(content); match != nil {
-			rest := match[1]
+			rest := strings.TrimSpace(match[1])
 			firstSpaceIndex := strings.Index(rest, " ")
 
 			var commandName string
@@ -190,7 +203,14 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 				rest = strings.TrimSpace(rest[firstSpaceIndex+1:])
 			}
 
-			cmd, ok := metaCommands[commandName]
+			var cmd metaCommand
+			var ok bool
+			if commandName == "" {
+				cmd, ok = metaCommands["help"]
+			} else {
+				cmd, ok = metaCommands[commandName]
+			}
+
 			if !ok {
 				if !guildVars.Quiet {
 					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Meta command `%s` not found**", m.Author.ID, commandName))
@@ -214,7 +234,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 	}
 
 	if strings.HasPrefix(content, guildVars.ScriptCommandPrefix) {
-		rest := m.Content[len(guildVars.ScriptCommandPrefix):]
+		rest := strings.TrimSpace(m.Content[len(guildVars.ScriptCommandPrefix):])
 		firstSpaceIndex := strings.Index(rest, " ")
 
 		var commandName string
@@ -286,12 +306,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		return err
 	}
 
-	waitMsg, err := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ⌛ **Please wait, running your command...**", m.Author.ID))
-	if err != nil {
-		return err
-	}
-	defer s.ChannelMessageDelete(m.ChannelID, waitMsg.ID)
-
+	s.ChannelTyping(m.ChannelID)
 	resp, err := c.scriptsClient.Execute(ctx, &scriptspb.ExecuteRequest{
 		OwnerName: ownerName,
 		Name:      scriptName,

@@ -12,9 +12,8 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/golang/glog"
+	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/grpclog/glogger"
 	"google.golang.org/grpc/reflection"
@@ -36,7 +35,9 @@ var (
 	discordToken = flag.String("discord_token", "", "Token for Discord.")
 	status       = flag.String("status", "", "Status to show.")
 
-	sqliteDBPath = flag.String("sqlite_db_path", "discordbridge.db", "Path to SQLite database")
+	knownGuildsOnly = flag.Bool("known_guilds_only", false, "Only stay on known guilds")
+
+	postgresURL = flag.String("postgres_url", "postgres://", "URL to Postgres database")
 
 	executorTarget = flag.String("executor_target", "localhost:5902", "Executor target")
 
@@ -66,7 +67,7 @@ func main() {
 	}
 	defer executorConn.Close()
 
-	db, err := sql.Open("sqlite3", *sqliteDBPath)
+	db, err := sql.Open("postgres", *postgresURL)
 	if err != nil {
 		glog.Fatalf("failed to open db: %v", err)
 	}
@@ -83,7 +84,7 @@ func main() {
 	client, err := client.New(*discordToken, &client.Options{
 		Status: *status,
 		WebURL: *webURL,
-	}, lis.Addr(), vars, scriptspb.NewScriptsClient(executorConn))
+	}, *knownGuildsOnly, lis.Addr(), vars, scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}

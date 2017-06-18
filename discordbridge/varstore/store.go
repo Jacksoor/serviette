@@ -38,7 +38,7 @@ func (s *Store) GuildVars(ctx context.Context, tx *sql.Tx, guildID string) (*Gui
 	if err := tx.QueryRowContext(ctx, `
 		select script_command_prefix, quiet, admin_role_id, announcement
 		from guild_vars
-		where guild_id = ?
+		where guild_id = $1
 	`, guildID).Scan(&guildVars.ScriptCommandPrefix, &guildVars.Quiet, &guildVars.AdminRoleID, &guildVars.Announcement); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
@@ -56,12 +56,17 @@ func (s *Store) SetGuildVars(ctx context.Context, tx *sql.Tx, guildID string, gu
 	if guildVars == nil {
 		r, err = tx.ExecContext(ctx, `
 			delete from guild_vars
-			where guild_id = ?
+			where guild_id = $1
 		`, guildID)
 	} else {
 		r, err = tx.ExecContext(ctx, `
 			insert or replace into guild_vars (guild_id, script_command_prefix, quiet, admin_role_id, announcement)
-			values (?, ?, ?, ?, ?)
+			values ($1, $2, $3, $4, $5)
+			on conflict (guild_id) do update
+			set script_command_prefix = excluded.script_command_prefix,
+			    quiet = excluded.quiet,
+			    admin_role_id = excluded.admin_role_id,
+			    announcement = excluded.announcement
 		`, guildID, guildVars.ScriptCommandPrefix, guildVars.Quiet, guildVars.AdminRoleID, guildVars.Announcement)
 	}
 
@@ -92,7 +97,7 @@ func (s *Store) GuildLinks(ctx context.Context, tx *sql.Tx, guildID string) (map
 	rows, err := tx.QueryContext(ctx, `
 		select link_name, owner_name, script_name
 		from guild_links
-		where guild_id = ?
+		where guild_id = $1
 	`, guildID)
 	if err != nil {
 		return nil, err
@@ -122,8 +127,8 @@ func (s *Store) GuildLink(ctx context.Context, tx *sql.Tx, guildID string, linkN
 	if err := tx.QueryRowContext(ctx, `
 		select owner_name, script_name
 		from guild_links
-		where guild_id = ? and
-		      link_name = ?
+		where guild_id = $1 and
+		      link_name = $2
 	`, guildID, linkName).Scan(&link.OwnerName, &link.ScriptName); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
@@ -141,13 +146,16 @@ func (s *Store) SetGuildLink(ctx context.Context, tx *sql.Tx, guildID string, li
 	if link == nil {
 		r, err = tx.ExecContext(ctx, `
 			delete from guild_links
-			where guild_id = ? and
-			      link_name = ?
+			where guild_id = $1 and
+			      link_name = $2
 		`, guildID, linkName)
 	} else {
 		r, err = tx.ExecContext(ctx, `
 			insert or replace into guild_links (guild_id, link_name, owner_name, script_name)
-			values (?, ?, ?, ?)
+			values ($1, $2, $3, $4)
+			on conflict (guild_id, link_name) do update
+			set owner_name = excluded.owner_name,
+			    script_name = excluded.script_name
 		`, guildID, linkName, link.OwnerName, link.ScriptName)
 	}
 

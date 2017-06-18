@@ -49,21 +49,21 @@ function Client:call(method, req)
     self._id = self._id + 1
 
     while true do
-        local raw, _, err = json.decode(self:_readline())
+        local resp, _, err = json.decode(self:_readline())
         if err ~= nil then
             error(err)
         end
 
-        if raw.id > reqId then
-            error(string.format("mismatched id: expected %d, got %d", reqId, raw.id))
+        if resp.id > reqId then
+            error(string.format("mismatched id: expected %d, got %d", reqId, resp.id))
         end
 
-        if raw.id == reqId then
-            if raw.error ~= nil then
-                error(raw.error)
+        if resp.id == reqId then
+            if resp.error ~= nil then
+                error(resp.error)
             end
 
-            return raw.result
+            return resp.result
         end
     end
 end

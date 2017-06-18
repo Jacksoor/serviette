@@ -13,11 +13,11 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/golang/glog"
+	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/grpclog/glogger"
 	"google.golang.org/grpc/reflection"
-
-	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/porpoises/kobun4/executor/accounts"
 	"github.com/porpoises/kobun4/executor/scripts"
@@ -35,7 +35,7 @@ var (
 	bindDebugSocket  = flag.String("bind_debug_socket", "localhost:5912", "Bind for socket")
 	bindWebdavSocket = flag.String("bind_webdav_socket", "localhost:5922", "Bind for WebDAV socket")
 
-	sqliteDBPath = flag.String("sqlite_db_path", "executor.db", "Path to SQLite database")
+	postgresURL = flag.String("postgres_url", "postgres://", "URL to Postgres database")
 
 	k4LibraryPath   = flag.String("k4_library_path", "clients", "Path to library root")
 	chrootPath      = flag.String("chroot_path", "chroot", "Path to chroot")
@@ -67,9 +67,11 @@ func main() {
 	defer debugLis.Close()
 	glog.Infof("Debug listening on: %s", debugLis.Addr())
 
+	http.Handle("/metrics", promhttp.Handler())
+
 	go http.Serve(debugLis, nil)
 
-	db, err := sql.Open("sqlite3", *sqliteDBPath)
+	db, err := sql.Open("postgres", *postgresURL)
 	if err != nil {
 		glog.Fatalf("failed to open db: %v", err)
 	}

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/golang/glog"
 	"github.com/golang/protobuf/jsonpb"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -25,6 +27,31 @@ import (
 	pb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
+var (
+	scriptRealExecutionDurationsHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "kobun4",
+		Subsystem: "executor",
+		Name:      "script_real_execution_durations_histogram_milliseconds",
+		Help:      "Script real execution time distributions.",
+		Buckets:   prometheus.LinearBuckets(0, 1000, 10),
+	}, []string{"owner_name", "script_name"})
+
+	scriptCPUExecutionDurationsHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "kobun4",
+		Subsystem: "executor",
+		Name:      "script_cpu_execution_durations_histogram_milliseconds",
+		Help:      "Script CPU execution time distributions.",
+		Buckets:   prometheus.LinearBuckets(0, 50, 10),
+	}, []string{"owner_name", "script_name"})
+
+	scriptUsesByServer = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "kobun4",
+		Subsystem: "executor",
+		Name:      "script_uses_by_server_total",
+		Help:      "Script uses by server.",
+	}, []string{"bridge_name", "network_id", "group_id", "owner_name", "script_name"})
+)
+
 type Service struct {
 	scripts  *scripts.Store
 	accounts *accounts.Store
@@ -36,6 +63,10 @@ type Service struct {
 }
 
 func New(scripts *scripts.Store, accounts *accounts.Store, mounter *scripts.Mounter, k4LibraryPath string, baseWorkerOptions *worker.Options) *Service {
+	prometheus.MustRegister(scriptRealExecutionDurationsHistogram)
+	prometheus.MustRegister(scriptCPUExecutionDurationsHistogram)
+	prometheus.MustRegister(scriptUsesByServer)
+
 	return &Service{
 		scripts:  scripts,
 		accounts: accounts,
@@ -87,7 +118,7 @@ func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 
 	names := make([]string, len(accountScripts))
 	for i, script := range accountScripts {
-		names[i] = script.Name()
+		names[i] = script.Name
 	}
 
 	return &pb.ListResponse{
@@ -145,7 +176,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 
 	// Ensure disk and mount it.
-	mountPath, err := s.mounter.Mount(req.OwnerName)
+	mountPath, err := s.mounter.Mount(script.OwnerName)
 	if err != nil {
 		glog.Errorf("Failed to ensure and mount disk: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
@@ -159,13 +190,13 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	workerOpts := &worker.Options{}
 	*workerOpts = *s.baseWorkerOptions
-
 	workerOpts.TimeLimit = account.TimeLimit
 	workerOpts.MemoryLimit = account.MemoryLimit
 	workerOpts.TmpfsSize = account.TmpfsSize
 	if !account.AllowNetworkAccess {
 		workerOpts.Network = nil
 	}
+
 	workerOpts.ExtraNsjailArgs = append(workerOpts.ExtraNsjailArgs,
 		"--bindmount", fmt.Sprintf("%s:/mnt/storage", mountPath),
 		"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", s.scripts.RootPath()),
@@ -199,17 +230,24 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		w.RegisterService("Messaging", messagingService)
 	}
 
+	startTime := time.Now()
 	r, err := w.Run(ctx)
 	if r == nil {
 		glog.Errorf("Failed to run worker: %v", err)
 		return nil, err
 	}
+	endTime := time.Now()
 
-	dur := r.ProcessState.UserTime() + r.ProcessState.SystemTime()
+	cpuTime := r.ProcessState.UserTime() + r.ProcessState.SystemTime()
+	realTime := endTime.Sub(startTime)
+
+	scriptCPUExecutionDurationsHistogram.WithLabelValues(script.OwnerName, script.Name).Observe(float64(cpuTime) / float64(time.Millisecond))
+	scriptRealExecutionDurationsHistogram.WithLabelValues(script.OwnerName, script.Name).Observe(float64(realTime) / float64(time.Millisecond))
+	scriptUsesByServer.WithLabelValues(req.Context.BridgeName, req.Context.NetworkId, req.Context.GroupId, script.OwnerName, script.Name).Inc()
 
 	waitStatus := r.ProcessState.Sys().(syscall.WaitStatus)
 
-	glog.Infof("Script execution result: %s, time: %s, wait status: %v", string(r.Stderr), dur, waitStatus)
+	glog.Infof("Script execution result: %s, CPU time: %s, real time: %s, wait status: %v", string(r.Stderr), cpuTime, realTime, waitStatus)
 
 	// Exited with signal, so shift it back.
 	if waitStatus.ExitStatus() > 100 {

@@ -46,9 +46,10 @@ func (s *Store) load(ctx context.Context, ownerName string, name string) (*Scrip
 	}
 
 	return &Script{
-		rootPath:  s.rootPath,
-		ownerName: ownerName,
-		name:      name,
+		OwnerName: ownerName,
+		Name:      name,
+
+		rootPath: s.rootPath,
 	}, nil
 }
 
@@ -108,9 +109,10 @@ func (s *Store) AccountScripts(ctx context.Context, ownerName string) ([]*Script
 	scripts := make([]*Script, len(infos))
 	for i, info := range infos {
 		scripts[i] = &Script{
-			rootPath:  s.rootPath,
-			ownerName: ownerName,
-			name:      info.Name(),
+			OwnerName: ownerName,
+			Name:      info.Name(),
+
+			rootPath: s.rootPath,
 		}
 	}
 

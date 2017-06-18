@@ -5,7 +5,7 @@ Description=Kobun4 REST Bridge
 Restart=always
 RestartSec=3
 
-User=kobun4
+User=kobun4-restbridge
 Group=nogroup
 
 EnvironmentFile=/etc/kobun4/restbridge

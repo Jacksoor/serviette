@@ -166,7 +166,7 @@ Remove a command name link.`,
 				Embed: &discordgo.MessageEmbed{
 					Title:       "ℹ Help",
 					URL:         c.opts.WebURL,
-					Description: fmt.Sprintf(`Here's a listing of commands that are linked on this server.%s`, formattedAnnouncement),
+					Description: fmt.Sprintf(`Here's a listing of commands that are linked into this server.%s`, formattedAnnouncement),
 					Color:       0x009100,
 					Fields:      fields,
 				},

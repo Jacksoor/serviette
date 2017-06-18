@@ -43,7 +43,7 @@ func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
 	if err := s.db.QueryRowContext(ctx, `
 		select password_hash, time_limit_seconds, memory_limit, tmpfs_size, allow_messaging_service, allow_raw_output, allow_network_access
 		from accounts
-		where name = ?
+		where name = $1
 	`, name).Scan(&account.PasswordHash, &timeLimitSeconds, &account.MemoryLimit, &account.TmpfsSize, &account.AllowMessagingService, &account.AllowRawOutput, &account.AllowNetworkAccess); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound

@@ -34,26 +34,18 @@ func getxattr(path, name string) ([]byte, error) {
 }
 
 type Script struct {
-	rootPath string
+	OwnerName string
+	Name      string
 
-	ownerName string
-	name      string
+	rootPath string
 }
 
 func (s *Script) QualifiedName() string {
-	return filepath.Join(s.ownerName, s.name)
+	return filepath.Join(s.OwnerName, s.Name)
 }
 
 func (s *Script) Path() string {
 	return filepath.Join(s.rootPath, s.QualifiedName())
-}
-
-func (s *Script) OwnerName() string {
-	return s.ownerName
-}
-
-func (s *Script) Name() string {
-	return s.name
 }
 
 func (s *Script) Content() ([]byte, error) {

@@ -71,10 +71,9 @@ new_go_repository(
 )
 
 new_go_repository(
-    name = "com_github_mattn_go_sqlite3",
-    commit = "cf7286f069c3ef596efcc87781a4653a2e7607bd",
-    importpath = "github.com/mattn/go-sqlite3",
-    build_tags = ["darwin", "linux"],
+    name = "com_github_lib_pq",
+    commit = "8837942c3e09574accbc5f150e2c5e057189cace",
+    importpath = "github.com/lib/pq",
 )
 
 new_go_repository(
@@ -121,9 +120,44 @@ new_go_repository(
     importpath = "github.com/emicklei/go-restful",
 )
 
-
 new_go_repository(
     name = "com_github_dgrijalva_jwt_go",
     commit = "a539ee1a749a2b895533f979515ac7e6e0f5b650",
     importpath = "github.com/dgrijalva/jwt-go",
+)
+
+new_go_repository(
+    name = "com_github_prometheus_client_golang",
+    commit = "de4d4ffe63b9eff7f27484fdef6e421597e6abb4",
+    importpath = "github.com/prometheus/client_golang",
+)
+
+new_go_repository(
+    name = "com_github_prometheus_client_model",
+    commit = "6f3806018612930941127f2a7c6c453ba2c527d2",
+    importpath = "github.com/prometheus/client_model",
+)
+
+new_go_repository(
+    name = "com_github_prometheus_common",
+    commit = "0d0c3d572886e0f2323ed376557f9eb99b97d25b",
+    importpath = "github.com/prometheus/common",
+)
+
+new_go_repository(
+    name = "com_github_prometheus_procfs",
+    commit = "a3bfc74126ea9e45ee5d5c6f7fc86191b7d488fb",
+    importpath = "github.com/prometheus/procfs",
+)
+
+new_go_repository(
+    name = "com_github_beorn7_perks",
+    commit = "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9",
+    importpath = "github.com/beorn7/perks",
+)
+
+new_go_repository(
+    name = "com_github_matttproud_golang_protobuf_extensions",
+    commit = "c12348ce28de40eed0136aa2b644d0ee0650e56c",
+    importpath = "github.com/matttproud/golang_protobuf_extensions",
 )

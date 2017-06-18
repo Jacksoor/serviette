@@ -17,7 +17,8 @@ go_library(
         "//executor/webdav:go_default_library",
         "//executor/worker:go_default_library",
         "@com_github_golang_glog//:go_default_library",
-        "@com_github_mattn_go_sqlite3//:go_default_library",
+        "@com_github_lib_pq//:go_default_library",
+        "@com_github_prometheus_client_golang//prometheus/promhttp:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//grpclog/glogger:go_default_library",
         "@org_golang_google_grpc//reflection:go_default_library",
@@ -27,12 +28,6 @@ go_library(
 
 go_binary(
     name = "executor",
-    gc_linkopts = [
-        "-linkmode",
-        "external",
-        "-extldflags",
-        "-static",
-    ],
     library = ":go_default_library",
     visibility = ["//visibility:public"],
 )

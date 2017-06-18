@@ -16,12 +16,6 @@ go_library(
 
 go_binary(
     name = "webbridge",
-    gc_linkopts = [
-        "-linkmode",
-        "external",
-        "-extldflags",
-        "-static",
-    ],
     library = ":go_default_library",
     visibility = ["//visibility:public"],
 )

@@ -5,11 +5,12 @@ Description=Kobun4 Executor
 Restart=always
 RestartSec=3
 
-User=kobun4
+User=kobun4-executor
 Group=nogroup
 
+EnvironmentFile=/etc/kobun4/executor
 WorkingDirectory=/var/lib/kobun4/executor
-ExecStart=/opt/kobun4/executor/executor -k4_library_path=/opt/kobun4/clients -chroot_path=/opt/kobun4/chroot -logtostderr
+ExecStart=/opt/kobun4/executor/executor -k4_library_path=/opt/kobun4/clients -chroot_path=/opt/kobun4/chroot -postgres_url=${KOBUN4_EXECUTOR_POSTGRES_URL} -logtostderr
 
 PrivateTmp=true
 PrivateDevices=false
