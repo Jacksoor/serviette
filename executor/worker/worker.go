@@ -18,6 +18,8 @@ import (
 
 const maxBufferSize int64 = 5 * 1024 * 1024 // 5MB
 
+const rlimitAddressSpaceMB int64 = 1 * 1024 * 1024 * 1024 // 1GB
+
 type Worker struct {
 	opts *Options
 
@@ -94,6 +96,7 @@ func (w *Worker) Run(ctx context.Context) (*WorkerResult, error) {
 		"--cgroup_mem_max", fmt.Sprintf("%d", w.opts.MemoryLimit),
 		"--cgroup_mem_parent", "/",
 		"--cgroup_pids_parent", "/",
+		"--rlimit_as", fmt.Sprintf("%d", rlimitAddressSpaceMB),
 		"--rlimit_cpu", fmt.Sprintf("%d", timeLimit/time.Second),
 		"--time_limit", fmt.Sprintf("%d", timeLimit/time.Second),
 		"--chroot", w.opts.Chroot,

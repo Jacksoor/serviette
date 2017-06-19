@@ -43,7 +43,7 @@ var (
 	scriptsRootPath = flag.String("scripts_root_path", "scripts", "Path to script root")
 	storageRootPath = flag.String("storage_root_path", "storage", "Path to image root")
 
-	kafelSeccompPolicy = flag.String("kafel_seccomp_policy", "POLICY default { KILL { ptrace, process_vm_readv, process_vm_writev } } USE default DEFAULT ALLOW", "Kafel policy to use for seccomp")
+	kafelSeccompPolicy = flag.String("kafel_seccomp_policy", "POLICY default { } USE default DEFAULT ALLOW", "Kafel policy to use for seccomp")
 
 	macvlanIface = flag.String("macvlan_iface", "veth1", "Network interface which will be cloned as 'vs'")
 	macvlanVsIP  = flag.String("macvlan_vs_ip", "10.0.0.2", "IP of the 'vs' interface")
