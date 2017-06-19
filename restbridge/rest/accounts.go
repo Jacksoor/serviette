@@ -21,8 +21,22 @@ type Index struct {
 }
 
 type Account struct {
-	Name    string   `json:"name"`
-	Scripts []string `json:"scripts"`
+	Name    string       `json:"name"`
+	Scripts []string     `json:"scripts"`
+	Info    *AccountInfo `json:"info,omitempty"`
+}
+
+type AccountInfo struct {
+	StorageSize uint64 `json:"storageSize"`
+	FreeSize    uint64 `json:"freeSize"`
+
+	TimeLimitSeconds int64 `json:"timeLimitSeconds"`
+	MemoryLimit      int64 `json:"memoryLimit"`
+	TmpfsSize        int64 `json:"tmpfsSize"`
+
+	AllowMessagingService bool `json:"allowMessagingService"`
+	AllowRawOutput        bool `json:"allowRawOutput"`
+	AllowNetworkAccess    bool `json:"allowNetworkAccess"`
 }
 
 type Script struct {
@@ -106,27 +120,63 @@ func (a AccountsResource) list(req *restful.Request, resp *restful.Response) {
 }
 
 func (a AccountsResource) read(req *restful.Request, resp *restful.Response) {
+	username, err := a.authenticate(req, resp)
+	if err != nil {
+		glog.Errorf("Failed to authenticate: %v", err)
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		return
+	}
+
 	accountName := req.PathParameter("accountName")
+
+	var accountInfo *AccountInfo
+	if accountName == username {
+		// Fetch extended information.
+		accountResp, err := a.accountsClient.Get(req.Request.Context(), &accountspb.GetRequest{
+			Username: accountName,
+		})
+		if err != nil {
+			if grpc.Code(err) == codes.NotFound {
+				resp.AddHeader("Content-Type", "text/plain")
+				resp.WriteErrorString(http.StatusNotFound, "account not found")
+			} else {
+				glog.Errorf("Failed to get user: %v", err)
+				resp.AddHeader("Content-Type", "text/plain")
+				resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+			}
+			return
+		}
+
+		accountInfo = &AccountInfo{
+			StorageSize: accountResp.StorageSize,
+			FreeSize:    accountResp.FreeSize,
+
+			TimeLimitSeconds: accountResp.TimeLimitSeconds,
+			MemoryLimit:      accountResp.MemoryLimit,
+			TmpfsSize:        accountResp.TmpfsSize,
+
+			AllowMessagingService: accountResp.AllowMessagingService,
+			AllowRawOutput:        accountResp.AllowRawOutput,
+			AllowNetworkAccess:    accountResp.AllowNetworkAccess,
+		}
+	}
 
 	listResp, err := a.scriptsClient.List(req.Request.Context(), &scriptspb.ListRequest{
 		OwnerName: accountName,
 	})
 
 	if err != nil {
-		if grpc.Code(err) == codes.NotFound {
-			resp.AddHeader("Content-Type", "text/plain")
-			resp.WriteErrorString(http.StatusNotFound, "account not found")
-		} else {
-			glog.Errorf("Failed to list scripts: %v", err)
-			resp.AddHeader("Content-Type", "text/plain")
-			resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
-		}
+		glog.Errorf("Failed to list scripts: %v", err)
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
 		return
 	}
 
 	resp.WriteEntity(Account{
 		Name:    accountName,
 		Scripts: listResp.Name,
+		Info:    accountInfo,
 	})
 }
 
