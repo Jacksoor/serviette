@@ -85,6 +85,8 @@ Messaging
 
 .. note:: Permissions to use the messaging service must be granted explicitly by an operator of Kobun.
 
+The messaging service allows scripts to message users or channels out-of-band.
+
 .. py:function:: Messaging.MessageUser(id: string, format: string, content: string)
 
    Sends a direct message to a user.
