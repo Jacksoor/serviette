@@ -7,10 +7,12 @@ All kobun4 commands are run in an `nsjail <https://github.com/google/nsjail>`_ s
 
  * A clean chroot, independent of the host.
 
- * A cgroup memory limitation.
+ * A maximum memory limitation.
 
  * A maximum time limit.
 
  * A single persistent storage area in :ref:`persistentstorage`.
 
  * A single ephemeral storage area in :ref:`ephemeralstorage`.
+
+ * Throttled network access, if permitted.

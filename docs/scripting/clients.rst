@@ -23,7 +23,7 @@ All members of the :ref:`context <context>` are exposed via ``client.context``.
 
 .. code-block:: python
 
-   user_name = client.Bridge.GetUserInfo(id=...).name
+   user_name = client.Bridge.GetUserInfo(id='example').name
 
 Lua
 ---
@@ -37,6 +37,35 @@ Lua
 
    client = k4.Client.new()
 
-The Lua client is experimental and currently not supported.
+The Lua client is experimental.
 
 All members of the :ref:`context <context>` are exposed via ``client.context``.
+
+:ref:`Services <services>` can be accessed via the `call` method, e.g.:
+
+.. code-block:: lua
+
+   user_name = client.call('Bridge.GetUserInfo', {id='example'}).name
+
+JavaScript (Node.js)
+--------------------
+
+.. code-block:: javascript
+
+   #!/usr/bin/node
+
+   const k4 = require('/usr/lib/k4/k4');
+
+   const client = new k4.Client();
+
+The Node.js client is experimental.
+
+All members of the :ref:`context <context>` are exposed via ``client.context``.
+
+:ref:`Services <services>` can be accessed via the `call` method, e.g.:
+
+.. code-block:: javascript
+
+   client.call('Bridge.GetUserInfo', {id: 'example'}, function (err, resp) {
+      var user_name = resp.name;
+   });

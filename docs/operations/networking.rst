@@ -9,7 +9,7 @@ Make sure IP forwarding is enabled in ``/etc/sysctl.conf``:
 
    net.ipv4.ip_forward=1
 
-Make sure there are appropriate bridge and veth interfaces. For Debian/Ubuntu, these can be configured inside ``/etc/network/interfaces``:
+Make sure there are appropriate bridge and veth interfaces. For Debian/Ubuntu, these can be configured inside ``/etc/network/interfaces`` (with bandwidth throttling managed by wondershaper):
 
 .. code-block:: none
 
@@ -27,6 +27,8 @@ Make sure there are appropriate bridge and veth interfaces. For Debian/Ubuntu, t
        pre-up ip link set dev veth0 master br0
        up ip link set dev veth0 up
        up ip link set dev veth1 up
+       up wondershaper veth0 1024 1024
+       down wondershaper remove veth0
        down ip link set dev veth0 down
        post-down ip link del veth0
 
