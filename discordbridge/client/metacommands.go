@@ -269,7 +269,6 @@ Remove a command name link.`,
 					status: errorStatusUser,
 					note:   "Script name must be of format `<owner name>/<script name>",
 				}
-				return nil
 			}
 
 			ownerName := qualifiedScriptName[:firstSlash]

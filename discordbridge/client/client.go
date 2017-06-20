@@ -466,7 +466,6 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 					note:    fmt.Sprintf("Output format `%s` unknown", resp.OutputParams.Format),
 					details: fmt.Sprintf("```%s```", iErr.Error()),
 				}
-				return nil
 			}
 			return err
 		}
