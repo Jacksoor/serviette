@@ -35,7 +35,7 @@ func copyPart(dest io.Writer, part *multipart.Part) (int64, error) {
 	return 0, fmt.Errorf("unknown Content-Transfer-Encoding: %s", encoding)
 }
 
-var sigils = map[bool]string{
+var outputSigils = map[bool]string{
 	true:  "✅",
 	false: "❎",
 }
@@ -62,9 +62,9 @@ var OutputFormatters map[string]OutputFormatter = map[string]OutputFormatter{
 
 		embed.Description = string(content)
 
-		note := sigils[ok]
+		note := outputSigils[ok]
 		if authorID != "" {
-			note = fmt.Sprintf("<@%s>: %s", authorID, sigils[ok])
+			note = fmt.Sprintf("<@%s>: %s", authorID, outputSigils[ok])
 		}
 
 		return &discordgo.MessageSend{
@@ -80,9 +80,9 @@ var OutputFormatters map[string]OutputFormatter = map[string]OutputFormatter{
 			return nil, invalidOutputError{err}
 		}
 
-		note := sigils[ok]
+		note := outputSigils[ok]
 		if authorID != "" {
-			note = fmt.Sprintf("<@%s>: %s", authorID, sigils[ok])
+			note = fmt.Sprintf("<@%s>: %s", authorID, outputSigils[ok])
 		}
 
 		return &discordgo.MessageSend{
@@ -154,9 +154,9 @@ var OutputFormatters map[string]OutputFormatter = map[string]OutputFormatter{
 			})
 		}
 
-		note := sigils[ok]
+		note := outputSigils[ok]
 		if authorID != "" {
-			note = fmt.Sprintf("<@%s>: %s", authorID, sigils[ok])
+			note = fmt.Sprintf("<@%s>: %s", authorID, outputSigils[ok])
 		}
 
 		return &discordgo.MessageSend{

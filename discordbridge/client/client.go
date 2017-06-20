@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
@@ -139,6 +140,36 @@ var unknownGuildVars = &varstore.GuildVars{
 	Quiet:               true,
 }
 
+type errorStatus int
+
+const (
+	errorStatusInternal = iota
+	errorStatusNoise
+	errorStatusScript
+	errorStatusUser
+	errorStatusUnauthorized
+	errorStatusRecoverable
+)
+
+var errorSigils map[errorStatus]string = map[errorStatus]string{
+	errorStatusInternal:     "‼",
+	errorStatusNoise:        "❎",
+	errorStatusScript:       "❗",
+	errorStatusUser:         "❎",
+	errorStatusUnauthorized: "🚫",
+	errorStatusRecoverable:  "⚠",
+}
+
+type commandError struct {
+	status  errorStatus
+	note    string
+	details string
+}
+
+func (c *commandError) Error() string {
+	return c.note
+}
+
 func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	ctx := context.Background()
 
@@ -192,7 +223,51 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 			glog.Errorf("Failed to get member: %v", err)
 			return
 		}
+	}
 
+	if err := c.handleMessage(ctx, guildVars, m.Message, channel, member, content); err != nil {
+		cErr, ok := err.(*commandError)
+		if !ok {
+			cErr = &commandError{
+				status: errorStatusInternal,
+				note:   "Internal error",
+			}
+		}
+
+		if cErr.status == errorStatusNoise && guildVars.Quiet {
+			return
+		}
+
+		messageSend := &discordgo.MessageSend{
+			Content: fmt.Sprintf("<@%s>: **%s %s**", m.Author.ID, errorSigils[cErr.status], cErr.note),
+		}
+
+		if cErr.details != "" {
+			messageSend.Embed = &discordgo.MessageEmbed{
+				Color:       0xb50000,
+				Description: cErr.details,
+			}
+		}
+
+		msg, err := s.ChannelMessageSendComplex(channel.ID, messageSend)
+		if err != nil {
+			glog.Info("Failed to send error message: %v", err)
+			return
+		}
+
+		if guildVars.DeleteErrorsAfter > 0 {
+			go func() {
+				<-time.After(guildVars.DeleteErrorsAfter)
+				if err := s.ChannelMessageDelete(channel.ID, msg.ID); err != nil {
+					glog.Error("Failed to delete error message: %v", err)
+				}
+			}()
+		}
+	}
+}
+
+func (c *Client) handleMessage(ctx context.Context, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, member *discordgo.Member, content string) error {
+	if member != nil {
 		if match := c.metaCommandRegexp.FindStringSubmatch(content); match != nil {
 			rest := strings.TrimSpace(match[1])
 			firstSpaceIndex := strings.Index(rest, " ")
@@ -215,24 +290,20 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 			}
 
 			if !ok {
-				if !guildVars.Quiet {
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Meta command `%s` not found**", m.Author.ID, commandName))
+				return &commandError{
+					status: errorStatusNoise,
+					note:   fmt.Sprintf("Meta command `%s` not found", commandName),
 				}
-				return
 			}
 
 			if cmd.adminOnly && !memberIsAdmin(guildVars.AdminRoleID, member) {
-				c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: 🚫 **Not authorized**", m.Author.ID))
-				return
+				return &commandError{
+					status: errorStatusUnauthorized,
+					note:   "Not authorized",
+				}
 			}
 
-			if err := cmd.f(ctx, c, guildVars, m.Message, channel, member, rest); err != nil {
-				glog.Errorf("Failed to run command %s: %v", commandName, err)
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
-				return
-			}
-
-			return
+			return cmd.f(ctx, c, guildVars, m, channel, member, rest)
 		}
 	}
 
@@ -249,18 +320,14 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 			rest = strings.TrimSpace(rest[firstSpaceIndex+1:])
 		}
 
-		if err := c.runScriptCommand(ctx, guildVars, s, m.Message, channel, member, commandName, rest); err != nil {
-			glog.Errorf("Failed to run command %s: %v", commandName, err)
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ‼ **Internal error**", m.Author.ID))
-			return
-		}
-
-		return
+		return c.runScriptCommand(ctx, guildVars, m, channel, member, commandName, rest)
 	}
 
-	if err := c.stats.RecordUserChannelMessage(ctx, m.Author.ID, channel.ID, int64(len(m.Message.Content))); err != nil {
+	if err := c.stats.RecordUserChannelMessage(ctx, m.Author.ID, channel.ID, int64(len(m.Content))); err != nil {
 		glog.Errorf("Failed to record stats: %v", err)
 	}
+
+	return nil
 }
 
 type ByFieldName []*discordgo.MessageEmbedField
@@ -277,23 +344,23 @@ func (s ByFieldName) Less(i, j int) bool {
 	return s[i].Name < s[j].Name
 }
 
-func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.GuildVars, s *discordgo.Session, m *discordgo.Message, channel *discordgo.Channel, member *discordgo.Member, commandName string, rest string) error {
+func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, member *discordgo.Member, commandName string, rest string) error {
 	linked := commandNameIsLinked(commandName)
 	if member != nil && !linked && !memberIsAdmin(guildVars.AdminRoleID, member) {
-		if !guildVars.Quiet {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Only the server's Kobun administrators can run unlinked commands**", m.Author.ID))
+		return &commandError{
+			status: errorStatusNoise,
+			note:   "Only the server's Kobun administrators can run unlinked commands",
 		}
-		return nil
 	}
 
 	ownerName, scriptName, err := resolveScriptName(ctx, c, channel.GuildID, commandName)
 	if err != nil {
 		switch err {
 		case errNotFound:
-			if !guildVars.Quiet {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s%s` not found**", m.Author.ID, guildVars.ScriptCommandPrefix, commandName))
+			return &commandError{
+				status: errorStatusNoise,
+				note:   fmt.Sprintf("Command `%s%s` not found", guildVars.ScriptCommandPrefix, commandName),
 			}
-			return nil
 		}
 		return err
 	}
@@ -305,20 +372,29 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		switch grpc.Code(err) {
 		case codes.NotFound, codes.InvalidArgument:
 			if linked {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Command link references invalid script name**", m.Author.ID))
-			} else if !guildVars.Quiet {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s%s/%s` not found**", m.Author.ID, guildVars.ScriptCommandPrefix, ownerName, scriptName))
+				return &commandError{
+					status: errorStatusScript,
+					note:   "Command link references non-existent script",
+				}
+			} else {
+				return &commandError{
+					status: errorStatusNoise,
+					note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
+				}
 			}
 			return nil
 		case codes.Unavailable:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ⚠ **Currently unavailable, please try again later**", m.Author.ID))
+			return &commandError{
+				status: errorStatusRecoverable,
+				note:   "Currently unavailable, please try again",
+			}
 			return nil
 		default:
 			return err
 		}
 	}
 
-	s.ChannelTyping(m.ChannelID)
+	c.session.ChannelTyping(m.ChannelID)
 	resp, err := c.scriptsClient.Execute(ctx, &scriptspb.ExecuteRequest{
 		OwnerName: ownerName,
 		Name:      scriptName,
@@ -340,13 +416,22 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		switch grpc.Code(err) {
 		case codes.NotFound, codes.InvalidArgument:
 			if linked {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Command link references invalid script name**", m.Author.ID))
-			} else if !guildVars.Quiet {
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Command `%s%s/%s` not found**", m.Author.ID, guildVars.ScriptCommandPrefix, ownerName, scriptName))
+				return &commandError{
+					status: errorStatusScript,
+					note:   "Command link references non-existent script",
+				}
+			} else {
+				return &commandError{
+					status: errorStatusNoise,
+					note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
+				}
 			}
 			return nil
 		case codes.Unavailable:
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ⚠ **Currently unavailable, please try again later**", m.Author.ID))
+			return &commandError{
+				status: errorStatusRecoverable,
+				note:   "Currently unavailable, please try again",
+			}
 			return nil
 		default:
 			return err
@@ -355,7 +440,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 
 	channelID := m.ChannelID
 	if resp.OutputParams.Private {
-		channel, err := s.UserChannelCreate(m.Author.ID)
+		channel, err := c.session.UserChannelCreate(m.Author.ID)
 		if err != nil {
 			return err
 		}
@@ -367,40 +452,58 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 	if waitStatus.ExitStatus() == 0 || waitStatus.ExitStatus() == 2 {
 		outputFormatter, ok := OutputFormatters[resp.OutputParams.Format]
 		if !ok {
-			s.ChannelMessageSend(channelID, fmt.Sprintf("<@%s> ❗ **Output format `%s` unknown!**", m.Author.ID, resp.OutputParams.Format))
-			return nil
+			return &commandError{
+				status: errorStatusScript,
+				note:   fmt.Sprintf("Output format `%s` unknown", resp.OutputParams.Format),
+			}
 		}
 
 		if len(resp.Stdout) == 0 {
 			return nil
 		}
 
-		messageSend, err := outputFormatter(m.Author.ID, resp.Stdout, syscall.WaitStatus(resp.WaitStatus).ExitStatus() == 0)
+		execOK := syscall.WaitStatus(resp.WaitStatus).ExitStatus() == 0
+		messageSend, err := outputFormatter(m.Author.ID, resp.Stdout, execOK)
 		if err != nil {
 			if iErr, ok := err.(invalidOutputError); ok {
-				s.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
-					Content: fmt.Sprintf("<@%s> ❗ **Command output was invalid!**", m.Author.ID),
-					Embed: &discordgo.MessageEmbed{
-						Color:       0xb50000,
-						Description: fmt.Sprintf("```%s```", iErr.Error()),
-					},
-				})
+				return &commandError{
+					status:  errorStatusScript,
+					note:    fmt.Sprintf("Output format `%s` unknown", resp.OutputParams.Format),
+					details: fmt.Sprintf("```%s```", iErr.Error()),
+				}
 				return nil
 			}
 			return err
 		}
 
-		if _, err := s.ChannelMessageSendComplex(channelID, messageSend); err != nil {
+		msg, err := c.session.ChannelMessageSendComplex(channelID, messageSend)
+		if err != nil {
 			return err
 		}
+
+		if !execOK && guildVars.DeleteErrorsAfter > 0 {
+			go func() {
+				<-time.After(guildVars.DeleteErrorsAfter)
+				if err := c.session.ChannelMessageDelete(channel.ID, msg.ID); err != nil {
+					glog.Error("Failed to delete error message: %v", err)
+				}
+			}()
+		}
+
 		return nil
 	} else if waitStatus.Signaled() {
 		sig := waitStatus.Signal()
 		switch sig {
 		case syscall.SIGKILL:
-			s.ChannelMessageSend(channelID, fmt.Sprintf("<@%s> ❗ **Script used too many resources!**", m.Author.ID))
+			return &commandError{
+				status: errorStatusScript,
+				note:   "Script used too many resources!",
+			}
 		default:
-			s.ChannelMessageSend(channelID, fmt.Sprintf("<@%s> ❗ **Script was killed by %s!**", m.Author.ID, sig.String()))
+			return &commandError{
+				status: errorStatusScript,
+				note:   fmt.Sprintf("Script was killed by %s!", sig),
+			}
 		}
 	} else {
 		stderr := resp.Stderr
@@ -408,18 +511,18 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			stderr = stderr[:1500]
 		}
 
-		var embed discordgo.MessageEmbed
-		embed.Color = 0xb50000
+		var details string
 		if len(stderr) > 0 {
-			embed.Description = fmt.Sprintf("```%s```", string(stderr))
+			details = fmt.Sprintf("```%s```", string(stderr))
 		} else {
-			embed.Description = "(stderr was empty)"
+			details = "(stderr was empty)"
 		}
 
-		s.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@%s> ❗ **Error occurred!**", m.Author.ID),
-			Embed:   &embed,
-		})
+		return &commandError{
+			status:  errorStatusScript,
+			note:    "Error occurred!",
+			details: details,
+		}
 	}
 
 	return nil

@@ -181,15 +181,19 @@ Remove a command name link.`,
 
 			linked := commandNameIsLinked(commandName)
 			if !linked {
-				c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Link `%s` not found**", m.Author.ID, commandName))
-				return nil
+				return &commandError{
+					status: errorStatusUser,
+					note:   fmt.Sprintf("Link `%s` not found", commandName),
+				}
 			}
 
 			ownerName, scriptName, err := resolveScriptName(ctx, c, channel.GuildID, commandName)
 			if err != nil {
 				if err == errNotFound {
-					c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Link `%s` not found**", m.Author.ID, commandName))
-					return nil
+					return &commandError{
+						status: errorStatusUser,
+						note:   fmt.Sprintf("Link `%s` not found", commandName),
+					}
 				}
 				return err
 			}
@@ -201,8 +205,10 @@ Remove a command name link.`,
 			if err != nil {
 				switch grpc.Code(err) {
 				case codes.NotFound, codes.InvalidArgument:
-					c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❗ **Link references invalid script name**", m.Author.ID))
-					return nil
+					return &commandError{
+						status: errorStatusScript,
+						note:   "Link references invalid script name",
+					}
 				default:
 					return err
 				}
@@ -242,20 +248,27 @@ Remove a command name link.`,
 			parts := strings.SplitN(rest, " ", 2)
 
 			if len(parts) != 2 {
-				c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Expecting `link <command name> <qualified script name>`**", m.Author.ID))
-				return nil
+				return &commandError{
+					status: errorStatusUser,
+					note:   "Expecting `link <command name> <qualified script name>`",
+				}
 			}
 
 			commandName := parts[0]
 			if strings.ContainsAny(commandName, "/") {
-				c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Link name must not contain forward slashes**", m.Author.ID))
-				return nil
+				return &commandError{
+					status: errorStatusUser,
+					note:   "Link name must not contain forward slashes",
+				}
 			}
 
 			qualifiedScriptName := parts[1]
 			firstSlash := strings.Index(qualifiedScriptName, "/")
 			if firstSlash == -1 {
-				c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Script name must be of format `<owner name>/<script name>`**", m.Author.ID))
+				return &commandError{
+					status: errorStatusUser,
+					note:   "Script name must be of format `<owner name>/<script name>",
+				}
 				return nil
 			}
 
@@ -268,11 +281,15 @@ Remove a command name link.`,
 			})
 			if err != nil {
 				if grpc.Code(err) == codes.NotFound {
-					c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Script not found**", m.Author.ID))
-					return nil
+					return &commandError{
+						status: errorStatusUser,
+						note:   "Script not found",
+					}
 				} else if grpc.Code(err) == codes.InvalidArgument {
-					c.session.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s>: ❎ **Invalid script name**", m.Author.ID))
-					return nil
+					return &commandError{
+						status: errorStatusUser,
+						note:   "Invalid script name",
+					}
 				}
 				return err
 			}
