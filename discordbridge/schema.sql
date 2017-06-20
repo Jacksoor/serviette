@@ -3,7 +3,8 @@ create table guild_vars (
     script_command_prefix character varying not null,
     quiet boolean not null,
     admin_role_id character varying not null,
-    announcement character varying not null
+    announcement character varying not null,
+    delete_errors_after_seconds integer not null
 );
 
 create table guild_links (

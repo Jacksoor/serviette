@@ -3,6 +3,7 @@ package varstore
 import (
 	"database/sql"
 	"errors"
+	"time"
 
 	"golang.org/x/net/context"
 )
@@ -30,21 +31,26 @@ type GuildVars struct {
 	Quiet               bool
 	AdminRoleID         string
 	Announcement        string
+	DeleteErrorsAfter   time.Duration
 }
 
 func (s *Store) GuildVars(ctx context.Context, tx *sql.Tx, guildID string) (*GuildVars, error) {
+	var deleteErrorsAfterSeconds int64
+
 	guildVars := &GuildVars{}
 
 	if err := tx.QueryRowContext(ctx, `
-		select script_command_prefix, quiet, admin_role_id, announcement
+		select script_command_prefix, quiet, admin_role_id, announcement, delete_errors_after_seconds
 		from guild_vars
 		where guild_id = $1
-	`, guildID).Scan(&guildVars.ScriptCommandPrefix, &guildVars.Quiet, &guildVars.AdminRoleID, &guildVars.Announcement); err != nil {
+	`, guildID).Scan(&guildVars.ScriptCommandPrefix, &guildVars.Quiet, &guildVars.AdminRoleID, &guildVars.Announcement, &deleteErrorsAfterSeconds); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
+
+	guildVars.DeleteErrorsAfter = time.Duration(deleteErrorsAfterSeconds) * time.Second
 
 	return guildVars, nil
 }
@@ -60,14 +66,15 @@ func (s *Store) SetGuildVars(ctx context.Context, tx *sql.Tx, guildID string, gu
 		`, guildID)
 	} else {
 		r, err = tx.ExecContext(ctx, `
-			insert into guild_vars (guild_id, script_command_prefix, quiet, admin_role_id, announcement)
+			insert into guild_vars (guild_id, script_command_prefix, quiet, admin_role_id, announcement, delete_errors_after_seconds)
 			values ($1, $2, $3, $4, $5)
 			on conflict (guild_id) do update
 			set script_command_prefix = excluded.script_command_prefix,
 			    quiet = excluded.quiet,
 			    admin_role_id = excluded.admin_role_id,
 			    announcement = excluded.announcement
-		`, guildID, guildVars.ScriptCommandPrefix, guildVars.Quiet, guildVars.AdminRoleID, guildVars.Announcement)
+			    delete_errors_after_seconds = excluded.delete_errors_after_seconds
+		`, guildID, guildVars.ScriptCommandPrefix, guildVars.Quiet, guildVars.AdminRoleID, guildVars.Announcement, int64(guildVars.DeleteErrorsAfter/time.Second))
 	}
 
 	if err != nil {
