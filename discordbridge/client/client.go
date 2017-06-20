@@ -228,6 +228,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 	if err := c.handleMessage(ctx, guildVars, m.Message, channel, member, content); err != nil {
 		cErr, ok := err.(*commandError)
 		if !ok {
+			glog.Error("Error handling message: %v", err)
 			cErr = &commandError{
 				status: errorStatusInternal,
 				note:   "Internal error",
