@@ -1,5 +1,7 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
+exports_files(["schema.sql"])
+
 go_library(
     name = "go_default_library",
     srcs = ["main.go"],
@@ -8,6 +10,7 @@ go_library(
         "//discordbridge/client:go_default_library",
         "//discordbridge/messagingservice:go_default_library",
         "//discordbridge/networkinfoservice:go_default_library",
+        "//discordbridge/statsstore:go_default_library",
         "//discordbridge/varstore:go_default_library",
         "//executor/messagingservice/v1pb:go_default_library",
         "//executor/networkinfoservice/v1pb:go_default_library",

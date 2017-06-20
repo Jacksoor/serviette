@@ -30,13 +30,14 @@ type AccountInfo struct {
 	StorageSize uint64 `json:"storageSize"`
 	FreeSize    uint64 `json:"freeSize"`
 
-	TimeLimitSeconds int64 `json:"timeLimitSeconds"`
-	MemoryLimit      int64 `json:"memoryLimit"`
-	TmpfsSize        int64 `json:"tmpfsSize"`
+	TimeLimitSeconds   int64 `json:"timeLimitSeconds"`
+	MemoryLimit        int64 `json:"memoryLimit"`
+	TmpfsSize          int64 `json:"tmpfsSize"`
+	AllowNetworkAccess bool  `json:"allowNetworkAccess"`
 
-	AllowMessagingService bool `json:"allowMessagingService"`
-	AllowRawOutput        bool `json:"allowRawOutput"`
-	AllowNetworkAccess    bool `json:"allowNetworkAccess"`
+	AllowRawOutput bool `json:"allowRawOutput"`
+
+	AllowedServices []string `json:"allowedServices"`
 }
 
 type Script struct {
@@ -152,13 +153,14 @@ func (a AccountsResource) read(req *restful.Request, resp *restful.Response) {
 			StorageSize: accountResp.StorageSize,
 			FreeSize:    accountResp.FreeSize,
 
-			TimeLimitSeconds: accountResp.TimeLimitSeconds,
-			MemoryLimit:      accountResp.MemoryLimit,
-			TmpfsSize:        accountResp.TmpfsSize,
+			TimeLimitSeconds:   accountResp.TimeLimitSeconds,
+			MemoryLimit:        accountResp.MemoryLimit,
+			TmpfsSize:          accountResp.TmpfsSize,
+			AllowNetworkAccess: accountResp.AllowNetworkAccess,
 
-			AllowMessagingService: accountResp.AllowMessagingService,
-			AllowRawOutput:        accountResp.AllowRawOutput,
-			AllowNetworkAccess:    accountResp.AllowNetworkAccess,
+			AllowRawOutput: accountResp.AllowRawOutput,
+
+			AllowedServices: accountResp.AllowedService,
 		}
 	}
 

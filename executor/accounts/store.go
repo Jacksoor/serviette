@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
 )
@@ -33,14 +34,15 @@ type Account struct {
 
 	Name string
 
-	PasswordHash []byte
-	TimeLimit    time.Duration
-	MemoryLimit  int64
-	TmpfsSize    int64
+	PasswordHash       []byte
+	TimeLimit          time.Duration
+	MemoryLimit        int64
+	TmpfsSize          int64
+	AllowNetworkAccess bool
 
-	AllowMessagingService bool
-	AllowRawOutput        bool
-	AllowNetworkAccess    bool
+	AllowRawOutput bool
+
+	AllowedServices []string
 }
 
 func (a *Account) StoragePath() string {
@@ -81,10 +83,26 @@ func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
 	var timeLimitSeconds int64
 
 	if err := s.db.QueryRowContext(ctx, `
-		select name, password_hash, time_limit_seconds, memory_limit, tmpfs_size, allow_messaging_service, allow_raw_output, allow_network_access
+		select name,
+		       password_hash,
+		       time_limit_seconds,
+		       memory_limit,
+		       tmpfs_size,
+		       allow_network_access,
+		       allow_raw_output,
+		       allowed_services
 		from accounts
 		where name = $1
-	`, name).Scan(&account.Name, &account.PasswordHash, &timeLimitSeconds, &account.MemoryLimit, &account.TmpfsSize, &account.AllowMessagingService, &account.AllowRawOutput, &account.AllowNetworkAccess); err != nil {
+	`, name).Scan(
+		&account.Name,
+		&account.PasswordHash,
+		&timeLimitSeconds,
+		&account.MemoryLimit,
+		&account.TmpfsSize,
+		&account.AllowNetworkAccess,
+		&account.AllowRawOutput,
+		pq.Array(&account.AllowedServices),
+	); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}

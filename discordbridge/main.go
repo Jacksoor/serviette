@@ -21,6 +21,7 @@ import (
 	"github.com/porpoises/kobun4/discordbridge/client"
 	"github.com/porpoises/kobun4/discordbridge/messagingservice"
 	"github.com/porpoises/kobun4/discordbridge/networkinfoservice"
+	"github.com/porpoises/kobun4/discordbridge/statsstore"
 	"github.com/porpoises/kobun4/discordbridge/varstore"
 
 	messagingpb "github.com/porpoises/kobun4/executor/messagingservice/v1pb"
@@ -73,6 +74,7 @@ func main() {
 	}
 
 	vars := varstore.New(db)
+	stats := statsstore.New(db)
 
 	lis, err := net.Listen("tcp", *bindSocket)
 	if err != nil {
@@ -84,7 +86,7 @@ func main() {
 	client, err := client.New(*discordToken, &client.Options{
 		Status: *status,
 		WebURL: *webURL,
-	}, *knownGuildsOnly, lis.Addr(), vars, scriptspb.NewScriptsClient(executorConn))
+	}, *knownGuildsOnly, lis.Addr(), vars, stats, scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}

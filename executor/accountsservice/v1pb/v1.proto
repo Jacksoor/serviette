@@ -29,10 +29,11 @@ message GetResponse {
     int64 time_limit_seconds = 3;
     int64 memory_limit = 4;
     int64 tmpfs_size = 5;
+    bool allow_network_access = 6;
 
-    bool allow_messaging_service = 6;
-    bool allow_raw_output = 7;
-    bool allow_network_access = 8;
+    bool allow_raw_output = 10;
+
+    repeated string allowed_service = 20;
 }
 
 service Accounts {

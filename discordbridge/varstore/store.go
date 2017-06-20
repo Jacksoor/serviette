@@ -60,7 +60,7 @@ func (s *Store) SetGuildVars(ctx context.Context, tx *sql.Tx, guildID string, gu
 		`, guildID)
 	} else {
 		r, err = tx.ExecContext(ctx, `
-			insert or replace into guild_vars (guild_id, script_command_prefix, quiet, admin_role_id, announcement)
+			insert into guild_vars (guild_id, script_command_prefix, quiet, admin_role_id, announcement)
 			values ($1, $2, $3, $4, $5)
 			on conflict (guild_id) do update
 			set script_command_prefix = excluded.script_command_prefix,
@@ -151,7 +151,7 @@ func (s *Store) SetGuildLink(ctx context.Context, tx *sql.Tx, guildID string, li
 		`, guildID, linkName)
 	} else {
 		r, err = tx.ExecContext(ctx, `
-			insert or replace into guild_links (guild_id, link_name, owner_name, script_name)
+			insert into guild_links (guild_id, link_name, owner_name, script_name)
 			values ($1, $2, $3, $4)
 			on conflict (guild_id, link_name) do update
 			set owner_name = excluded.owner_name,

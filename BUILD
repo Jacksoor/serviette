@@ -9,9 +9,9 @@ pkg_tar(
     files = [
         "//clients",
         "//discordbridge",
-        "//discordbridge/varstore:schema.sql",
+        "//discordbridge:schema.sql",
         "//executor",
-        "//executor/accounts:schema.sql",
+        "//executor:schema.sql",
         "//restbridge",
         "//systemd",
         "//webbridge",

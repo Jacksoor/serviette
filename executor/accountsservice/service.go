@@ -75,12 +75,13 @@ func (s *Service) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse,
 		StorageSize: storageInfo.StorageSize,
 		FreeSize:    storageInfo.FreeSize,
 
-		TimeLimitSeconds: int64(account.TimeLimit / time.Second),
-		MemoryLimit:      account.MemoryLimit,
-		TmpfsSize:        account.TmpfsSize,
+		TimeLimitSeconds:   int64(account.TimeLimit / time.Second),
+		MemoryLimit:        account.MemoryLimit,
+		TmpfsSize:          account.TmpfsSize,
+		AllowNetworkAccess: account.AllowNetworkAccess,
 
-		AllowMessagingService: account.AllowMessagingService,
-		AllowRawOutput:        account.AllowRawOutput,
-		AllowNetworkAccess:    account.AllowNetworkAccess,
+		AllowRawOutput: account.AllowRawOutput,
+
+		AllowedService: account.AllowedServices,
 	}, nil
 }

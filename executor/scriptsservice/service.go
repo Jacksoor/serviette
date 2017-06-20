@@ -150,6 +150,18 @@ var marshaler = jsonpb.Marshaler{
 	EmitDefaults: true,
 }
 
+type workerServiceFactory func(ctx context.Context, bridgeConn *grpc.ClientConn, account *accounts.Account) (interface{}, error)
+
+var workerServiceFactories map[string]workerServiceFactory = map[string]workerServiceFactory{
+	"Messaging": func(ctx context.Context, bridgeConn *grpc.ClientConn, account *accounts.Account) (interface{}, error) {
+		return messagingservice.New(ctx, account, messagingpb.NewMessagingClient(bridgeConn)), nil
+	},
+
+	"NetworkInfo": func(ctx context.Context, bridgeConn *grpc.ClientConn, account *accounts.Account) (interface{}, error) {
+		return networkinfoservice.New(ctx, networkinfopb.NewNetworkInfoClient(bridgeConn)), nil
+	},
+}
+
 func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
 	account, err := s.accounts.Account(ctx, req.OwnerName)
 	if err != nil {
@@ -198,27 +210,30 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	w := worker.New(workerOpts, filepath.Join("/mnt/scripts", script.QualifiedName()), []string{}, bytes.NewBuffer(req.Stdin))
 
+	bridgeConn, err := grpc.Dial(req.BridgeTarget, grpc.WithInsecure())
+	if err != nil {
+		return nil, grpc.Errorf(codes.Unavailable, "Service unavailable")
+	}
+	defer bridgeConn.Close()
+
+	// Always register the output service.
 	outputService := outputservice.New(account)
 	w.RegisterService("Output", outputService)
 
-	networkInfoConn, err := grpc.Dial(req.NetworkInfoServiceTarget, grpc.WithInsecure())
-	if err != nil {
-		return nil, grpc.Errorf(codes.Unavailable, "network info service unavailable")
-	}
-	defer networkInfoConn.Close()
-
-	networkInfoService := networkinfoservice.New(ctx, networkinfopb.NewNetworkInfoClient(networkInfoConn))
-	w.RegisterService("NetworkInfo", networkInfoService)
-
-	if account.AllowMessagingService {
-		messagingConn, err := grpc.Dial(req.MessagingServiceTarget, grpc.WithInsecure())
-		if err != nil {
-			return nil, grpc.Errorf(codes.Unavailable, "network info service unavailable")
+	for _, serviceName := range account.AllowedServices {
+		factory, ok := workerServiceFactories[serviceName]
+		if !ok {
+			glog.Warningf("Unknown service name: %s", serviceName)
+			continue
 		}
-		defer messagingConn.Close()
 
-		messagingService := messagingservice.New(ctx, account, messagingpb.NewMessagingClient(messagingConn))
-		w.RegisterService("Messaging", messagingService)
+		service, err := factory(ctx, bridgeConn, account)
+		if err != nil {
+			glog.Errorf("Failed to create service: %v", err)
+			return nil, grpc.Errorf(codes.Unavailable, "%s service unavailable", serviceName)
+		}
+
+		w.RegisterService(serviceName, service)
 	}
 
 	startTime := time.Now()

@@ -55,8 +55,7 @@ message ExecuteRequest {
     string name = 2;
     bytes stdin = 3;
     Context context = 4;
-    string network_info_service_target = 5;
-    string messaging_service_target = 6;
+    string bridge_target = 5;
 }
 
 message OutputParams {

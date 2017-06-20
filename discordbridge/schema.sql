@@ -16,3 +16,14 @@ create table guild_links (
 );
 
 create index guild_links_guild_id_idx on guild_links (guild_id);
+
+create table user_channel_stats (
+    user_id character varying not null,
+    channel_id character varying not null,
+
+    num_characters_sent bigint not null,
+    num_messages_sent bigint not null,
+    last_reset_time timestamp with time zone not null,
+
+    primary key (user_id, channel_id)
+);

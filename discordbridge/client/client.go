@@ -14,6 +14,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
+	"github.com/porpoises/kobun4/discordbridge/statsstore"
 	"github.com/porpoises/kobun4/discordbridge/varstore"
 
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
@@ -31,14 +32,15 @@ type Client struct {
 	knownGuildsOnly bool
 	rpcTarget       net.Addr
 
-	vars *varstore.Store
+	vars  *varstore.Store
+	stats *statsstore.Store
 
 	scriptsClient scriptspb.ScriptsClient
 
 	metaCommandRegexp *regexp.Regexp
 }
 
-func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, vars *varstore.Store, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
+func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, vars *varstore.Store, stats *statsstore.Store, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 	if err != nil {
 		return nil, err
@@ -51,7 +53,8 @@ func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, 
 		knownGuildsOnly: knownGuildsOnly,
 		rpcTarget:       rpcTarget,
 
-		vars: vars,
+		vars:  vars,
+		stats: stats,
 
 		scriptsClient: scriptsClient,
 	}
@@ -254,6 +257,10 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 
 		return
 	}
+
+	if err := c.stats.RecordUserChannelMessage(ctx, m.Author.ID, channel.ID, int64(len(m.Message.Content))); err != nil {
+		glog.Errorf("Failed to record stats: %v", err)
+	}
 }
 
 type ByFieldName []*discordgo.MessageEmbedField
@@ -312,7 +319,6 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 	}
 
 	s.ChannelTyping(m.ChannelID)
-
 	resp, err := c.scriptsClient.Execute(ctx, &scriptspb.ExecuteRequest{
 		OwnerName: ownerName,
 		Name:      scriptName,
@@ -328,8 +334,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 
 			ScriptCommandPrefix: guildVars.ScriptCommandPrefix,
 		},
-		NetworkInfoServiceTarget: c.rpcTarget.String(),
-		MessagingServiceTarget:   c.rpcTarget.String(),
+		BridgeTarget: c.rpcTarget.String(),
 	})
 	if err != nil {
 		switch grpc.Code(err) {
