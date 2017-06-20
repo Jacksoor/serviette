@@ -52,7 +52,7 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 
 			// Find all distinct commands to request.
 			linkNames := make([]string, 0, len(links))
-			for linkName, _ := range links {
+			for linkName := range links {
 				linkNames = append(linkNames, linkName)
 			}
 

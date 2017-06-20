@@ -151,7 +151,7 @@ const (
 	errorStatusRecoverable
 )
 
-var errorSigils map[errorStatus]string = map[errorStatus]string{
+var errorSigils = map[errorStatus]string{
 	errorStatusInternal:     "‼",
 	errorStatusNoise:        "❎",
 	errorStatusScript:       "❗",
@@ -377,19 +377,16 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 					status: errorStatusScript,
 					note:   "Command link references non-existent script",
 				}
-			} else {
-				return &commandError{
-					status: errorStatusNoise,
-					note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
-				}
 			}
-			return nil
+			return &commandError{
+				status: errorStatusNoise,
+				note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
+			}
 		case codes.Unavailable:
 			return &commandError{
 				status: errorStatusRecoverable,
 				note:   "Currently unavailable, please try again",
 			}
-			return nil
 		default:
 			return err
 		}
@@ -421,19 +418,16 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 					status: errorStatusScript,
 					note:   "Command link references non-existent script",
 				}
-			} else {
-				return &commandError{
-					status: errorStatusNoise,
-					note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
-				}
 			}
-			return nil
+			return &commandError{
+				status: errorStatusNoise,
+				note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
+			}
 		case codes.Unavailable:
 			return &commandError{
 				status: errorStatusRecoverable,
 				note:   "Currently unavailable, please try again",
 			}
-			return nil
 		default:
 			return err
 		}
@@ -525,6 +519,4 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			details: details,
 		}
 	}
-
-	return nil
 }
