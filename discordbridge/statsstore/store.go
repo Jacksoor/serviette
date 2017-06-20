@@ -18,9 +18,9 @@ func New(db *sql.DB) *Store {
 }
 
 type UserChannelStats struct {
-	TotalMessagesSent   int64
-	TotalCharactersSent int64
-	LastResetTime       time.Time
+	NumCharactersSent int64
+	NumMessagesSent   int64
+	LastResetTime     time.Time
 }
 
 func (s *Store) RecordUserChannelMessage(ctx context.Context, userID string, channelID string, messageLength int64) error {
@@ -37,4 +37,21 @@ func (s *Store) RecordUserChannelMessage(ctx context.Context, userID string, cha
 	}
 
 	return nil
+}
+
+func (s *Store) UserChannelStats(ctx context.Context, userID string, channelID string) (*UserChannelStats, error) {
+	stats := &UserChannelStats{}
+
+	if err := s.db.QueryRowContext(ctx, `
+		select num_characters_sent, num_messages_sent, last_reset_time
+		from user_channel_stats
+		where user_id = $1 and
+		      channel_id = $2
+	`, userID, channelID).Scan(&stats.NumCharactersSent, &stats.NumMessagesSent, &stats.LastResetTime); err != nil {
+		if err != sql.ErrNoRows {
+			return nil, err
+		}
+	}
+
+	return stats, nil
 }

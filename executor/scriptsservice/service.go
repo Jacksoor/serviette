@@ -16,6 +16,7 @@ import (
 
 	messagingpb "github.com/porpoises/kobun4/executor/messagingservice/v1pb"
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
+	statspb "github.com/porpoises/kobun4/executor/statsservice/v1pb"
 
 	"github.com/porpoises/kobun4/executor/accounts"
 	"github.com/porpoises/kobun4/executor/scripts"
@@ -23,6 +24,7 @@ import (
 	"github.com/porpoises/kobun4/executor/worker/rpc/messagingservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/networkinfoservice"
 	"github.com/porpoises/kobun4/executor/worker/rpc/outputservice"
+	"github.com/porpoises/kobun4/executor/worker/rpc/statsservice"
 
 	pb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
@@ -159,6 +161,10 @@ var workerServiceFactories map[string]workerServiceFactory = map[string]workerSe
 
 	"NetworkInfo": func(ctx context.Context, bridgeConn *grpc.ClientConn, account *accounts.Account) (interface{}, error) {
 		return networkinfoservice.New(ctx, networkinfopb.NewNetworkInfoClient(bridgeConn)), nil
+	},
+
+	"Stats": func(ctx context.Context, bridgeConn *grpc.ClientConn, account *accounts.Account) (interface{}, error) {
+		return statsservice.New(ctx, statspb.NewStatsClient(bridgeConn)), nil
 	},
 }
 

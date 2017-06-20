@@ -19,13 +19,18 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/porpoises/kobun4/discordbridge/client"
+
 	"github.com/porpoises/kobun4/discordbridge/messagingservice"
 	"github.com/porpoises/kobun4/discordbridge/networkinfoservice"
+	"github.com/porpoises/kobun4/discordbridge/statsservice"
+
 	"github.com/porpoises/kobun4/discordbridge/statsstore"
 	"github.com/porpoises/kobun4/discordbridge/varstore"
 
 	messagingpb "github.com/porpoises/kobun4/executor/messagingservice/v1pb"
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
+	statspb "github.com/porpoises/kobun4/executor/statsservice/v1pb"
+
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
@@ -97,6 +102,7 @@ func main() {
 	s := grpc.NewServer()
 	networkinfopb.RegisterNetworkInfoServer(s, networkinfoservice.New(client.Session(), vars))
 	messagingpb.RegisterMessagingServer(s, messagingservice.New(client.Session(), vars))
+	statspb.RegisterStatsServer(s, statsservice.New(stats))
 	reflection.Register(s)
 
 	signalChan := make(chan os.Signal, 1)

@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package kobun4.executor.stats.v1;
+
+option go_package = "v1pb";
+
+message GetUserChannelStatsRequest {
+    string user_id = 1;
+    string channel_id = 2;
+}
+
+message GetUserChannelStatsResponse {
+    int64 num_characters_sent = 1;
+    int64 num_messages_sent = 2;
+    int64 last_reset_time_unix = 3;
+}
+
+service Stats {
+    rpc GetUserChannelStats(GetUserChannelStatsRequest) returns (GetUserChannelStatsResponse) { }
+}
