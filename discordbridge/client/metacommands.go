@@ -146,7 +146,7 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 					&discordgo.MessageEmbedField{
 						Name: fmt.Sprintf("@%s link <command name> <script name>", c.session.State.User.Username),
 						Value: fmt.Sprintf(`**Administrators only.**
-Link a command name to a script name. If the link already exists, it will be replaced. A list of linkable script names can be found at %s/scripts`, c.opts.WebURL),
+Link a command name to a script name. If the link already exists, it will be replaced. A list of linkable script names can be found at %s/scripts`, c.opts.HomeURL),
 					},
 					&discordgo.MessageEmbedField{
 						Name: fmt.Sprintf("@%s unlink <command name>", c.session.State.User.Username),
@@ -165,7 +165,7 @@ Remove a command name link.`,
 				Content: fmt.Sprintf("<@%s>: ✅", m.Author.ID),
 				Embed: &discordgo.MessageEmbed{
 					Title:       "ℹ Help",
-					URL:         c.opts.WebURL,
+					URL:         c.opts.HomeURL,
 					Description: fmt.Sprintf(`Here's a listing of commands that are linked into this server.%s`, formattedAnnouncement),
 					Color:       0x009100,
 					Fields:      fields,
@@ -224,11 +224,11 @@ Remove a command name link.`,
 				Embed: &discordgo.MessageEmbed{
 					Title:       fmt.Sprintf("`%s`", commandName),
 					Description: description,
-					URL:         fmt.Sprintf("%s/scripts/%s/%s", c.opts.WebURL, ownerName, scriptName),
+					URL:         fmt.Sprintf("%s/scripts/%s/%s", c.opts.HomeURL, ownerName, scriptName),
 					Color:       0x009100,
 					Author: &discordgo.MessageEmbedAuthor{
 						Name: ownerName,
-						URL:  fmt.Sprintf("%s/scripts/%s", c.opts.WebURL, ownerName),
+						URL:  fmt.Sprintf("%s/scripts/%s", c.opts.HomeURL, ownerName),
 					},
 					Fields: []*discordgo.MessageEmbedField{
 						{
@@ -318,11 +318,11 @@ Remove a command name link.`,
 				Embed: &discordgo.MessageEmbed{
 					Title:       fmt.Sprintf("`%s`", commandName),
 					Description: description,
-					URL:         fmt.Sprintf("%s/scripts/%s/%s", c.opts.WebURL, ownerName, scriptName),
+					URL:         fmt.Sprintf("%s/scripts/%s/%s", c.opts.HomeURL, ownerName, scriptName),
 					Color:       0x009100,
 					Author: &discordgo.MessageEmbedAuthor{
 						Name: ownerName,
-						URL:  fmt.Sprintf("%s/scripts/%s", c.opts.WebURL, ownerName),
+						URL:  fmt.Sprintf("%s/scripts/%s", c.opts.HomeURL, ownerName),
 					},
 					Fields: []*discordgo.MessageEmbedField{
 						{

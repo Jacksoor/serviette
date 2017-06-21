@@ -228,7 +228,7 @@ func (h *Handler) scriptCreate(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/scripts/%s/%s", username, scriptName), http.StatusMovedPermanently)
+	http.Redirect(w, r, fmt.Sprintf("/scripts/%s/%s", username, scriptName), http.StatusFound)
 }
 
 func (h *Handler) scriptGet(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -322,7 +322,7 @@ func (h *Handler) scriptUpdate(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/scripts/%s/%s", username, scriptName), http.StatusMovedPermanently)
+	http.Redirect(w, r, fmt.Sprintf("/scripts/%s/%s", username, scriptName), http.StatusFound)
 }
 
 func (h *Handler) scriptDelete(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -357,5 +357,5 @@ func (h *Handler) scriptDelete(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	http.Redirect(w, r, "/", http.StatusMovedPermanently)
+	http.Redirect(w, r, "/", http.StatusFound)
 }

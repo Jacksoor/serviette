@@ -38,8 +38,8 @@ var (
 	bindSocket      = flag.String("bind_socket", "localhost:5903", "Bind for socket")
 	bindDebugSocket = flag.String("bind_debug_socket", "localhost:5913", "Bind for socket")
 
-	discordToken = flag.String("discord_token", "", "Token for Discord.")
-	status       = flag.String("status", "", "Status to show.")
+	botToken = flag.String("bot_token", "", "Bot token.")
+	status   = flag.String("status", "", "Status to show.")
 
 	knownGuildsOnly = flag.Bool("known_guilds_only", false, "Only stay on known guilds")
 
@@ -47,7 +47,7 @@ var (
 
 	executorTarget = flag.String("executor_target", "localhost:5902", "Executor target")
 
-	webURL = flag.String("web_url", "http://kobun", "URL to web UI")
+	homeURL = flag.String("home_url", "http://kobun", "URL to web UI")
 )
 
 func main() {
@@ -88,9 +88,9 @@ func main() {
 	defer lis.Close()
 	glog.Infof("Listening on: %s", lis.Addr())
 
-	client, err := client.New(*discordToken, &client.Options{
-		Status: *status,
-		WebURL: *webURL,
+	client, err := client.New(*botToken, &client.Options{
+		Status:  *status,
+		HomeURL: *homeURL,
 	}, *knownGuildsOnly, lis.Addr(), vars, stats, scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)

@@ -71,6 +71,12 @@ new_go_repository(
 )
 
 new_go_repository(
+    name = "org_golang_x_oauth2",
+    commit = "f047394b6d14284165300fd82dad67edb3a4d7f6",
+    importpath = "golang.org/x/oauth2",
+)
+
+new_go_repository(
     name = "com_github_lib_pq",
     commit = "8837942c3e09574accbc5f150e2c5e057189cace",
     importpath = "github.com/lib/pq",
@@ -160,4 +166,10 @@ new_go_repository(
     name = "com_github_matttproud_golang_protobuf_extensions",
     commit = "c12348ce28de40eed0136aa2b644d0ee0650e56c",
     importpath = "github.com/matttproud/golang_protobuf_extensions",
+)
+
+new_go_repository(
+    name = "org_golang_google_appengine",
+    commit = "a2f4131514e563cedfdb6e7d267df9ad48591e93",
+    importpath = "google.golang.org/appengine",
 )

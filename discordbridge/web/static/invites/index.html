@@ -1,0 +1,141 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Invites | Kobun for Discord</title>
+</head>
+<body>
+    <div id="steps">
+        <div class="step">
+            <p>
+                Thanks for your interest in Kobun. If you're here, there's just a few more steps you need to take to get Kobun on your server.
+            </p>
+            <p>
+                <strong>This process can only be completed once.</strong>
+            </p>
+            <p>
+                <button type="button" onclick="nextStep()">Let's go!</button>
+            </p>
+        </div>
+
+        <div class="step">
+            <h2>Step 0. Create a role for Kobun administrators and assign it to yourself.</h2>
+            <p>
+                Before you do the step below, make sure you have a role created for any users who would require administrative privileges for Kobun and it is at least assigned to you.
+            </p>
+            <p>
+                <button type="button" onclick="nextStep()">I did it!</button>
+            </p>
+        </div>
+
+        <div class="step">
+            <h2>Step 1. Authorize Kobun for your server.</h2>
+            <p>
+                Kobun needs to have permissions to be in your server, and to be able to see what roles you have.
+            </p>
+            <p>
+                <button id="authorize">Authorize</button>
+            </p>
+        </div>
+
+        <div class="step">
+            <h2>Step 2. Select a role to use for admininstration.</h2>
+            <p>
+                You'll need to pick the role you created in step 0 here.
+            </p>
+            <p>
+                <form id="roleSelectForm">
+                    <select name="role">
+                        <option disabled selected></option>
+                    </select>
+                    <button type="submit">Choose role</button>
+                </form>
+            </p>
+        </div>
+
+        <div class="step">
+            <h2>You're done!</h2>
+            <p>
+                Close this page and enjoy!
+            </p>
+        </div>
+    </div>
+
+    <script>
+    var stepsEl = document.getElementById('steps');
+    var stepEls = Array.prototype.slice.call(stepsEl.getElementsByClassName('step'));
+    var pendingStepEls = stepEls.slice();
+
+    function clearStepsEl() {
+        for (var i = 0; i < stepEls.length; ++i) {
+            stepEls[i].style.display = 'none';
+        }
+    }
+
+    var roleSelectFormEl = document.getElementById('roleSelectForm');
+
+    function nextStep() {
+        clearStepsEl();
+        pendingStepEls.shift().style.display = '';
+    }
+
+    function req(method, url, body, cb) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, url);
+        if (method === 'POST') {
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        }
+        xhr.onload = function() {
+            if (xhr.status !== 200) {
+                cb(new Error(xhr.responseText));
+            } else {
+                if (xhr.responseText) {
+                    cb(null, JSON.parse(xhr.responseText));
+                } else {
+                    cb(null, null);
+                }
+            }
+        };
+        xhr.send(body);
+    }
+
+    function onKobunInviteBound(info) {
+        req('GET', '/api/v1/invites/roles?invite_id=' + encodeURIComponent(info.invite_id) + '&access_token=' + encodeURIComponent(info.access_token), null, function (err, resp) {
+            if (err !== null) {
+                alert('ERROR: ' + err);
+                return;
+            }
+
+            for (var k in resp.roles) {
+                if (!Object.prototype.hasOwnProperty.call(resp.roles, k)) {
+                    continue;
+                }
+
+                var optionEl = document.createElement('option');
+                optionEl.value = k;
+                optionEl.textContent = resp.roles[k];
+                roleSelectFormEl.elements.role.appendChild(optionEl);
+            }
+
+            roleSelectFormEl.onsubmit = function (e) {
+                e.preventDefault();
+
+                req('POST', '/api/v1/invites/consume', 'access_token=' + encodeURIComponent(info.access_token) + '&invite_id=' + encodeURIComponent(info.invite_id), function (err, resp) {
+                    if (err !== null) {
+                        alert("ERROR: " + err);
+                        return;
+                    }
+                });
+            };
+        });
+    }
+
+    document.getElementById('authorize').onclick = function () {
+        var inviteID = window.location.search.substring(1);
+        window.open('/api/v1/invites/use?invite_id=' + encodeURIComponent(inviteID), 'oauthDialog', 'width=800, height=600');
+    };
+
+    nextStep();
+    </script>
+</body>
+</html>

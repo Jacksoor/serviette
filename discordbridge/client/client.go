@@ -22,8 +22,8 @@ import (
 )
 
 type Options struct {
-	Status string
-	WebURL string
+	Status  string
+	HomeURL string
 }
 
 type Client struct {

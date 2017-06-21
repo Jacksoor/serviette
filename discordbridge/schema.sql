@@ -28,3 +28,8 @@ create table user_channel_stats (
 
     primary key (user_id, channel_id)
 );
+
+create table invites (
+    invite_id character varying not null primary key,
+    bound_guild_id character varying
+);
