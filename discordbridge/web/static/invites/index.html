@@ -106,6 +106,8 @@
                 return;
             }
 
+            nextStep();
+
             for (var k in resp.roles) {
                 if (!Object.prototype.hasOwnProperty.call(resp.roles, k)) {
                     continue;
@@ -125,6 +127,8 @@
                         alert("ERROR: " + err);
                         return;
                     }
+
+                    nextStep();
                 });
             };
         });
