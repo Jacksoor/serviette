@@ -46,7 +46,7 @@ func New(baseURL string, clientID string, clientSecret string, botToken string, 
 		oauthConf: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			Scopes:       []string{"bot", "identify"},
+			Scopes:       []string{"bot"},
 			Endpoint: oauth2.Endpoint{
 				AuthURL:  "https://discordapp.com/api/oauth2/authorize",
 				TokenURL: "https://discordapp.com/api/oauth2/token",
@@ -194,12 +194,6 @@ window.close();
 func (h *Handler) inviteRoles(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	query := r.URL.Query()
 
-	session, err := discordgo.New(fmt.Sprintf("Bearer %s", query.Get("access_token")))
-	if err != nil {
-		return
-	}
-	session.StateEnabled = false
-
 	inviteID := query.Get("invite_id")
 
 	tx, err := h.db.BeginTx(r.Context(), nil)
@@ -224,13 +218,6 @@ func (h *Handler) inviteRoles(w http.ResponseWriter, r *http.Request, _ httprout
 		return
 	}
 
-	user, err := session.User("@me")
-	if err != nil {
-		glog.Errorf("Failed to find user: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
 	guild, err := h.session.Guild(guildID)
 	if err != nil {
 		glog.Errorf("Failed to find guild: %v", err)
@@ -243,23 +230,11 @@ func (h *Handler) inviteRoles(w http.ResponseWriter, r *http.Request, _ httprout
 		roleNames[role.ID] = role.Name
 	}
 
-	guildMember, err := h.session.GuildMember(guild.ID, user.ID)
-	if err != nil {
-		glog.Errorf("Failed to find guild member: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	availableRoleNames := make(map[string]string, len(guildMember.Roles))
-	for _, roleID := range guildMember.Roles {
-		availableRoleNames[roleID] = roleNames[roleID]
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	raw, err := json.Marshal(struct {
 		Roles map[string]string `json:"roles"`
 	}{
-		availableRoleNames,
+		roleNames,
 	})
 	if err != nil {
 		glog.Errorf("Failed to marshal JSON: %v", err)
