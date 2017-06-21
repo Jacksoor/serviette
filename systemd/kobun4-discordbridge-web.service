@@ -10,7 +10,7 @@ Group=nogroup
 
 EnvironmentFile=/etc/kobun4/discordbridge
 WorkingDirectory=/var/lib/kobun4/discordbridge
-ExecStart=/opt/kobun4/discordbridge/web/web -client_id=${KOBUN4_DISCORDBRIDGE_WEB_CLIENT_ID} -client_secret=${KOBUN4_DISCORDBRIDGE_WEB_CLIENT_SECRET} -bot_token=${KOBUN4_DISCORDBRIDGE_BOT_TOKEN} -base_url=${KOBUN4_DISCORDBRIDGE_WEB_BASE_URL} -postgres_url=${KOBUN4_DISCORDBRIDGE_POSTGRES_URL} -logtostderr
+ExecStart=/opt/kobun4/discordbridge/web/web -client_id=${KOBUN4_DISCORDBRIDGE_WEB_CLIENT_ID} -client_secret=${KOBUN4_DISCORDBRIDGE_WEB_CLIENT_SECRET} -bot_token=${KOBUN4_DISCORDBRIDGE_BOT_TOKEN} -base_url=${KOBUN4_DISCORDBRIDGE_WEB_BASE_URL} -postgres_url=${KOBUN4_DISCORDBRIDGE_POSTGRES_URL} -default_announcement=${KOBUN4_DISCORDBRIDGE_WEB_DEFAULT_ANNOUNCEMENT} -logtostderr
 
 PrivateTmp=true
 PrivateDevices=true
