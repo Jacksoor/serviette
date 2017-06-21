@@ -66,6 +66,8 @@
     var stepEls = Array.prototype.slice.call(stepsEl.getElementsByClassName('step'));
     var pendingStepEls = stepEls.slice();
 
+    var inviteID = window.location.search.substring(1);
+
     function clearStepsEl() {
         for (var i = 0; i < stepEls.length; ++i) {
             stepEls[i].style.display = 'none';
@@ -99,8 +101,8 @@
         xhr.send(body);
     }
 
-    function onKobunInviteBound(info) {
-        req('GET', '/api/v1/invites/roles?invite_id=' + encodeURIComponent(info.invite_id) + '&access_token=' + encodeURIComponent(info.access_token), null, function (err, resp) {
+    function onKobunInviteBound() {
+        req('GET', '/api/v1/invites/roles?invite_id=' + encodeURIComponent(inviteID), null, function (err, resp) {
             if (err !== null) {
                 alert('ERROR: ' + err);
                 return;
@@ -122,7 +124,7 @@
             roleSelectFormEl.onsubmit = function (e) {
                 e.preventDefault();
 
-                req('POST', '/api/v1/invites/consume', 'access_token=' + encodeURIComponent(info.access_token) + '&invite_id=' + encodeURIComponent(info.invite_id), function (err, resp) {
+                req('POST', '/api/v1/invites/consume', 'invite_id=' + encodeURIComponent(inviteID), function (err, resp) {
                     if (err !== null) {
                         alert("ERROR: " + err);
                         return;
@@ -135,7 +137,6 @@
     }
 
     document.getElementById('authorize').onclick = function () {
-        var inviteID = window.location.search.substring(1);
         window.open('/api/v1/invites/use?invite_id=' + encodeURIComponent(inviteID), 'oauthDialog', 'width=800, height=600');
     };
 

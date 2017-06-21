@@ -154,28 +154,14 @@ func (h *Handler) inviteBind(w http.ResponseWriter, r *http.Request, _ httproute
 		return
 	}
 
-	token, err := h.oauthConf.Exchange(r.Context(), query.Get("code"))
-	if err != nil {
+	if _, err := h.oauthConf.Exchange(r.Context(), query.Get("code")); err != nil {
 		glog.Errorf("Failed to exchange token: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	raw, err := json.Marshal(struct {
-		AccessToken string `json:"access_token"`
-		InviteID    string `json:"invite_id"`
-	}{
-		token.AccessToken,
-		inviteID,
-	})
-	if err != nil {
-		glog.Errorf("Failed to marshal JSON: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
 	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(w, `<!doctype html>
+	w.Write([]byte(`<!doctype html>
 <html>
 <head>
 <title>Authorization Success</title>
@@ -184,11 +170,11 @@ func (h *Handler) inviteBind(w http.ResponseWriter, r *http.Request, _ httproute
 <body>
 This window will close automatically.
 <script>
-window.opener.onKobunInviteBound(%s);
+window.opener.onKobunInviteBound();
 window.close();
 </script>
 </body>
-</html>`, string(raw))
+</html>`))
 }
 
 func (h *Handler) inviteRoles(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
