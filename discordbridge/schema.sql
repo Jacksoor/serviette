@@ -33,3 +33,5 @@ create table invites (
     invite_id character varying not null primary key,
     bound_guild_id character varying
 );
+
+create unique index invites_bound_guild_id on invites (bound_guild_id);

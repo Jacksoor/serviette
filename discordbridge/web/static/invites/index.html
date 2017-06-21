@@ -44,8 +44,7 @@
                 You'll need to pick the role you created in step 0 here.
             </p>
             <form id="roleSelectForm">
-                <select name="role">
-                    <option disabled selected></option>
+                <select name="role" required>
                 </select>
                 <button type="submit">Choose role</button>
             </form>
@@ -125,7 +124,7 @@
             roleSelectFormEl.onsubmit = function (e) {
                 e.preventDefault();
 
-                req('POST', '/api/v1/invites/consume', 'invite_id=' + encodeURIComponent(inviteID), function (err, resp) {
+                req('POST', '/api/v1/invites/consume', 'invite_id=' + encodeURIComponent(inviteID) + '&role_id=' + encodeURIComponent(roleSelectFormEl.elements.role.value), function (err, resp) {
                     if (err !== null) {
                         alert("ERROR: " + err);
                         return;

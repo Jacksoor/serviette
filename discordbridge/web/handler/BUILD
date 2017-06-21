@@ -8,6 +8,7 @@ go_library(
         "@com_github_bwmarrin_discordgo//:go_default_library",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_julienschmidt_httprouter//:go_default_library",
+        "@com_github_lib_pq//:go_default_library",
         "@org_golang_x_oauth2//:go_default_library",
     ],
 )

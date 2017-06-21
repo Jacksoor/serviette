@@ -11,6 +11,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/julienschmidt/httprouter"
+	"github.com/lib/pq"
 	"golang.org/x/oauth2"
 )
 
@@ -107,6 +108,25 @@ func (h *Handler) inviteBind(w http.ResponseWriter, r *http.Request, _ httproute
 	}
 	defer tx.Rollback()
 
+	// Don't allow binding the invite to a guild if the guild already has an admin role.
+	var adminRoleID string
+	if err := tx.QueryRowContext(r.Context(), `
+		select admin_role_id
+		from guild_vars
+		where guild_id = $1
+	`, guildID).Scan(&adminRoleID); err != nil {
+		if err != sql.ErrNoRows {
+			glog.Errorf("Failed to check guild vars: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if adminRoleID != "" {
+		http.Error(w, "Forbidden (invite already used on server)", http.StatusForbidden)
+		return
+	}
+
 	var boundGuildID *string
 	if err := tx.QueryRowContext(r.Context(), `
 		select bound_guild_id
@@ -143,6 +163,12 @@ func (h *Handler) inviteBind(w http.ResponseWriter, r *http.Request, _ httproute
 		set bound_guild_id = $1
 		where invite_id = $2
 	`, guildID, inviteID); err != nil {
+		if err, ok := err.(*pq.Error); ok {
+			if err.Code == "23505" /* unique_violation */ {
+				http.Error(w, "Forbidden (invite already being used)", http.StatusForbidden)
+				return
+			}
+		}
 		glog.Errorf("Failed to bind invite: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
