@@ -1,7 +1,7 @@
 package outputservice
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/porpoises/kobun4/executor/accounts"
 
@@ -25,8 +25,8 @@ func New(account *accounts.Account) *Service {
 func (s *Service) SetFormat(req *struct {
 	Format string `json:"format"`
 }, resp *struct{}) error {
-	if req.Format == "raw" && !s.account.AllowRawOutput {
-		return errors.New("raw format requested but account is not allowed to send raw output")
+	if !s.account.IsOutputFormatAllowed(req.Format) {
+		return fmt.Errorf(`output format "%s" is not allowed`, req.Format)
 	}
 	s.OutputParams.Format = req.Format
 	return nil

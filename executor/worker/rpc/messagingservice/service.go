@@ -1,7 +1,7 @@
 package messagingservice
 
 import (
-	"errors"
+	"fmt"
 
 	"golang.org/x/net/context"
 
@@ -34,8 +34,8 @@ func (s *Service) MessageChannel(req *struct {
 		format = "text"
 	}
 
-	if format == "raw" && !s.account.AllowRawOutput {
-		return errors.New("raw format requested but account is not allowed to send raw output")
+	if !s.account.IsOutputFormatAllowed(format) {
+		return fmt.Errorf(`output format "%s" is not allowed`, format)
 	}
 	if _, err := s.messaging.Message(s.ctx, &messagingpb.MessageRequest{
 		Content: []byte(req.Content),
@@ -59,8 +59,8 @@ func (s *Service) MessageUser(req *struct {
 		format = "text"
 	}
 
-	if format == "raw" && !s.account.AllowRawOutput {
-		return errors.New("raw format requested but account is not allowed to send raw output")
+	if !s.account.IsOutputFormatAllowed(format) {
+		return fmt.Errorf(`output format "%s" is not allowed`, format)
 	}
 	if _, err := s.messaging.Message(s.ctx, &messagingpb.MessageRequest{
 		Content: []byte(req.Content),

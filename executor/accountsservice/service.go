@@ -80,8 +80,7 @@ func (s *Service) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse,
 		TmpfsSize:          account.TmpfsSize,
 		AllowNetworkAccess: account.AllowNetworkAccess,
 
-		AllowRawOutput: account.AllowRawOutput,
-
-		AllowedService: account.AllowedServices,
+		AllowedOutputFormat: account.AllowedOutputFormats,
+		AllowedService:      account.AllowedServices,
 	}, nil
 }

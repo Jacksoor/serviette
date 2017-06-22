@@ -35,9 +35,8 @@ type AccountInfo struct {
 	TmpfsSize          int64 `json:"tmpfsSize"`
 	AllowNetworkAccess bool  `json:"allowNetworkAccess"`
 
-	AllowRawOutput bool `json:"allowRawOutput"`
-
-	AllowedServices []string `json:"allowedServices"`
+	AllowedOutputFormats []string `json:"allowedOutputFormats"`
+	AllowedServices      []string `json:"allowedServices"`
 }
 
 type Script struct {
@@ -158,9 +157,8 @@ func (a AccountsResource) read(req *restful.Request, resp *restful.Response) {
 			TmpfsSize:          accountResp.TmpfsSize,
 			AllowNetworkAccess: accountResp.AllowNetworkAccess,
 
-			AllowRawOutput: accountResp.AllowRawOutput,
-
-			AllowedServices: accountResp.AllowedService,
+			AllowedOutputFormats: accountResp.AllowedOutputFormat,
+			AllowedServices:      accountResp.AllowedService,
 		}
 	}
 

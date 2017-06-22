@@ -40,9 +40,17 @@ type Account struct {
 	TmpfsSize          int64
 	AllowNetworkAccess bool
 
-	AllowRawOutput bool
+	AllowedServices      []string
+	AllowedOutputFormats []string
+}
 
-	AllowedServices []string
+func (a *Account) IsOutputFormatAllowed(format string) bool {
+	for _, allowedFormat := range a.AllowedOutputFormats {
+		if allowedFormat == format {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *Account) StoragePath() string {
@@ -89,8 +97,8 @@ func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
 		       memory_limit,
 		       tmpfs_size,
 		       allow_network_access,
-		       allow_raw_output,
-		       allowed_services
+		       allowed_services,
+		       allowed_output_formats
 		from accounts
 		where name = $1
 	`, name).Scan(
@@ -100,8 +108,8 @@ func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
 		&account.MemoryLimit,
 		&account.TmpfsSize,
 		&account.AllowNetworkAccess,
-		&account.AllowRawOutput,
 		pq.Array(&account.AllowedServices),
+		pq.Array(&account.AllowedOutputFormats),
 	); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
