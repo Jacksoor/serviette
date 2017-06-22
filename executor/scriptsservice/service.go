@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/djherbis/buffer/limio"
 	"github.com/golang/glog"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/prometheus/client_golang/prometheus"
@@ -53,6 +54,8 @@ var (
 		Help:      "Script uses by server.",
 	}, []string{"bridge_name", "network_id", "group_id", "owner_name", "script_name"})
 )
+
+const maxBufferSize int64 = 5 * 1024 * 1024 // 5MB
 
 type Service struct {
 	scripts  *scripts.Store
@@ -214,7 +217,10 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		"--env", fmt.Sprintf("K4_CONTEXT=%s", rawCtx),
 	)
 
-	w := worker.New(workerOpts, filepath.Join("/mnt/scripts", script.QualifiedName()), []string{}, bytes.NewBuffer(req.Stdin))
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	w := worker.New(workerOpts, filepath.Join("/mnt/scripts", script.QualifiedName()), []string{}, bytes.NewBuffer(req.Stdin), limio.LimitWriter(&stdout, maxBufferSize), limio.LimitWriter(&stderr, maxBufferSize))
 
 	bridgeConn, err := grpc.Dial(req.BridgeTarget, grpc.WithInsecure())
 	if err != nil {
@@ -243,23 +249,23 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 
 	startTime := time.Now()
-	r, err := w.Run(ctx)
-	if r == nil {
+	processState, err := w.Run(ctx)
+	if processState == nil {
 		glog.Errorf("Failed to run worker: %v", err)
 		return nil, err
 	}
 	endTime := time.Now()
 
-	cpuTime := r.ProcessState.UserTime() + r.ProcessState.SystemTime()
+	cpuTime := processState.UserTime() + processState.SystemTime()
 	realTime := endTime.Sub(startTime)
 
 	scriptCPUExecutionDurationsHistogram.WithLabelValues(script.OwnerName, script.Name).Observe(float64(cpuTime) / float64(time.Millisecond))
 	scriptRealExecutionDurationsHistogram.WithLabelValues(script.OwnerName, script.Name).Observe(float64(realTime) / float64(time.Millisecond))
 	scriptUsesByServer.WithLabelValues(req.Context.BridgeName, req.Context.NetworkId, req.Context.GroupId, script.OwnerName, script.Name).Inc()
 
-	waitStatus := r.ProcessState.Sys().(syscall.WaitStatus)
+	waitStatus := processState.Sys().(syscall.WaitStatus)
 
-	glog.Infof("Script execution result: %s, CPU time: %s, real time: %s, wait status: %v", string(r.Stderr), cpuTime, realTime, waitStatus)
+	glog.Infof("Script execution result: %s, CPU time: %s, real time: %s, wait status: %v", string(stderr.Bytes()), cpuTime, realTime, waitStatus)
 
 	// Exited with signal, so shift it back.
 	if waitStatus.ExitStatus() > 100 {
@@ -268,8 +274,8 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	return &pb.ExecuteResponse{
 		WaitStatus: uint32(waitStatus),
-		Stdout:     r.Stdout,
-		Stderr:     r.Stderr,
+		Stdout:     stdout.Bytes(),
+		Stderr:     stderr.Bytes(),
 
 		OutputParams: outputService.OutputParams,
 	}, nil

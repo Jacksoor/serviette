@@ -4,5 +4,4 @@ go_library(
     name = "go_default_library",
     srcs = ["worker.go"],
     visibility = ["//visibility:public"],
-    deps = ["@com_github_djherbis_buffer//limio:go_default_library"],
 )

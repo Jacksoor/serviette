@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,20 +11,19 @@ import (
 	"os/exec"
 	"syscall"
 	"time"
-
-	"github.com/djherbis/buffer/limio"
 )
-
-const maxBufferSize int64 = 5 * 1024 * 1024 // 5MB
 
 const rlimitAddressSpaceMB int64 = 1 * 1024 * 1024 * 1024 // 1GB
 
 type Worker struct {
 	opts *Options
 
-	arg0  string
-	argv  []string
-	stdin io.Reader
+	arg0 string
+	argv []string
+
+	stdin  io.Reader
+	stdout io.Writer
+	stderr io.Writer
 
 	rpcServer *rpc.Server
 }
@@ -49,32 +47,26 @@ type NetworkOptions struct {
 	Gateway   string
 }
 
-type WorkerResult struct {
-	Stdout       []byte
-	Stderr       []byte
-	ProcessState *os.ProcessState
-}
-
-func New(opts *Options, arg0 string, argv []string, stdin io.Reader) *Worker {
+func New(opts *Options, arg0 string, argv []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) *Worker {
 	return &Worker{
 		opts: opts,
 
-		arg0:  arg0,
-		argv:  argv,
-		stdin: stdin,
+		arg0: arg0,
+		argv: argv,
+
+		stdin:  stdin,
+		stdout: stdout,
+		stderr: stderr,
 
 		rpcServer: rpc.NewServer(),
 	}
 }
 
-func (w *Worker) Run(ctx context.Context) (*WorkerResult, error) {
+func (w *Worker) Run(ctx context.Context) (*os.ProcessState, error) {
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {
 		return nil, err
 	}
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
 
 	ctx, cancel := context.WithTimeout(ctx, w.opts.TimeLimit)
 	defer cancel()
@@ -117,11 +109,11 @@ func (w *Worker) Run(ctx context.Context) (*WorkerResult, error) {
 	nsjailArgs = append(nsjailArgs, w.opts.ExtraNsjailArgs...)
 	nsjailArgs = append(nsjailArgs, "--", w.arg0)
 
-	cmd := exec.CommandContext(
-		ctx, "nsjail", append(nsjailArgs, w.argv...)...)
+	cmd := exec.CommandContext(ctx, "nsjail", append(nsjailArgs, w.argv...)...)
+
 	cmd.Stdin = w.stdin
-	cmd.Stdout = limio.LimitWriter(&stdout, maxBufferSize)
-	cmd.Stderr = limio.LimitWriter(&stderr, maxBufferSize)
+	cmd.Stdout = w.stdout
+	cmd.Stderr = w.stderr
 
 	childFile := os.NewFile(uintptr(fds[1]), "")
 	cmd.ExtraFiles = []*os.File{
@@ -142,20 +134,12 @@ func (w *Worker) Run(ctx context.Context) (*WorkerResult, error) {
 
 	if err := cmd.Wait(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			return &WorkerResult{
-				Stdout:       stdout.Bytes(),
-				Stderr:       stderr.Bytes(),
-				ProcessState: exitErr.ProcessState,
-			}, err
+			return exitErr.ProcessState, err
 		}
 		return nil, err
 	}
 
-	return &WorkerResult{
-		Stdout:       stdout.Bytes(),
-		Stderr:       stderr.Bytes(),
-		ProcessState: cmd.ProcessState,
-	}, nil
+	return cmd.ProcessState, nil
 }
 
 func (w *Worker) RegisterService(name string, rcvr interface{}) error {

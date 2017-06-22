@@ -16,6 +16,7 @@ go_library(
         "//executor/worker/rpc/networkinfoservice:go_default_library",
         "//executor/worker/rpc/outputservice:go_default_library",
         "//executor/worker/rpc/statsservice:go_default_library",
+        "@com_github_djherbis_buffer//limio:go_default_library",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_golang_protobuf//jsonpb:go_default_library",
         "@com_github_prometheus_client_golang//prometheus:go_default_library",
