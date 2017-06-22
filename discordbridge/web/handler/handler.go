@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/golang/glog"
 
@@ -24,10 +23,6 @@ type Handler struct {
 	oauthConf           *oauth2.Config
 	db                  *sql.DB
 }
-
-var defaultScriptCommandPrefix = "."
-var defaultQuiet = true
-var defaultDeleteErrorsAfter = 5 * time.Second
 
 func New(baseURL string, clientID string, clientSecret string, botToken string, defaultAnnouncement string, db *sql.DB) (*Handler, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", botToken))
@@ -123,7 +118,7 @@ func (h *Handler) inviteBind(w http.ResponseWriter, r *http.Request, _ httproute
 	}
 
 	if adminRoleID != "" {
-		http.Error(w, "Forbidden (invite already used on server)", http.StatusForbidden)
+		http.Error(w, "Forbidden (server already set up)", http.StatusForbidden)
 		return
 	}
 
@@ -149,10 +144,10 @@ func (h *Handler) inviteBind(w http.ResponseWriter, r *http.Request, _ httproute
 	}
 
 	if _, err := tx.ExecContext(r.Context(), `
-		insert into guild_vars (guild_id, script_command_prefix, quiet, admin_role_id, announcement, delete_errors_after_seconds)
-		values ($1, $2, $3, '', $4, $5)
+		insert into guild_vars (guild_id, admin_role_id, announcement)
+		values ($1, '', $2)
 		on conflict do nothing
-	`, guildID, defaultScriptCommandPrefix, defaultQuiet, h.defaultAnnouncement, int64(defaultDeleteErrorsAfter/time.Second)); err != nil {
+	`, guildID, h.defaultAnnouncement); err != nil {
 		glog.Errorf("Failed to add guild var: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

@@ -1,10 +1,10 @@
 create table guild_vars (
     guild_id character varying primary key not null,
-    script_command_prefix character varying not null,
-    quiet boolean not null,
+    script_command_prefix character varying not null default '.',
+    quiet boolean not null default false,
     admin_role_id character varying not null,
     announcement character varying not null,
-    delete_errors_after_seconds integer not null
+    delete_errors_after_seconds integer not null default 5
 );
 
 create table guild_links (
