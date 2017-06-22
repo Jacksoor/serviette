@@ -63,10 +63,27 @@ type Service struct {
 
 	k4LibraryPath string
 
-	baseWorkerOptions *worker.Options
+	workerOptions *WorkerOptions
 }
 
-func New(scripts *scripts.Store, accounts *accounts.Store, k4LibraryPath string, baseWorkerOptions *worker.Options) *Service {
+type WorkerOptions struct {
+	Chroot             string
+	KafelSeccompPolicy string
+	Network            *NetworkOptions
+
+	TimeLimit   time.Duration
+	MemoryLimit int64
+	TmpfsSize   int64
+}
+
+type NetworkOptions struct {
+	Interface string
+	IP        string
+	Netmask   string
+	Gateway   string
+}
+
+func New(scripts *scripts.Store, accounts *accounts.Store, k4LibraryPath string, workerOptions *WorkerOptions) *Service {
 	prometheus.MustRegister(scriptRealExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptCPUExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptUsesByServer)
@@ -77,7 +94,7 @@ func New(scripts *scripts.Store, accounts *accounts.Store, k4LibraryPath string,
 
 		k4LibraryPath: k4LibraryPath,
 
-		baseWorkerOptions: baseWorkerOptions,
+		workerOptions: workerOptions,
 	}
 }
 
@@ -171,6 +188,8 @@ var workerServiceFactories map[string]workerServiceFactory = map[string]workerSe
 	},
 }
 
+const rlimitAddressSpaceMB int64 = 1 * 1024 * 1024 * 1024 // 1GB
+
 func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
 	account, err := s.accounts.Account(ctx, req.OwnerName)
 	if err != nil {
@@ -200,27 +219,47 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
 
-	workerOpts := &worker.Options{}
-	*workerOpts = *s.baseWorkerOptions
-	workerOpts.TimeLimit = account.TimeLimit
-	workerOpts.MemoryLimit = account.MemoryLimit
-	workerOpts.TmpfsSize = account.TmpfsSize
-	if !account.AllowNetworkAccess {
-		workerOpts.Network = nil
-	}
-
-	workerOpts.ExtraNsjailArgs = append(workerOpts.ExtraNsjailArgs,
-		"--bindmount", fmt.Sprintf("%s:/mnt/storage", account.StoragePath()),
-		"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", s.scripts.RootPath()),
-		"--bindmount_ro", fmt.Sprintf("%s:/usr/lib/k4", s.k4LibraryPath),
-		"--cwd", "/mnt/storage",
-		"--env", fmt.Sprintf("K4_CONTEXT=%s", rawCtx),
-	)
-
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	w := worker.New(workerOpts, filepath.Join("/mnt/scripts", script.QualifiedName()), []string{}, bytes.NewBuffer(req.Stdin), limio.LimitWriter(&stdout, maxBufferSize), limio.LimitWriter(&stderr, maxBufferSize))
+	nsjailArgs := []string{
+		"--user", "nobody",
+		"--group", "nogroup",
+		"--hostname", "kobun4",
+
+		"--chroot", s.workerOptions.Chroot,
+
+		"--bindmount", fmt.Sprintf("%s:/mnt/storage", account.StoragePath()),
+		"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", s.scripts.RootPath()),
+		"--bindmount_ro", fmt.Sprintf("%s:/usr/lib/k4", s.k4LibraryPath),
+
+		"--cwd", "/mnt/storage",
+
+		"--env", fmt.Sprintf("K4_CONTEXT=%s", rawCtx),
+
+		"--cgroup_mem_max", fmt.Sprintf("%d", s.workerOptions.MemoryLimit),
+		"--cgroup_mem_parent", "/",
+
+		"--cgroup_pids_parent", "/",
+
+		"--rlimit_as", fmt.Sprintf("%d", rlimitAddressSpaceMB),
+
+		"--tmpfsmount", "/tmp",
+		"--tmpfs_size", fmt.Sprintf("%d", account.TmpfsSize),
+
+		"--seccomp_string", s.workerOptions.KafelSeccompPolicy,
+	}
+
+	if account.AllowNetworkAccess {
+		nsjailArgs = append(nsjailArgs,
+			"--macvlan_iface", s.workerOptions.Network.Interface,
+			"--macvlan_vs_ip", s.workerOptions.Network.IP,
+			"--macvlan_vs_nm", s.workerOptions.Network.Netmask,
+			"--macvlan_vs_gw", s.workerOptions.Network.Gateway,
+		)
+	}
+
+	w := worker.New(nsjailArgs, filepath.Join("/mnt/scripts", script.QualifiedName()), []string{}, bytes.NewBuffer(req.Stdin), limio.LimitWriter(&stdout, maxBufferSize), limio.LimitWriter(&stderr, maxBufferSize))
 
 	bridgeConn, err := grpc.Dial(req.BridgeTarget, grpc.WithInsecure())
 	if err != nil {
@@ -249,7 +288,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 
 	startTime := time.Now()
-	processState, err := w.Run(ctx)
+
+	processCtx, cancel := context.WithTimeout(ctx, account.TimeLimit)
+	defer cancel()
+
+	processState, err := w.Run(processCtx)
 	if processState == nil {
 		glog.Errorf("Failed to run worker: %v", err)
 		return nil, err

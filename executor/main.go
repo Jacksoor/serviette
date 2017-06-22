@@ -23,7 +23,6 @@ import (
 	"github.com/porpoises/kobun4/executor/accounts"
 	"github.com/porpoises/kobun4/executor/scripts"
 	"github.com/porpoises/kobun4/executor/webdav"
-	"github.com/porpoises/kobun4/executor/worker"
 
 	"github.com/porpoises/kobun4/executor/accountsservice"
 	accountspb "github.com/porpoises/kobun4/executor/accountsservice/v1pb"
@@ -88,10 +87,10 @@ func main() {
 	}
 
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scriptsStore, accountStore, *k4LibraryPath, &worker.Options{
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scriptsStore, accountStore, *k4LibraryPath, &scriptsservice.WorkerOptions{
 		Chroot:             *chrootPath,
 		KafelSeccompPolicy: *kafelSeccompPolicy,
-		Network: &worker.NetworkOptions{
+		Network: &scriptsservice.NetworkOptions{
 			Interface: *macvlanIface,
 			IP:        *macvlanVsIP,
 			Netmask:   *macvlanVsNM,

@@ -17,7 +17,6 @@ go_library(
         "//executor/scriptsservice:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "//executor/webdav:go_default_library",
-        "//executor/worker:go_default_library",
         "@com_github_golang_glog//:go_default_library",
         "@com_github_lib_pq//:go_default_library",
         "@com_github_prometheus_client_golang//prometheus/promhttp:go_default_library",

@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/rpc"
@@ -13,10 +12,8 @@ import (
 	"time"
 )
 
-const rlimitAddressSpaceMB int64 = 1 * 1024 * 1024 * 1024 // 1GB
-
 type Worker struct {
-	opts *Options
+	nsjailArgs []string
 
 	arg0 string
 	argv []string
@@ -28,28 +25,9 @@ type Worker struct {
 	rpcServer *rpc.Server
 }
 
-type Options struct {
-	Chroot             string
-	KafelSeccompPolicy string
-	Network            *NetworkOptions
-
-	TimeLimit   time.Duration
-	MemoryLimit int64
-	TmpfsSize   int64
-
-	ExtraNsjailArgs []string
-}
-
-type NetworkOptions struct {
-	Interface string
-	IP        string
-	Netmask   string
-	Gateway   string
-}
-
-func New(opts *Options, arg0 string, argv []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) *Worker {
+func New(nsjailArgs []string, arg0 string, argv []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) *Worker {
 	return &Worker{
-		opts: opts,
+		nsjailArgs: nsjailArgs,
 
 		arg0: arg0,
 		argv: argv,
@@ -68,48 +46,21 @@ func (w *Worker) Run(ctx context.Context) (*os.ProcessState, error) {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, w.opts.TimeLimit)
-	defer cancel()
-
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		return nil, errors.New("no deadline found?")
-	}
-
-	timeLimit := time.Until(deadline)
-
-	nsjailArgs := []string{
+	nsjailArgs := append([]string{
 		"--mode", "o",
 		"--log_fd", "4",
 		"--pass_fd", "3",
-		"--user", "nobody",
-		"--group", "nogroup",
-		"--hostname", "kobun4",
-		"--cgroup_mem_max", fmt.Sprintf("%d", w.opts.MemoryLimit),
-		"--cgroup_mem_parent", "/",
-		"--cgroup_pids_parent", "/",
-		"--rlimit_as", fmt.Sprintf("%d", rlimitAddressSpaceMB),
-		"--rlimit_cpu", fmt.Sprintf("%d", timeLimit/time.Second),
-		"--time_limit", fmt.Sprintf("%d", timeLimit/time.Second),
-		"--chroot", w.opts.Chroot,
-		"--tmpfsmount", "/tmp",
-		"--tmpfs_size", fmt.Sprintf("%d", w.opts.TmpfsSize),
-		"--seccomp_string", w.opts.KafelSeccompPolicy,
-	}
+	}, w.nsjailArgs...)
 
-	if w.opts.Network != nil {
+	if deadline, ok := ctx.Deadline(); ok {
+		timeLimit := time.Until(deadline)
 		nsjailArgs = append(nsjailArgs,
-			"--macvlan_iface", w.opts.Network.Interface,
-			"--macvlan_vs_ip", w.opts.Network.IP,
-			"--macvlan_vs_nm", w.opts.Network.Netmask,
-			"--macvlan_vs_gw", w.opts.Network.Gateway,
+			"--rlimit_cpu", fmt.Sprintf("%d", timeLimit/time.Second),
+			"--time_limit", fmt.Sprintf("%d", timeLimit/time.Second),
 		)
 	}
 
-	nsjailArgs = append(nsjailArgs, w.opts.ExtraNsjailArgs...)
-	nsjailArgs = append(nsjailArgs, "--", w.arg0)
-
-	cmd := exec.CommandContext(ctx, "nsjail", append(nsjailArgs, w.argv...)...)
+	cmd := exec.CommandContext(ctx, "nsjail", append(append(nsjailArgs, "--", w.arg0), w.argv...)...)
 
 	cmd.Stdin = w.stdin
 	cmd.Stdout = w.stdout
