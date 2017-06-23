@@ -2,7 +2,9 @@ package scriptsservice
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
+	"net"
 	"path/filepath"
 	"syscall"
 	"time"
@@ -64,23 +66,19 @@ type Service struct {
 	k4LibraryPath string
 
 	workerOptions *WorkerOptions
+
+	lastAssignableIP net.IP
 }
 
 type WorkerOptions struct {
 	Chroot             string
 	KafelSeccompPolicy string
-	Network            *NetworkOptions
+	NetworkInterface   string
+	IPNet              net.IPNet
 
 	TimeLimit   time.Duration
 	MemoryLimit int64
 	TmpfsSize   int64
-}
-
-type NetworkOptions struct {
-	Interface string
-	IP        string
-	Netmask   string
-	Gateway   string
 }
 
 func New(scripts *scripts.Store, accounts *accounts.Store, k4LibraryPath string, workerOptions *WorkerOptions) *Service {
@@ -95,6 +93,8 @@ func New(scripts *scripts.Store, accounts *accounts.Store, k4LibraryPath string,
 		k4LibraryPath: k4LibraryPath,
 
 		workerOptions: workerOptions,
+
+		lastAssignableIP: workerOptions.IPNet.IP,
 	}
 }
 
@@ -190,6 +190,28 @@ var workerServiceFactories map[string]workerServiceFactory = map[string]workerSe
 
 const rlimitAddressSpaceMB int64 = 1 * 1024 * 1024 * 1024 // 1GB
 
+func (s *Service) nextAssignableIP() net.IP {
+	gateway := binary.BigEndian.Uint32(s.workerOptions.IPNet.IP.To4())
+	netmask := binary.BigEndian.Uint32(net.IP(s.workerOptions.IPNet.Mask).To4())
+
+	last := binary.BigEndian.Uint32(s.lastAssignableIP.To4())
+
+	fixed := last & netmask
+	assignable := last & ^netmask
+
+	for {
+		assignable = (assignable + 1) & ^netmask
+
+		if assignable != 0 && assignable != ^netmask && (fixed|assignable) != gateway {
+			break
+		}
+	}
+
+	s.lastAssignableIP = make(net.IP, net.IPv4len)
+	binary.BigEndian.PutUint32(s.lastAssignableIP, fixed|assignable)
+	return s.lastAssignableIP.To4()
+}
+
 func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
 	account, err := s.accounts.Account(ctx, req.OwnerName)
 	if err != nil {
@@ -252,10 +274,10 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	if account.AllowNetworkAccess {
 		nsjailArgs = append(nsjailArgs,
-			"--macvlan_iface", s.workerOptions.Network.Interface,
-			"--macvlan_vs_ip", s.workerOptions.Network.IP,
-			"--macvlan_vs_nm", s.workerOptions.Network.Netmask,
-			"--macvlan_vs_gw", s.workerOptions.Network.Gateway,
+			"--macvlan_iface", s.workerOptions.NetworkInterface,
+			"--macvlan_vs_ip", s.nextAssignableIP().String(),
+			"--macvlan_vs_nm", net.IP(s.workerOptions.IPNet.Mask).String(),
+			"--macvlan_vs_gw", s.workerOptions.IPNet.IP.String(),
 		)
 	}
 
@@ -308,7 +330,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	waitStatus := processState.Sys().(syscall.WaitStatus)
 
-	glog.Infof("Script execution result: %s, CPU time: %s, real time: %s, wait status: %v", string(stderr.Bytes()), cpuTime, realTime, waitStatus)
+	glog.Infof("nsjail args: %v, Script execution result: %s, CPU time: %s, real time: %s, wait status: %v", nsjailArgs, string(stderr.Bytes()), cpuTime, realTime, waitStatus)
 
 	// Exited with signal, so shift it back.
 	if waitStatus.ExitStatus() > 100 {

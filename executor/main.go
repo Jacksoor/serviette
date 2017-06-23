@@ -45,8 +45,7 @@ var (
 	kafelSeccompPolicy = flag.String("kafel_seccomp_policy", "POLICY default { } USE default DEFAULT ALLOW", "Kafel policy to use for seccomp")
 
 	macvlanIface = flag.String("macvlan_iface", "veth1", "Network interface which will be cloned as 'vs'")
-	macvlanVsIP  = flag.String("macvlan_vs_ip", "10.0.0.2", "IP of the 'vs' interface")
-	macvlanVsNM  = flag.String("macvlan_vs_nm", "255.255.255.0", "Netmask of the 'vs' interface")
+	macvlanVsNM  = flag.String("macvlan_vs_nm", "255.0.0.0", "Netmask of the 'vs' interface")
 	macvlanVsGW  = flag.String("macvlan_vs_gw", "10.0.0.1", "Gateway of the 'vs' interface")
 )
 
@@ -90,11 +89,10 @@ func main() {
 	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scriptsStore, accountStore, *k4LibraryPath, &scriptsservice.WorkerOptions{
 		Chroot:             *chrootPath,
 		KafelSeccompPolicy: *kafelSeccompPolicy,
-		Network: &scriptsservice.NetworkOptions{
-			Interface: *macvlanIface,
-			IP:        *macvlanVsIP,
-			Netmask:   *macvlanVsNM,
-			Gateway:   *macvlanVsGW,
+		NetworkInterface:   *macvlanIface,
+		IPNet: net.IPNet{
+			IP:   net.ParseIP(*macvlanVsGW),
+			Mask: net.IPMask(net.ParseIP(*macvlanVsNM)),
 		},
 	}))
 	accountspb.RegisterAccountsServer(s, accountsservice.New(accountStore))
