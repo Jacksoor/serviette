@@ -493,7 +493,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 	} else if waitStatus.Signaled() {
 		return &commandError{
 			status: errorStatusScript,
-			note:   fmt.Sprintf("Script was killed by %s!", waitStatus.Signal()),
+			note:   fmt.Sprintf("Script was killed by signal %d (%s)!", waitStatus.Signal(), waitStatus.Signal()),
 		}
 	} else {
 		stderr := resp.Stderr

@@ -35,6 +35,7 @@ import (
 	"github.com/porpoises/kobun4/delegator/supervisor/rpc/networkinfoservice"
 	"github.com/porpoises/kobun4/delegator/supervisor/rpc/outputservice"
 	"github.com/porpoises/kobun4/delegator/supervisor/rpc/statsservice"
+	"github.com/porpoises/kobun4/delegator/supervisor/rpc/supervisorservice"
 	accountspb "github.com/porpoises/kobun4/executor/accountsservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
@@ -60,6 +61,10 @@ var serviceFactories map[string]serviceFactory = map[string]serviceFactory{
 
 	"Stats": func(ctx context.Context, account *accountspb.Traits, params serviceParams) (interface{}, error) {
 		return statsservice.New(ctx, statspb.NewStatsClient(params.bridgeConn)), nil
+	},
+
+	"Supervisor": func(ctx context.Context, account *accountspb.Traits, params serviceParams) (interface{}, error) {
+		return supervisorservice.New(), nil
 	},
 }
 
@@ -150,7 +155,7 @@ func main() {
 	syscall.Setrlimit(unix.RLIMIT_MSGQUEUE, &syscall.Rlimit{Cur: uint64(800 * 1024), Max: uint64(800 * 1024)})
 	syscall.Setrlimit(unix.RLIMIT_NICE, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)})
 	syscall.Setrlimit(unix.RLIMIT_NOFILE, &syscall.Rlimit{Cur: uint64(32), Max: uint64(32)})
-	syscall.Setrlimit(unix.RLIMIT_NPROC, &syscall.Rlimit{Cur: uint64(3896), Max: uint64(3896)})
+	syscall.Setrlimit(unix.RLIMIT_NPROC, &syscall.Rlimit{Cur: uint64(100), Max: uint64(100)})
 	syscall.Setrlimit(unix.RLIMIT_RSS, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)})
 	syscall.Setrlimit(unix.RLIMIT_RTPRIO, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)})
 	syscall.Setrlimit(unix.RLIMIT_RTTIME, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)})

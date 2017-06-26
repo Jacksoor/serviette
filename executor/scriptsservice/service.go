@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/djherbis/buffer/limio"
@@ -177,6 +178,8 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
+	var wg sync.WaitGroup
+
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	var status bytes.Buffer
@@ -188,9 +191,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 	defer stdinWriter.Close()
 	defer stdinReader.Close()
+	wg.Add(1)
 	go func() {
 		stdinWriter.Write([]byte(req.Stdin))
 		stdinWriter.Close()
+		wg.Done()
 	}()
 
 	stdoutReader, stdoutWriter, err := os.Pipe()
@@ -200,9 +205,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 	defer stdoutReader.Close()
 	defer stdoutWriter.Close()
+	wg.Add(1)
 	go func() {
 		io.Copy(limio.LimitWriter(&stdout, maxBufferSize), stdoutReader)
 		stdoutReader.Close()
+		wg.Done()
 	}()
 
 	stderrReader, stderrWriter, err := os.Pipe()
@@ -212,12 +219,12 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 	defer stderrReader.Close()
 	defer stderrWriter.Close()
+	wg.Add(1)
 	go func() {
 		io.Copy(limio.LimitWriter(&stderr, maxBufferSize), stderrReader)
 		stderrReader.Close()
+		wg.Done()
 	}()
-
-	done := make(chan struct{}, 0)
 
 	statusReader, statusWriter, err := os.Pipe()
 	if err != nil {
@@ -226,10 +233,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 	defer statusReader.Close()
 	defer statusWriter.Close()
+	wg.Add(1)
 	go func() {
 		io.Copy(&status, statusReader)
 		statusReader.Close()
-		close(done)
+		wg.Done()
 	}()
 
 	reqReader, reqWriter, err := os.Pipe()
@@ -319,7 +327,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		}
 	}
 
-	<-done
+	wg.Wait()
 	rawStatus := status.Bytes()
 	if len(rawStatus) == 0 {
 		glog.Errorf("No status received?")
