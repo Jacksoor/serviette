@@ -139,6 +139,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	syscall.Setrlimit(unix.RLIMIT_AS, &syscall.Rlimit{Cur: uint64(1 * 1024 * 1024 * 1024), Max: uint64(1 * 1024 * 1024 * 1024)})
+	syscall.Setrlimit(unix.RLIMIT_CORE, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)})
+	syscall.Setrlimit(unix.RLIMIT_CPU, &syscall.Rlimit{Cur: uint64(req.Traits.TimeLimitSeconds), Max: uint64(req.Traits.TimeLimitSeconds)})
+	syscall.Setrlimit(unix.RLIMIT_DATA, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)})
+	syscall.Setrlimit(unix.RLIMIT_FSIZE, &syscall.Rlimit{Cur: uint64(1 * 1024 * 1024), Max: uint64(1 * 1024 * 1024)})
+	syscall.Setrlimit(unix.RLIMIT_MEMLOCK, &syscall.Rlimit{Cur: uint64(64 * 1024), Max: uint64(64 * 1024)})
+	syscall.Setrlimit(unix.RLIMIT_MSGQUEUE, &syscall.Rlimit{Cur: uint64(800 * 1024), Max: uint64(800 * 1024)})
+	syscall.Setrlimit(unix.RLIMIT_NICE, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)})
+	syscall.Setrlimit(unix.RLIMIT_NOFILE, &syscall.Rlimit{Cur: uint64(32), Max: uint64(32)})
+	syscall.Setrlimit(unix.RLIMIT_NPROC, &syscall.Rlimit{Cur: uint64(3896), Max: uint64(3896)})
+	syscall.Setrlimit(unix.RLIMIT_RSS, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)})
+	syscall.Setrlimit(unix.RLIMIT_RTPRIO, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)})
+	syscall.Setrlimit(unix.RLIMIT_RTTIME, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)})
+	syscall.Setrlimit(unix.RLIMIT_SIGPENDING, &syscall.Rlimit{Cur: uint64(15432), Max: uint64(15432)})
+	syscall.Setrlimit(unix.RLIMIT_STACK, &syscall.Rlimit{Cur: uint64(8 * 1024 * 1024), Max: uint64(8 * 1024 * 1024)})
+
 	factory, err := libcontainer.New(req.Config.ContainersPath, libcontainer.Cgroupfs, libcontainer.InitArgs(os.Args[0], "init"))
 	if err != nil {
 		glog.Error(err)
@@ -220,7 +236,7 @@ func main() {
 			},
 			{
 				Device:      "bind",
-				Source:      req.Config.ScriptPath,
+				Source:      req.Config.ScriptsPath,
 				Destination: scriptMountDir,
 				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_REC | unix.MS_RDONLY,
 			},
@@ -244,23 +260,6 @@ func main() {
 				HostID:      os.Getegid(),
 				Size:        1,
 			},
-		},
-		Rlimits: []configs.Rlimit{
-			{Type: unix.RLIMIT_AS, Soft: uint64(1 * 1024 * 1024 * 1024), Hard: uint64(1 * 1024 * 1024 * 1024)},
-			{Type: unix.RLIMIT_CORE, Soft: uint64(0), Hard: uint64(0)},
-			{Type: unix.RLIMIT_CPU, Soft: uint64(req.Traits.TimeLimitSeconds), Hard: uint64(req.Traits.TimeLimitSeconds)},
-			// unix.RLIMIT_DATA
-			{Type: unix.RLIMIT_FSIZE, Soft: uint64(1 * 1024 * 1024), Hard: uint64(1 * 1024 * 1024)},
-			{Type: unix.RLIMIT_MEMLOCK, Soft: uint64(64 * 1024), Hard: uint64(64 * 1024)},
-			{Type: unix.RLIMIT_MSGQUEUE, Soft: uint64(800 * 1024), Hard: uint64(800 * 1024)},
-			{Type: unix.RLIMIT_NICE, Soft: uint64(0), Hard: uint64(0)},
-			{Type: unix.RLIMIT_NOFILE, Soft: uint64(32), Hard: uint64(32)},
-			{Type: unix.RLIMIT_NPROC, Soft: uint64(3896), Hard: uint64(3896)},
-			// unix.RLIMIT_RSS
-			{Type: unix.RLIMIT_RTPRIO, Soft: uint64(0), Hard: uint64(0)},
-			// unix.RLIMIT_RTTIME
-			{Type: unix.RLIMIT_SIGPENDING, Soft: uint64(15432), Hard: uint64(15432)},
-			{Type: unix.RLIMIT_STACK, Soft: uint64(8 * 1024 * 1024), Hard: uint64(8 * 1024 * 1024)},
 		},
 	}
 
