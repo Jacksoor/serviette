@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/djherbis/buffer/limio"
@@ -261,10 +262,27 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
 
+	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	if err != nil {
+		glog.Errorf("Failed to create socket pair: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+
+	parentFile := os.NewFile(uintptr(fds[0]), "")
+	childFile := os.NewFile(uintptr(fds[1]), "")
+	defer parentFile.Close()
+	defer childFile.Close()
+
 	args := append(s.supervisorPrefix, s.supervisorPath, "-logtostderr",
 		"-parent_cgroup", s.parentCgroup)
 
-	cmd := exec.Command(args[0], args[1:]...)
+	timeout := time.Duration(account.Traits.TimeLimitSeconds) * 2 * time.Second
+	glog.Infof("Starting supervisor with timeout: %s", timeout)
+
+	commandCtx, commandCancel := context.WithTimeout(ctx, timeout)
+	defer commandCancel()
+
+	cmd := exec.CommandContext(commandCtx, args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.ExtraFiles = []*os.File{
@@ -274,6 +292,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		statusWriter,
 		reqReader,
 		bridgeFile,
+		childFile,
 	}
 	if err := cmd.Start(); err != nil {
 		glog.Errorf("Failed to start supervisor: %v", err)
@@ -285,6 +304,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	stderrWriter.Close()
 	statusWriter.Close()
 	reqReader.Close()
+	childFile.Close()
 
 	workerReq := &pb.WorkerExecutionRequest{
 		Config: &pb.WorkerExecutionRequest_Configuration{

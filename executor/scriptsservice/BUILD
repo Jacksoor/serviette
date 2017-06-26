@@ -6,6 +6,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//executor/accounts:go_default_library",
+        "//executor/accountsservice:go_default_library",
+        "//executor/accountsservice/v1pb:go_default_library",
         "//executor/scripts:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "@com_github_djherbis_buffer//limio:go_default_library",

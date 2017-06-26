@@ -48,6 +48,7 @@ type serviceFactory func(ctx context.Context, account *accountspb.Traits, params
 
 type serviceParams struct {
 	bridgeConn *grpc.ClientConn
+	parentConn *grpc.ClientConn
 }
 
 var serviceFactories map[string]serviceFactory = map[string]serviceFactory{
@@ -96,6 +97,52 @@ func init() {
 	}
 }
 
+func applyRlimits(traits *accountspb.Traits) error {
+	if err := syscall.Setrlimit(unix.RLIMIT_AS, &syscall.Rlimit{Cur: uint64(1 * 1024 * 1024 * 1024), Max: uint64(1 * 1024 * 1024 * 1024)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_AS): %v", err)
+	}
+	if err := syscall.Setrlimit(unix.RLIMIT_CORE, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_CORE): %v", err)
+	}
+	if err := syscall.Setrlimit(unix.RLIMIT_CPU, &syscall.Rlimit{Cur: uint64(traits.TimeLimitSeconds), Max: uint64(traits.TimeLimitSeconds)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_CPU): %v", err)
+	}
+	if err := syscall.Setrlimit(unix.RLIMIT_DATA, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_DATA): %v", err)
+	}
+	if err := syscall.Setrlimit(unix.RLIMIT_FSIZE, &syscall.Rlimit{Cur: uint64(1 * 1024 * 1024), Max: uint64(1 * 1024 * 1024)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_FSIZE): %v", err)
+	}
+	if err := syscall.Setrlimit(unix.RLIMIT_MEMLOCK, &syscall.Rlimit{Cur: uint64(64 * 1024), Max: uint64(64 * 1024)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_MEMLOCK): %v", err)
+	}
+	if err := syscall.Setrlimit(unix.RLIMIT_MSGQUEUE, &syscall.Rlimit{Cur: uint64(800 * 1024), Max: uint64(800 * 1024)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_MSGQUEUE): %v", err)
+	}
+	if err := syscall.Setrlimit(unix.RLIMIT_NICE, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_NICE): %v", err)
+	}
+	if err := syscall.Setrlimit(unix.RLIMIT_NOFILE, &syscall.Rlimit{Cur: uint64(32), Max: uint64(32)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_NOFILE): %v", err)
+	}
+	if err := syscall.Setrlimit(unix.RLIMIT_NPROC, &syscall.Rlimit{Cur: uint64(100), Max: uint64(100)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_NPROC): %v", err)
+	}
+	if err := syscall.Setrlimit(unix.RLIMIT_RSS, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_RSS): %v", err)
+	}
+	if err := syscall.Setrlimit(unix.RLIMIT_RTPRIO, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_RTPRIO): %v", err)
+	}
+	if err := syscall.Setrlimit(unix.RLIMIT_RTTIME, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_RTTIME): %v", err)
+	}
+	if err := syscall.Setrlimit(unix.RLIMIT_STACK, &syscall.Rlimit{Cur: uint64(8 * 1024 * 1024), Max: uint64(8 * 1024 * 1024)}); err != nil {
+		return fmt.Errorf("Setrlimit(RLIMIT_STACK): %v", err)
+	}
+	return nil
+}
+
 const cgroupMemoryLimit = "memory.limit_in_bytes"
 
 func makeCgroup(subsystem string, name string) (string, error) {
@@ -112,8 +159,44 @@ func makeCgroup(subsystem string, name string) (string, error) {
 	return cgroupPath, nil
 }
 
+func applyCgroups(traits *accountspb.Traits) error {
+	cgroupPaths := make(map[string]string, 0)
+	if traits.MemoryLimit >= 0 {
+		memoryCgroupPath, err := makeCgroup("memory", filepath.Join(*parentCgroup, strconv.Itoa(os.Getpid())))
+		if err != nil {
+			return nil
+		}
+		defer os.Remove(memoryCgroupPath)
+
+		if err := ioutil.WriteFile(filepath.Join(memoryCgroupPath, cgroupMemoryLimit), []byte(strconv.FormatInt(traits.MemoryLimit, 10)), 0700); err != nil {
+			return nil
+		}
+
+		cgroupPaths["memory"] = memoryCgroupPath
+	}
+	if err := cgroups.EnterPid(cgroupPaths, os.Getpid()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func applyRestrictions(traits *accountspb.Traits) error {
+	if err := applyRlimits(traits); err != nil {
+		return err
+	}
+
+	if err := applyCgroups(traits); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func main() {
 	flag.Parse()
+
+	ctx := context.Background()
 
 	childStdin := os.NewFile(3, "child stdin")
 	childStdout := os.NewFile(4, "child stdout")
@@ -121,6 +204,7 @@ func main() {
 	childStatus := os.NewFile(6, "child status")
 	supervisorRequestFile := os.NewFile(7, "supervisor execution request")
 	bridgeConnFile := os.NewFile(8, "bridge connection")
+	parentConnFile := os.NewFile(9, "parent connection")
 
 	rawReq, err := ioutil.ReadAll(supervisorRequestFile)
 	if err != nil {
@@ -146,29 +230,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	syscall.Setrlimit(unix.RLIMIT_AS, &syscall.Rlimit{Cur: uint64(1 * 1024 * 1024 * 1024), Max: uint64(1 * 1024 * 1024 * 1024)})
-	syscall.Setrlimit(unix.RLIMIT_CORE, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)})
-	syscall.Setrlimit(unix.RLIMIT_CPU, &syscall.Rlimit{Cur: uint64(req.Traits.TimeLimitSeconds), Max: uint64(req.Traits.TimeLimitSeconds)})
-	syscall.Setrlimit(unix.RLIMIT_DATA, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)})
-	syscall.Setrlimit(unix.RLIMIT_FSIZE, &syscall.Rlimit{Cur: uint64(1 * 1024 * 1024), Max: uint64(1 * 1024 * 1024)})
-	syscall.Setrlimit(unix.RLIMIT_MEMLOCK, &syscall.Rlimit{Cur: uint64(64 * 1024), Max: uint64(64 * 1024)})
-	syscall.Setrlimit(unix.RLIMIT_MSGQUEUE, &syscall.Rlimit{Cur: uint64(800 * 1024), Max: uint64(800 * 1024)})
-	syscall.Setrlimit(unix.RLIMIT_NICE, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)})
-	syscall.Setrlimit(unix.RLIMIT_NOFILE, &syscall.Rlimit{Cur: uint64(32), Max: uint64(32)})
-	syscall.Setrlimit(unix.RLIMIT_NPROC, &syscall.Rlimit{Cur: uint64(100), Max: uint64(100)})
-	syscall.Setrlimit(unix.RLIMIT_RSS, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)})
-	syscall.Setrlimit(unix.RLIMIT_RTPRIO, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)})
-	syscall.Setrlimit(unix.RLIMIT_RTTIME, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)})
-	syscall.Setrlimit(unix.RLIMIT_SIGPENDING, &syscall.Rlimit{Cur: uint64(15432), Max: uint64(15432)})
-	syscall.Setrlimit(unix.RLIMIT_STACK, &syscall.Rlimit{Cur: uint64(8 * 1024 * 1024), Max: uint64(8 * 1024 * 1024)})
-
-	factory, err := libcontainer.New(req.Config.ContainersPath, libcontainer.Cgroupfs, libcontainer.InitArgs(os.Args[0], "init"))
+	parentConn, err := grpc.Dial("", grpc.WithInsecure(), grpc.WithDialer(func(string, time.Duration) (net.Conn, error) {
+		return net.FileConn(parentConnFile)
+	}))
 	if err != nil {
 		glog.Error(err)
 		os.Exit(1)
 	}
+	traits := req.Traits
 
-	ctx := context.Background()
+	if err := applyRestrictions(traits); err != nil {
+		glog.Error(err)
+		os.Exit(1)
+	}
+
+	factory, err := libcontainer.New(req.Config.ContainersPath, libcontainer.RootlessCgroups, libcontainer.InitArgs(os.Args[0], "init"))
+	if err != nil {
+		glog.Error(err)
+		os.Exit(1)
+	}
 
 	rootfsPath, err := ioutil.TempDir("", "kobun4-supervisor-rootfs-")
 	if err != nil {
@@ -187,9 +267,6 @@ func main() {
 			Inheritable: []string{},
 			Permitted:   []string{},
 			Ambient:     []string{},
-		},
-		Cgroups: &configs.Cgroup{
-			Paths: make(map[string]string, 0),
 		},
 		Namespaces: configs.Namespaces([]configs.Namespace{
 			{Type: configs.NEWNS},
@@ -254,23 +331,7 @@ func main() {
 		},
 	}
 
-	if req.Traits.MemoryLimit >= 0 {
-		memoryCgroupPath, err := makeCgroup("memory", filepath.Join(*parentCgroup, strconv.Itoa(os.Getpid())))
-		if err != nil {
-			glog.Error(err)
-			os.Exit(1)
-		}
-		defer os.Remove(memoryCgroupPath)
-
-		if err := ioutil.WriteFile(filepath.Join(memoryCgroupPath, cgroupMemoryLimit), []byte(strconv.FormatInt(req.Traits.MemoryLimit, 10)), 0700); err != nil {
-			glog.Error(err)
-			os.Exit(1)
-		}
-
-		config.Cgroups.Paths["memory"] = memoryCgroupPath
-	}
-
-	if !req.Traits.AllowNetworkAccess {
+	if !traits.AllowNetworkAccess {
 		config.Namespaces = append(config.Namespaces, configs.Namespace{Type: configs.NEWNET})
 		config.Networks = []*configs.Network{
 			{
@@ -281,13 +342,13 @@ func main() {
 		}
 	}
 
-	if req.Traits.TmpfsSize > 0 {
+	if traits.TmpfsSize > 0 {
 		config.Mounts = append(config.Mounts, &configs.Mount{
 			Device:      "tmpfs",
 			Source:      "tmpfs",
 			Destination: "/tmp",
 			Flags:       unix.MS_NOSUID | unix.MS_NOEXEC | unix.MS_NODEV,
-			Data:        fmt.Sprintf("size=%d", req.Traits.TmpfsSize),
+			Data:        fmt.Sprintf("size=%d", traits.TmpfsSize),
 		})
 	}
 
@@ -298,12 +359,6 @@ func main() {
 	}
 	defer container.Destroy()
 
-	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
-	if err != nil {
-		glog.Error(err)
-		os.Exit(1)
-	}
-
 	bridgeConn, err := grpc.Dial("", grpc.WithInsecure(), grpc.WithDialer(func(string, time.Duration) (net.Conn, error) {
 		return net.FileConn(bridgeConnFile)
 	}))
@@ -312,26 +367,35 @@ func main() {
 		os.Exit(1)
 	}
 
+	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	if err != nil {
+		glog.Error(err)
+		os.Exit(1)
+	}
+
 	parentFile := os.NewFile(uintptr(fds[0]), "")
+	childFile := os.NewFile(uintptr(fds[1]), "")
 	defer parentFile.Close()
+	defer childFile.Close()
 
 	rpcServer := rpc.NewServer()
 
-	outputService := outputservice.New(req.Traits)
+	outputService := outputservice.New(traits)
 	rpcServer.RegisterName("Output", outputService)
 
 	params := serviceParams{
 		bridgeConn: bridgeConn,
+		parentConn: parentConn,
 	}
 
-	for _, serviceName := range req.Traits.AllowedService {
+	for _, serviceName := range traits.AllowedService {
 		factory, ok := serviceFactories[serviceName]
 		if !ok {
 			glog.Warningf("Unknown service name: %s", serviceName)
 			continue
 		}
 
-		service, err := factory(ctx, req.Traits, params)
+		service, err := factory(ctx, traits, params)
 		if err != nil {
 			glog.Fatalf("Failed to create service: %v", err)
 		}
@@ -340,8 +404,6 @@ func main() {
 	}
 
 	go rpcServer.ServeCodec(jsonrpc.NewServerCodec(parentFile))
-
-	childFile := os.NewFile(uintptr(fds[1]), "")
 
 	jsonK4Context, err := marshaler.MarshalToString(req.Context)
 	if err != nil {
@@ -368,7 +430,6 @@ func main() {
 	startTime := time.Now()
 
 	if err := container.Run(process); err != nil {
-		childFile.Close()
 		glog.Error(err)
 		os.Exit(1)
 	}
@@ -379,7 +440,7 @@ func main() {
 
 	go func() {
 		select {
-		case <-time.After(time.Duration(req.Traits.TimeLimitSeconds) * time.Second):
+		case <-time.After(time.Duration(traits.TimeLimitSeconds) * time.Second):
 			process.Signal(os.Kill)
 			timeLimitExceeded = true
 		case <-done:
