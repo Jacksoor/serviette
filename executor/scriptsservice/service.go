@@ -282,11 +282,18 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	w := worker.New(nsjailArgs, filepath.Join("/mnt/scripts", script.QualifiedName()), []string{}, bytes.NewBuffer(req.Stdin), limio.LimitWriter(&stdout, maxBufferSize), limio.LimitWriter(&stderr, maxBufferSize))
 
-	bridgeConn, err := grpc.Dial(req.BridgeTarget, grpc.WithInsecure())
+	bridgeConn, err := net.Dial("tcp", req.BridgeTarget)
 	if err != nil {
 		return nil, grpc.Errorf(codes.Unavailable, "Service unavailable")
 	}
-	defer bridgeConn.Close()
+
+	bridgeGRPCConn, err := grpc.Dial(req.BridgeTarget, grpc.WithInsecure(), grpc.WithDialer(func(string, time.Duration) (net.Conn, error) {
+		return bridgeConn, nil
+	}))
+	if err != nil {
+		return nil, grpc.Errorf(codes.Unavailable, "Service unavailable")
+	}
+	defer bridgeGRPCConn.Close()
 
 	// Always register the output service.
 	outputService := outputservice.New(account)
@@ -299,7 +306,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 			continue
 		}
 
-		service, err := factory(ctx, bridgeConn, account)
+		service, err := factory(ctx, bridgeGRPCConn, account)
 		if err != nil {
 			glog.Errorf("Failed to create service: %v", err)
 			return nil, grpc.Errorf(codes.Unavailable, "%s service unavailable", serviceName)

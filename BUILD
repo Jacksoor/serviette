@@ -8,6 +8,7 @@ pkg_tar(
     extension = "tar.gz",
     files = [
         "//clients",
+        "//delegator/supervisor",
         "//discordbridge",
         "//discordbridge:schema.sql",
         "//discordbridge/web",

@@ -98,9 +98,16 @@ message WorkerExecutionRequest {
 }
 
 message WorkerExecutionResult {
+    message Timings {
+        uint64 real_nanos = 1;
+        uint64 user_nanos = 2;
+        uint64 system_nanos = 3;
+    }
+
     uint32 wait_status = 1;
     bool time_limit_exceeded = 2;
     OutputParams output_params = 3;
+    Timings timings = 4;
 }
 
 message GetContentRequest {

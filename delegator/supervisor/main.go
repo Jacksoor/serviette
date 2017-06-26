@@ -245,7 +245,23 @@ func main() {
 				Size:        1,
 			},
 		},
-		Rlimits: []configs.Rlimit{},
+		Rlimits: []configs.Rlimit{
+			{Type: unix.RLIMIT_AS, Soft: uint64(1 * 1024 * 1024 * 1024), Hard: uint64(1 * 1024 * 1024 * 1024)},
+			{Type: unix.RLIMIT_CORE, Soft: uint64(0), Hard: uint64(0)},
+			{Type: unix.RLIMIT_CPU, Soft: uint64(req.Traits.TimeLimitSeconds), Hard: uint64(req.Traits.TimeLimitSeconds)},
+			// unix.RLIMIT_DATA
+			{Type: unix.RLIMIT_FSIZE, Soft: uint64(1 * 1024 * 1024), Hard: uint64(1 * 1024 * 1024)},
+			{Type: unix.RLIMIT_MEMLOCK, Soft: uint64(64 * 1024), Hard: uint64(64 * 1024)},
+			{Type: unix.RLIMIT_MSGQUEUE, Soft: uint64(800 * 1024), Hard: uint64(800 * 1024)},
+			{Type: unix.RLIMIT_NICE, Soft: uint64(0), Hard: uint64(0)},
+			{Type: unix.RLIMIT_NOFILE, Soft: uint64(32), Hard: uint64(32)},
+			{Type: unix.RLIMIT_NPROC, Soft: uint64(3896), Hard: uint64(3896)},
+			// unix.RLIMIT_RSS
+			{Type: unix.RLIMIT_RTPRIO, Soft: uint64(0), Hard: uint64(0)},
+			// unix.RLIMIT_RTTIME
+			{Type: unix.RLIMIT_SIGPENDING, Soft: uint64(15432), Hard: uint64(15432)},
+			{Type: unix.RLIMIT_STACK, Soft: uint64(8 * 1024 * 1024), Hard: uint64(8 * 1024 * 1024)},
+		},
 	}
 
 	if !req.Traits.AllowNetworkAccess {
@@ -334,6 +350,7 @@ func main() {
 		Env: []string{
 			fmt.Sprintf("K4_CONTEXT=%s", jsonK4Context),
 		},
+		Cwd:    privateStorageMountDir,
 		Stdin:  childStdin,
 		Stdout: childStdout,
 		Stderr: childStderr,
@@ -342,9 +359,7 @@ func main() {
 		},
 	}
 
-	_ = childStdin
-	_ = childStdout
-	_ = childStderr
+	startTime := time.Now()
 
 	if err := container.Run(process); err != nil {
 		childFile.Close()
@@ -372,6 +387,8 @@ func main() {
 	}
 	close(done)
 
+	endTime := time.Now()
+
 	waitStatus := state.Sys().(syscall.WaitStatus)
 	glog.Infof("Wait status: %d", waitStatus)
 
@@ -379,6 +396,11 @@ func main() {
 		WaitStatus:        uint32(waitStatus),
 		TimeLimitExceeded: timeLimitExceeded,
 		OutputParams:      outputService.OutputParams,
+		Timings: &scriptspb.WorkerExecutionResult_Timings{
+			RealNanos:   uint64((endTime.Sub(startTime)) / time.Nanosecond),
+			UserNanos:   uint64(state.UserTime() / time.Nanosecond),
+			SystemNanos: uint64(state.SystemTime() / time.Nanosecond),
+		},
 	})
 	if err != nil {
 		glog.Error(err)

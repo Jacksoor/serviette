@@ -7,6 +7,7 @@ go_library(
     srcs = ["main.go"],
     data = [
         "//clients",
+        "//delegator/supervisor",
     ],
     visibility = ["//visibility:private"],
     deps = [
