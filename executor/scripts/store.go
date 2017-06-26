@@ -34,7 +34,7 @@ func NewStore(rootPath string) (*Store, error) {
 var nameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 func (s *Store) load(ctx context.Context, ownerName string, name string) (*Script, error) {
-	if !nameRegexp.MatchString(name) {
+	if !nameRegexp.MatchString(ownerName) || !nameRegexp.MatchString(name) {
 		return nil, ErrInvalidName
 	}
 

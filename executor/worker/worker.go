@@ -50,6 +50,7 @@ func (w *Worker) Run(ctx context.Context) (*os.ProcessState, error) {
 		"--mode", "o",
 		"--log_fd", "4",
 		"--pass_fd", "3",
+		"--enable_clone_newcgroup",
 	}, w.nsjailArgs...)
 
 	if deadline, ok := ctx.Deadline(); ok {

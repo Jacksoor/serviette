@@ -5,11 +5,12 @@ import (
 	"errors"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
+
+	accountspb "github.com/porpoises/kobun4/executor/accountsservice/v1pb"
 )
 
 var (
@@ -34,18 +35,13 @@ type Account struct {
 
 	Name string
 
-	PasswordHash       []byte
-	TimeLimit          time.Duration
-	MemoryLimit        int64
-	TmpfsSize          int64
-	AllowNetworkAccess bool
+	PasswordHash []byte
 
-	AllowedServices      []string
-	AllowedOutputFormats []string
+	Traits *accountspb.Traits
 }
 
 func (a *Account) IsOutputFormatAllowed(format string) bool {
-	for _, allowedFormat := range a.AllowedOutputFormats {
+	for _, allowedFormat := range a.Traits.AllowedOutputFormat {
 		if allowedFormat == format {
 			return true
 		}
@@ -86,9 +82,8 @@ type StorageInfo struct {
 func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
 	account := &Account{
 		storageRootPath: s.storageRootPath,
+		Traits:          &accountspb.Traits{},
 	}
-
-	var timeLimitSeconds int64
 
 	if err := s.db.QueryRowContext(ctx, `
 		select name,
@@ -104,20 +99,18 @@ func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
 	`, name).Scan(
 		&account.Name,
 		&account.PasswordHash,
-		&timeLimitSeconds,
-		&account.MemoryLimit,
-		&account.TmpfsSize,
-		&account.AllowNetworkAccess,
-		pq.Array(&account.AllowedServices),
-		pq.Array(&account.AllowedOutputFormats),
+		&account.Traits.TimeLimitSeconds,
+		&account.Traits.MemoryLimit,
+		&account.Traits.TmpfsSize,
+		&account.Traits.AllowNetworkAccess,
+		pq.Array(&account.Traits.AllowedService),
+		pq.Array(&account.Traits.AllowedOutputFormat),
 	); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-
-	account.TimeLimit = time.Duration(timeLimitSeconds) * time.Second
 
 	return account, nil
 }

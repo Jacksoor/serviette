@@ -76,9 +76,8 @@ type WorkerOptions struct {
 	NetworkInterface   string
 	IPNet              net.IPNet
 
-	TimeLimit   time.Duration
-	MemoryLimit int64
-	TmpfsSize   int64
+	TimeLimit time.Duration
+	TmpfsSize int64
 }
 
 func New(scripts *scripts.Store, accounts *accounts.Store, k4LibraryPath string, workerOptions *WorkerOptions) *Service {
@@ -259,7 +258,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 		"--env", fmt.Sprintf("K4_CONTEXT=%s", rawCtx),
 
-		"--cgroup_mem_max", fmt.Sprintf("%d", s.workerOptions.MemoryLimit),
+		"--cgroup_mem_max", fmt.Sprintf("%d", account.Traits.MemoryLimit),
 		"--cgroup_mem_parent", "/",
 
 		"--cgroup_pids_parent", "/",
@@ -267,12 +266,12 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		"--rlimit_as", fmt.Sprintf("%d", rlimitAddressSpaceMB),
 
 		"--tmpfsmount", "/tmp",
-		"--tmpfs_size", fmt.Sprintf("%d", account.TmpfsSize),
+		"--tmpfs_size", fmt.Sprintf("%d", account.Traits.TmpfsSize),
 
 		"--seccomp_string", s.workerOptions.KafelSeccompPolicy,
 	}
 
-	if account.AllowNetworkAccess {
+	if account.Traits.AllowNetworkAccess {
 		nsjailArgs = append(nsjailArgs,
 			"--macvlan_iface", s.workerOptions.NetworkInterface,
 			"--macvlan_vs_ip", s.nextAssignableIP().String(),
@@ -293,7 +292,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	outputService := outputservice.New(account)
 	w.RegisterService("Output", outputService)
 
-	for _, serviceName := range account.AllowedServices {
+	for _, serviceName := range account.Traits.AllowedService {
 		factory, ok := workerServiceFactories[serviceName]
 		if !ok {
 			glog.Warningf("Unknown service name: %s", serviceName)
@@ -311,7 +310,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	startTime := time.Now()
 
-	processCtx, cancel := context.WithTimeout(ctx, account.TimeLimit)
+	processCtx, cancel := context.WithTimeout(ctx, time.Duration(account.Traits.TimeLimitSeconds)*time.Second)
 	defer cancel()
 
 	processState, err := w.Run(processCtx)

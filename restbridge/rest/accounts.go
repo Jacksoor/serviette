@@ -27,16 +27,9 @@ type Account struct {
 }
 
 type AccountInfo struct {
-	StorageSize uint64 `json:"storageSize"`
-	FreeSize    uint64 `json:"freeSize"`
-
-	TimeLimitSeconds   int64 `json:"timeLimitSeconds"`
-	MemoryLimit        int64 `json:"memoryLimit"`
-	TmpfsSize          int64 `json:"tmpfsSize"`
-	AllowNetworkAccess bool  `json:"allowNetworkAccess"`
-
-	AllowedOutputFormats []string `json:"allowedOutputFormats"`
-	AllowedServices      []string `json:"allowedServices"`
+	StorageSize uint64             `json:"storageSize"`
+	FreeSize    uint64             `json:"freeSize"`
+	Traits      *accountspb.Traits `json:"traits"`
 }
 
 type Script struct {
@@ -151,14 +144,7 @@ func (a AccountsResource) read(req *restful.Request, resp *restful.Response) {
 		accountInfo = &AccountInfo{
 			StorageSize: accountResp.StorageSize,
 			FreeSize:    accountResp.FreeSize,
-
-			TimeLimitSeconds:   accountResp.TimeLimitSeconds,
-			MemoryLimit:        accountResp.MemoryLimit,
-			TmpfsSize:          accountResp.TmpfsSize,
-			AllowNetworkAccess: accountResp.AllowNetworkAccess,
-
-			AllowedOutputFormats: accountResp.AllowedOutputFormat,
-			AllowedServices:      accountResp.AllowedService,
+			Traits:      accountResp.Traits,
 		}
 	}
 

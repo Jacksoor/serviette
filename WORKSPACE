@@ -1,7 +1,7 @@
 git_repository(
     name = "io_bazel_rules_go",
     remote = "https://github.com/bazelbuild/rules_go.git",
-    commit = "3b3c1e6d6d12f00fb462e945805c1c8c5d9ea1dc",
+    commit = "936af5753ebcd7a1f05127678435389cc2e3db5d",
 )
 
 git_repository(
@@ -74,6 +74,13 @@ new_go_repository(
     name = "org_golang_x_oauth2",
     commit = "f047394b6d14284165300fd82dad67edb3a4d7f6",
     importpath = "golang.org/x/oauth2",
+)
+
+new_go_repository(
+    name = "org_golang_x_sys",
+    commit = "c23410a886927bab8ca5e80b08af6a56faeb330d",
+    importpath = "golang.org/x/sys",
+    build_tags = ["linux", "amd64", "darwin"],
 )
 
 new_go_repository(
@@ -172,4 +179,90 @@ new_go_repository(
     name = "org_golang_google_appengine",
     commit = "a2f4131514e563cedfdb6e7d267df9ad48591e93",
     importpath = "google.golang.org/appengine",
+)
+
+new_go_repository(
+    name = "com_github_opencontainers_runc",
+    commit = "638be2c001871fd6eeb568fe138ce4a067707157",
+    importpath = "github.com/opencontainers/runc",
+    remote = "https://github.com/porpoises/runc.git",
+    vcs = "git",
+)
+
+new_go_repository(
+    name = "com_github_opencontainers_selinux",
+    commit = "4a2974bf1ee960774ffd517717f1f45325af0206",
+    importpath = "github.com/opencontainers/selinux",
+)
+
+new_go_repository(
+    name = "com_github_opencontainers_runtime_spec",
+    commit = "198f23f827eea397d4331d7eb048d9d4c7ff7bee",
+    importpath = "github.com/opencontainers/runtime-spec",
+)
+
+new_go_repository(
+    name = "com_github_vishvananda_netlink",
+    commit = "4e28683688429fdf8413cc610d59fb1841986300",
+    importpath = "github.com/vishvananda/netlink",
+)
+
+new_go_repository(
+    name = "com_github_vishvananda_netns",
+    commit = "54f0e4339ce73702a0607f49922aaa1e749b418d",
+    importpath = "github.com/vishvananda/netns",
+)
+
+new_go_repository(
+    name = "com_github_syndtr_gocapability",
+    commit = "e7cb7fa329f456b3855136a2642b197bad7366ba",
+    importpath = "github.com/syndtr/gocapability",
+)
+
+new_go_repository(
+    name = "com_github_mrunalp_fileutils",
+    commit = "4ee1cc9a80582a0c75febdd5cfa779ee4361cbca",
+    importpath = "github.com/mrunalp/fileutils",
+)
+
+new_go_repository(
+    name = "com_github_docker_docker",
+    commit = "4964b092384a0e1c42b2db728aeeaf129a50f54f",
+    importpath = "github.com/docker/docker",
+)
+
+new_go_repository(
+    name = "com_github_docker_go_units",
+    commit = "0dadbb0345b35ec7ef35e228dabb8de89a65bf52",
+    importpath = "github.com/docker/go-units",
+)
+
+new_go_repository(
+    name = "com_github_coreos_go_systemd",
+    commit = "24036eb3df68550d24a2736c5d013f4e83366866",
+    importpath = "github.com/coreos/go-systemd",
+)
+
+new_go_repository(
+    name = "com_github_coreos_pkg",
+    commit = "8dbaa491b063ed47e2474b5363de0c0db91cf9f2",
+    importpath = "github.com/coreos/pkg",
+)
+
+new_go_repository(
+    name = "com_github_Sirupsen_logrus",
+    commit = "3d4380f53a34dcdc95f0c1db702615992b38d9a4",
+    importpath = "github.com/Sirupsen/logrus",
+)
+
+new_go_repository(
+    name = "com_github_godbus_dbus",
+    commit = "37252881b3a87eaa2eb04b0ff2211f54f45199ab",
+    importpath = "github.com/godbus/dbus",
+)
+
+new_go_repository(
+    name = "com_github_pkg_errors",
+    commit = "c605e284fe17294bda444b34710735b29d1a9d90",
+    importpath = "github.com/pkg/errors",
 )

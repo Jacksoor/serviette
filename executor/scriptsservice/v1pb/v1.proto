@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package kobun4.executor.scripts.v1;
 
+import "executor/accountsservice/v1pb/v1.proto";
+
 option go_package = "v1pb";
 
 message Meta {
@@ -68,6 +70,37 @@ message ExecuteResponse {
     bytes stdout = 2;
     bytes stderr = 3;
     OutputParams output_params = 4;
+}
+
+message WorkerExecutionRequest {
+    message Configuration {
+        string containers_path = 2;
+        string chroot = 3;
+
+        string hostname = 10;
+
+        string private_storage_path = 21;
+        string script_path = 22;
+        string k4_library_path = 23;
+
+        uint32 uid = 31;
+        uint32 gid = 32;
+    }
+
+    Configuration config = 1;
+
+    string owner_name = 11;
+    string name = 12;
+
+    Context context = 20;
+
+    kobun4.executor.accounts.v1.Traits traits = 30;
+}
+
+message WorkerExecutionResult {
+    uint32 wait_status = 1;
+    bool time_limit_exceeded = 2;
+    OutputParams output_params = 3;
 }
 
 message GetContentRequest {

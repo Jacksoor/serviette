@@ -5,7 +5,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"time"
 
 	"github.com/porpoises/kobun4/executor/accounts"
 
@@ -74,13 +73,6 @@ func (s *Service) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse,
 	return &pb.GetResponse{
 		StorageSize: storageInfo.StorageSize,
 		FreeSize:    storageInfo.FreeSize,
-
-		TimeLimitSeconds:   int64(account.TimeLimit / time.Second),
-		MemoryLimit:        account.MemoryLimit,
-		TmpfsSize:          account.TmpfsSize,
-		AllowNetworkAccess: account.AllowNetworkAccess,
-
-		AllowedOutputFormat: account.AllowedOutputFormats,
-		AllowedService:      account.AllowedServices,
+		Traits:      account.Traits,
 	}, nil
 }
