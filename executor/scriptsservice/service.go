@@ -150,8 +150,8 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 }
 
 const (
-	nobodyUid  uint32 = 65534
-	nogroupGid        = 65534
+	defaultUid uint32 = 0
+	defaultGid        = 0
 )
 
 func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
@@ -217,6 +217,8 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		stderrReader.Close()
 	}()
 
+	done := make(chan struct{}, 0)
+
 	statusReader, statusWriter, err := os.Pipe()
 	if err != nil {
 		glog.Errorf("Failed to create pipe: %v", err)
@@ -225,8 +227,9 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	defer statusReader.Close()
 	defer statusWriter.Close()
 	go func() {
-		io.Copy(limio.LimitWriter(&stdout, maxBufferSize), statusReader)
+		io.Copy(&status, statusReader)
 		statusReader.Close()
+		close(done)
 	}()
 
 	reqReader, reqWriter, err := os.Pipe()
@@ -251,9 +254,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 
 	args := append(s.supervisorPrefix, s.supervisorPath, "-logtostderr",
-		"-parent_group", s.parentCgroup)
+		"-parent_cgroup", s.parentCgroup)
 
 	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	cmd.ExtraFiles = []*os.File{
 		stdinReader,
 		stdoutWriter,
@@ -273,7 +278,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	statusWriter.Close()
 	reqReader.Close()
 
-	rawReq, err := proto.Marshal(&pb.WorkerExecutionRequest{
+	workerReq := &pb.WorkerExecutionRequest{
 		Config: &pb.WorkerExecutionRequest_Configuration{
 			ContainersPath: s.containersPath,
 			Chroot:         s.chroot,
@@ -284,15 +289,18 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 			ScriptsPath:        s.scripts.RootPath(),
 			K4LibraryPath:      s.k4LibraryPath,
 
-			Uid: nobodyUid,
-			Gid: nogroupGid,
+			Uid: defaultUid,
+			Gid: defaultGid,
 		},
 		OwnerName: script.OwnerName,
 		Name:      script.Name,
 
 		Context: req.Context,
 		Traits:  account.Traits,
-	})
+	}
+	glog.Infof("Execution request: %s", workerReq)
+
+	rawReq, err := proto.Marshal(workerReq)
 	if err != nil {
 		glog.Errorf("Failed to marshal request: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
@@ -311,8 +319,15 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		}
 	}
 
+	<-done
+	rawStatus := status.Bytes()
+	if len(rawStatus) == 0 {
+		glog.Errorf("No status received?")
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+
 	result := &pb.WorkerExecutionResult{}
-	if err := proto.Unmarshal(status.Bytes(), result); err != nil {
+	if err := proto.Unmarshal(rawStatus, result); err != nil {
 		glog.Errorf("Failed to unmarshal status: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}

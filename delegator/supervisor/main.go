@@ -129,6 +129,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	glog.Infof("Execution request from executor: %s", req)
+
 	if !nameRegexp.MatchString(req.OwnerName) || !nameRegexp.MatchString(req.Name) {
 		glog.Error("invalid owner or script name")
 		os.Exit(1)
@@ -170,20 +172,6 @@ func main() {
 	}
 	defer os.RemoveAll(rootfsPath)
 
-	memoryCgroupPath, err := makeCgroup("memory", filepath.Join(*parentCgroup, strconv.Itoa(os.Getpid())))
-	if err != nil {
-		glog.Error(err)
-		os.Exit(1)
-	}
-	defer os.Remove(memoryCgroupPath)
-
-	if req.Traits.MemoryLimit >= 0 {
-		if err := ioutil.WriteFile(filepath.Join(memoryCgroupPath, cgroupMemoryLimit), []byte(strconv.FormatInt(req.Traits.MemoryLimit, 10)), 0700); err != nil {
-			glog.Error(err)
-			os.Exit(1)
-		}
-	}
-
 	config := &configs.Config{
 		Rootfs:     rootfsPath,
 		Rootless:   true,
@@ -196,9 +184,7 @@ func main() {
 			Ambient:     []string{},
 		},
 		Cgroups: &configs.Cgroup{
-			Paths: map[string]string{
-				"memory": memoryCgroupPath,
-			},
+			Paths: make(map[string]string, 0),
 		},
 		Namespaces: configs.Namespaces([]configs.Namespace{
 			{Type: configs.NEWNS},
@@ -263,6 +249,22 @@ func main() {
 		},
 	}
 
+	if req.Traits.MemoryLimit >= 0 {
+		memoryCgroupPath, err := makeCgroup("memory", filepath.Join(*parentCgroup, strconv.Itoa(os.Getpid())))
+		if err != nil {
+			glog.Error(err)
+			os.Exit(1)
+		}
+		defer os.Remove(memoryCgroupPath)
+
+		if err := ioutil.WriteFile(filepath.Join(memoryCgroupPath, cgroupMemoryLimit), []byte(strconv.FormatInt(req.Traits.MemoryLimit, 10)), 0700); err != nil {
+			glog.Error(err)
+			os.Exit(1)
+		}
+
+		config.Cgroups.Paths["memory"] = memoryCgroupPath
+	}
+
 	if !req.Traits.AllowNetworkAccess {
 		config.Namespaces = append(config.Namespaces, configs.Namespace{Type: configs.NEWNET})
 		config.Networks = []*configs.Network{
@@ -310,7 +312,7 @@ func main() {
 
 	rpcServer := rpc.NewServer()
 
-	outputService := outputservice.New(nil)
+	outputService := outputservice.New(req.Traits)
 	rpcServer.RegisterName("Output", outputService)
 
 	params := serviceParams{
@@ -372,7 +374,7 @@ func main() {
 
 	go func() {
 		select {
-		case <-time.After(time.Second):
+		case <-time.After(time.Duration(req.Traits.TimeLimitSeconds) * time.Second):
 			process.Signal(os.Kill)
 			timeLimitExceeded = true
 		case <-done:
@@ -389,9 +391,7 @@ func main() {
 	endTime := time.Now()
 
 	waitStatus := state.Sys().(syscall.WaitStatus)
-	glog.Infof("Wait status: %d", waitStatus)
-
-	raw, err := proto.Marshal(&scriptspb.WorkerExecutionResult{
+	result := &scriptspb.WorkerExecutionResult{
 		WaitStatus:        uint32(waitStatus),
 		TimeLimitExceeded: timeLimitExceeded,
 		OutputParams:      outputService.OutputParams,
@@ -400,7 +400,11 @@ func main() {
 			UserNanos:   uint64(state.UserTime() / time.Nanosecond),
 			SystemNanos: uint64(state.SystemTime() / time.Nanosecond),
 		},
-	})
+	}
+
+	glog.Infof("Result: %s", result)
+
+	raw, err := proto.Marshal(result)
 	if err != nil {
 		glog.Error(err)
 		os.Exit(1)

@@ -91,7 +91,7 @@ func main() {
 	}
 
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scriptsStore, accountStore, supervisorPrefixSplit, *k4LibraryPath, *supervisorPath, *containersPath, *chrootPath, *parentCgroup))
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scriptsStore, accountStore, supervisorPrefixSplit, *supervisorPath, *k4LibraryPath, *containersPath, *chrootPath, *parentCgroup))
 	accountspb.RegisterAccountsServer(s, accountsservice.New(accountStore))
 	reflection.Register(s)
 
