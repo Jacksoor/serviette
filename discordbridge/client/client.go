@@ -434,7 +434,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 	}
 
 	channelID := m.ChannelID
-	if resp.OutputParams.Private {
+	if resp.Result.OutputParams.Private {
 		channel, err := c.session.UserChannelCreate(m.Author.ID)
 		if err != nil {
 			return err
@@ -442,14 +442,14 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		channelID = channel.ID
 	}
 
-	waitStatus := syscall.WaitStatus(resp.WaitStatus)
+	waitStatus := syscall.WaitStatus(resp.Result.WaitStatus)
 
 	if waitStatus.ExitStatus() == 0 || waitStatus.ExitStatus() == 2 {
-		outputFormatter, ok := OutputFormatters[resp.OutputParams.Format]
+		outputFormatter, ok := OutputFormatters[resp.Result.OutputParams.Format]
 		if !ok {
 			return &commandError{
 				status: errorStatusScript,
-				note:   fmt.Sprintf("Output format `%s` unknown", resp.OutputParams.Format),
+				note:   fmt.Sprintf("Output format `%s` unknown", resp.Result.OutputParams.Format),
 			}
 		}
 
@@ -457,13 +457,13 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			return nil
 		}
 
-		execOK := syscall.WaitStatus(resp.WaitStatus).ExitStatus() == 0
+		execOK := waitStatus.ExitStatus() == 0
 		messageSend, err := outputFormatter(m.Author.ID, resp.Stdout, execOK)
 		if err != nil {
 			if iErr, ok := err.(invalidOutputError); ok {
 				return &commandError{
 					status:  errorStatusScript,
-					note:    fmt.Sprintf("Output format `%s` unknown", resp.OutputParams.Format),
+					note:    fmt.Sprintf("Output format `%s` unknown", resp.Result.OutputParams.Format),
 					details: fmt.Sprintf("```%s```", iErr.Error()),
 				}
 			}
@@ -485,19 +485,15 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		}
 
 		return nil
+	} else if resp.Result.TimeLimitExceeded {
+		return &commandError{
+			status: errorStatusScript,
+			note:   "Script took too long!",
+		}
 	} else if waitStatus.Signaled() {
-		sig := waitStatus.Signal()
-		switch sig {
-		case syscall.SIGKILL:
-			return &commandError{
-				status: errorStatusScript,
-				note:   "Script used too many resources!",
-			}
-		default:
-			return &commandError{
-				status: errorStatusScript,
-				note:   fmt.Sprintf("Script was killed by %s!", sig),
-			}
+		return &commandError{
+			status: errorStatusScript,
+			note:   fmt.Sprintf("Script was killed by %s!", waitStatus.Signal()),
 		}
 	} else {
 		stderr := resp.Stderr

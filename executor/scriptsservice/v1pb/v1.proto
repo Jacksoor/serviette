@@ -66,10 +66,9 @@ message OutputParams {
 }
 
 message ExecuteResponse {
-    uint32 wait_status = 1;
+    WorkerExecutionResult result = 1;
     bytes stdout = 2;
     bytes stderr = 3;
-    OutputParams output_params = 4;
 }
 
 message WorkerExecutionRequest {
@@ -80,7 +79,7 @@ message WorkerExecutionRequest {
         string hostname = 10;
 
         string private_storage_path = 21;
-        string script_path = 22;
+        string scripts_path = 22;
         string k4_library_path = 23;
 
         uint32 uid = 31;

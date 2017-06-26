@@ -266,3 +266,9 @@ new_go_repository(
     commit = "c605e284fe17294bda444b34710735b29d1a9d90",
     importpath = "github.com/pkg/errors",
 )
+
+new_go_repository(
+    name = "com_github_kballard_go_shellquote",
+    commit = "cd60e84ee657ff3dc51de0b4f55dd299a3e136f2",
+    importpath = "github.com/kballard/go-shellquote",
+)

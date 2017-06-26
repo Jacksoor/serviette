@@ -284,7 +284,7 @@ func main() {
 		})
 	}
 
-	container, err := factory.Create(fmt.Sprintf("%d", os.Getpid()), config)
+	container, err := factory.Create(strconv.Itoa(os.Getpid()), config)
 	if err != nil {
 		glog.Error(err)
 		os.Exit(1)

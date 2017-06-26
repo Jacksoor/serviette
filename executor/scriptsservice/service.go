@@ -2,32 +2,22 @@ package scriptsservice
 
 import (
 	"bytes"
-	"encoding/binary"
-	"fmt"
+	"io"
 	"net"
-	"path/filepath"
-	"syscall"
+	"os"
+	"os/exec"
 	"time"
 
 	"github.com/djherbis/buffer/limio"
 	"github.com/golang/glog"
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
-	messagingpb "github.com/porpoises/kobun4/executor/messagingservice/v1pb"
-	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
-	statspb "github.com/porpoises/kobun4/executor/statsservice/v1pb"
-
 	"github.com/porpoises/kobun4/executor/accounts"
 	"github.com/porpoises/kobun4/executor/scripts"
-	"github.com/porpoises/kobun4/executor/worker"
-	"github.com/porpoises/kobun4/executor/worker/rpc/messagingservice"
-	"github.com/porpoises/kobun4/executor/worker/rpc/networkinfoservice"
-	"github.com/porpoises/kobun4/executor/worker/rpc/outputservice"
-	"github.com/porpoises/kobun4/executor/worker/rpc/statsservice"
 
 	pb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
@@ -63,24 +53,15 @@ type Service struct {
 	scripts  *scripts.Store
 	accounts *accounts.Store
 
-	k4LibraryPath string
-
-	workerOptions *WorkerOptions
-
-	lastAssignableIP net.IP
+	supervisorPrefix []string
+	supervisorPath   string
+	k4LibraryPath    string
+	containersPath   string
+	chroot           string
+	parentCgroup     string
 }
 
-type WorkerOptions struct {
-	Chroot             string
-	KafelSeccompPolicy string
-	NetworkInterface   string
-	IPNet              net.IPNet
-
-	TimeLimit time.Duration
-	TmpfsSize int64
-}
-
-func New(scripts *scripts.Store, accounts *accounts.Store, k4LibraryPath string, workerOptions *WorkerOptions) *Service {
+func New(scripts *scripts.Store, accounts *accounts.Store, supervisorPrefix []string, supervisorPath string, k4LibraryPath string, containersPath string, chroot string, parentCgroup string) *Service {
 	prometheus.MustRegister(scriptRealExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptCPUExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptUsesByServer)
@@ -89,11 +70,12 @@ func New(scripts *scripts.Store, accounts *accounts.Store, k4LibraryPath string,
 		scripts:  scripts,
 		accounts: accounts,
 
-		k4LibraryPath: k4LibraryPath,
-
-		workerOptions: workerOptions,
-
-		lastAssignableIP: workerOptions.IPNet.IP,
+		supervisorPrefix: supervisorPrefix,
+		supervisorPath:   supervisorPath,
+		k4LibraryPath:    k4LibraryPath,
+		containersPath:   containersPath,
+		chroot:           chroot,
+		parentCgroup:     parentCgroup,
 	}
 }
 
@@ -167,49 +149,10 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 	return &pb.DeleteResponse{}, nil
 }
 
-var marshaler = jsonpb.Marshaler{
-	EmitDefaults: true,
-}
-
-type workerServiceFactory func(ctx context.Context, bridgeConn *grpc.ClientConn, account *accounts.Account) (interface{}, error)
-
-var workerServiceFactories map[string]workerServiceFactory = map[string]workerServiceFactory{
-	"Messaging": func(ctx context.Context, bridgeConn *grpc.ClientConn, account *accounts.Account) (interface{}, error) {
-		return messagingservice.New(ctx, account, messagingpb.NewMessagingClient(bridgeConn)), nil
-	},
-
-	"NetworkInfo": func(ctx context.Context, bridgeConn *grpc.ClientConn, account *accounts.Account) (interface{}, error) {
-		return networkinfoservice.New(ctx, networkinfopb.NewNetworkInfoClient(bridgeConn)), nil
-	},
-
-	"Stats": func(ctx context.Context, bridgeConn *grpc.ClientConn, account *accounts.Account) (interface{}, error) {
-		return statsservice.New(ctx, statspb.NewStatsClient(bridgeConn)), nil
-	},
-}
-
-const rlimitAddressSpaceMB int64 = 1 * 1024 * 1024 * 1024 // 1GB
-
-func (s *Service) nextAssignableIP() net.IP {
-	gateway := binary.BigEndian.Uint32(s.workerOptions.IPNet.IP.To4())
-	netmask := binary.BigEndian.Uint32(net.IP(s.workerOptions.IPNet.Mask).To4())
-
-	last := binary.BigEndian.Uint32(s.lastAssignableIP.To4())
-
-	fixed := last & netmask
-	assignable := last & ^netmask
-
-	for {
-		assignable = (assignable + 1) & ^netmask
-
-		if assignable != 0 && assignable != ^netmask && (fixed|assignable) != gateway {
-			break
-		}
-	}
-
-	s.lastAssignableIP = make(net.IP, net.IPv4len)
-	binary.BigEndian.PutUint32(s.lastAssignableIP, fixed|assignable)
-	return s.lastAssignableIP.To4()
-}
+const (
+	nobodyUid  uint32 = 65534
+	nogroupGid        = 65534
+)
 
 func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
 	account, err := s.accounts.Account(ctx, req.OwnerName)
@@ -234,121 +177,154 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
-	rawCtx, err := marshaler.MarshalToString(req.Context)
-	if err != nil {
-		glog.Errorf("Failed to marshal context: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to run script")
-	}
-
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
+	var status bytes.Buffer
 
-	nsjailArgs := []string{
-		"--user", "nobody",
-		"--group", "nogroup",
-		"--hostname", "kobun4",
-
-		"--chroot", s.workerOptions.Chroot,
-
-		"--bindmount", fmt.Sprintf("%s:/mnt/storage", account.StoragePath()),
-		"--bindmount_ro", fmt.Sprintf("%s:/mnt/scripts", s.scripts.RootPath()),
-		"--bindmount_ro", fmt.Sprintf("%s:/usr/lib/k4", s.k4LibraryPath),
-
-		"--cwd", "/mnt/storage",
-
-		"--env", fmt.Sprintf("K4_CONTEXT=%s", rawCtx),
-
-		"--cgroup_mem_max", fmt.Sprintf("%d", account.Traits.MemoryLimit),
-		"--cgroup_mem_parent", "/",
-
-		"--cgroup_pids_parent", "/",
-
-		"--rlimit_as", fmt.Sprintf("%d", rlimitAddressSpaceMB),
-
-		"--tmpfsmount", "/tmp",
-		"--tmpfs_size", fmt.Sprintf("%d", account.Traits.TmpfsSize),
-
-		"--seccomp_string", s.workerOptions.KafelSeccompPolicy,
+	stdinReader, stdinWriter, err := os.Pipe()
+	if err != nil {
+		glog.Errorf("Failed to create pipe: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
+	defer stdinWriter.Close()
+	defer stdinReader.Close()
+	go func() {
+		stdinWriter.Write([]byte(req.Stdin))
+		stdinWriter.Close()
+	}()
 
-	if account.Traits.AllowNetworkAccess {
-		nsjailArgs = append(nsjailArgs,
-			"--macvlan_iface", s.workerOptions.NetworkInterface,
-			"--macvlan_vs_ip", s.nextAssignableIP().String(),
-			"--macvlan_vs_nm", net.IP(s.workerOptions.IPNet.Mask).String(),
-			"--macvlan_vs_gw", s.workerOptions.IPNet.IP.String(),
-		)
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		glog.Errorf("Failed to create pipe: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
+	defer stdoutReader.Close()
+	defer stdoutWriter.Close()
+	go func() {
+		io.Copy(limio.LimitWriter(&stdout, maxBufferSize), stdoutReader)
+		stdoutReader.Close()
+	}()
 
-	w := worker.New(nsjailArgs, filepath.Join("/mnt/scripts", script.QualifiedName()), []string{}, bytes.NewBuffer(req.Stdin), limio.LimitWriter(&stdout, maxBufferSize), limio.LimitWriter(&stderr, maxBufferSize))
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		glog.Errorf("Failed to create pipe: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+	defer stderrReader.Close()
+	defer stderrWriter.Close()
+	go func() {
+		io.Copy(limio.LimitWriter(&stderr, maxBufferSize), stderrReader)
+		stderrReader.Close()
+	}()
+
+	statusReader, statusWriter, err := os.Pipe()
+	if err != nil {
+		glog.Errorf("Failed to create pipe: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+	defer statusReader.Close()
+	defer statusWriter.Close()
+	go func() {
+		io.Copy(limio.LimitWriter(&stdout, maxBufferSize), statusReader)
+		statusReader.Close()
+	}()
+
+	reqReader, reqWriter, err := os.Pipe()
+	if err != nil {
+		glog.Errorf("Failed to create pipe: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+	defer reqWriter.Close()
+	defer reqReader.Close()
 
 	bridgeConn, err := net.Dial("tcp", req.BridgeTarget)
 	if err != nil {
-		return nil, grpc.Errorf(codes.Unavailable, "Service unavailable")
+		glog.Errorf("Failed to connect to bridge: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
+	defer bridgeConn.Close()
 
-	bridgeGRPCConn, err := grpc.Dial(req.BridgeTarget, grpc.WithInsecure(), grpc.WithDialer(func(string, time.Duration) (net.Conn, error) {
-		return bridgeConn, nil
-	}))
+	bridgeFile, err := bridgeConn.(*net.TCPConn).File()
 	if err != nil {
-		return nil, grpc.Errorf(codes.Unavailable, "Service unavailable")
+		glog.Errorf("Failed to get bridge file: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
-	defer bridgeGRPCConn.Close()
 
-	// Always register the output service.
-	outputService := outputservice.New(account)
-	w.RegisterService("Output", outputService)
+	args := append(s.supervisorPrefix, s.supervisorPath, "-logtostderr",
+		"-parent_group", s.parentCgroup)
 
-	for _, serviceName := range account.Traits.AllowedService {
-		factory, ok := workerServiceFactories[serviceName]
-		if !ok {
-			glog.Warningf("Unknown service name: %s", serviceName)
-			continue
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.ExtraFiles = []*os.File{
+		stdinReader,
+		stdoutWriter,
+		stderrWriter,
+		statusWriter,
+		reqReader,
+		bridgeFile,
+	}
+	if err := cmd.Start(); err != nil {
+		glog.Errorf("Failed to start supervisor: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+
+	stdinReader.Close()
+	stdoutWriter.Close()
+	stderrWriter.Close()
+	statusWriter.Close()
+	reqReader.Close()
+
+	rawReq, err := proto.Marshal(&pb.WorkerExecutionRequest{
+		Config: &pb.WorkerExecutionRequest_Configuration{
+			ContainersPath: s.containersPath,
+			Chroot:         s.chroot,
+
+			Hostname: "kobun4",
+
+			PrivateStoragePath: account.StoragePath(),
+			ScriptsPath:        s.scripts.RootPath(),
+			K4LibraryPath:      s.k4LibraryPath,
+
+			Uid: nobodyUid,
+			Gid: nogroupGid,
+		},
+		OwnerName: script.OwnerName,
+		Name:      script.Name,
+
+		Context: req.Context,
+		Traits:  account.Traits,
+	})
+	if err != nil {
+		glog.Errorf("Failed to marshal request: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+
+	if _, err := reqWriter.Write(rawReq); err != nil {
+		glog.Errorf("Failed to write request to supervisor: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+	reqWriter.Close()
+
+	if err := cmd.Wait(); err != nil {
+		if _, ok := err.(*exec.ExitError); !ok {
+			glog.Errorf("Failed to get ExitError: %v", err)
+			return nil, grpc.Errorf(codes.Internal, "failed to run script")
 		}
-
-		service, err := factory(ctx, bridgeGRPCConn, account)
-		if err != nil {
-			glog.Errorf("Failed to create service: %v", err)
-			return nil, grpc.Errorf(codes.Unavailable, "%s service unavailable", serviceName)
-		}
-
-		w.RegisterService(serviceName, service)
 	}
 
-	startTime := time.Now()
-
-	processCtx, cancel := context.WithTimeout(ctx, time.Duration(account.Traits.TimeLimitSeconds)*time.Second)
-	defer cancel()
-
-	processState, err := w.Run(processCtx)
-	if processState == nil {
-		glog.Errorf("Failed to run worker: %v", err)
-		return nil, err
+	result := &pb.WorkerExecutionResult{}
+	if err := proto.Unmarshal(status.Bytes(), result); err != nil {
+		glog.Errorf("Failed to unmarshal status: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
-	endTime := time.Now()
 
-	cpuTime := processState.UserTime() + processState.SystemTime()
-	realTime := endTime.Sub(startTime)
-
-	scriptCPUExecutionDurationsHistogram.WithLabelValues(script.OwnerName, script.Name).Observe(float64(cpuTime) / float64(time.Millisecond))
-	scriptRealExecutionDurationsHistogram.WithLabelValues(script.OwnerName, script.Name).Observe(float64(realTime) / float64(time.Millisecond))
+	scriptCPUExecutionDurationsHistogram.WithLabelValues(script.OwnerName, script.Name).Observe(float64(time.Duration(result.Timings.UserNanos+result.Timings.SystemNanos)*time.Nanosecond) / float64(time.Millisecond))
+	scriptRealExecutionDurationsHistogram.WithLabelValues(script.OwnerName, script.Name).Observe(float64(time.Duration(result.Timings.RealNanos)*time.Nanosecond) / float64(time.Millisecond))
 	scriptUsesByServer.WithLabelValues(req.Context.BridgeName, req.Context.NetworkId, req.Context.GroupId, script.OwnerName, script.Name).Inc()
 
-	waitStatus := processState.Sys().(syscall.WaitStatus)
-
-	glog.Infof("nsjail args: %v, Script execution result: %s, CPU time: %s, real time: %s, wait status: %v", nsjailArgs, string(stderr.Bytes()), cpuTime, realTime, waitStatus)
-
-	// Exited with signal, so shift it back.
-	if waitStatus.ExitStatus() > 100 {
-		waitStatus = syscall.WaitStatus(int32(waitStatus.ExitStatus()) - 100)
-	}
-
 	return &pb.ExecuteResponse{
-		WaitStatus: uint32(waitStatus),
-		Stdout:     stdout.Bytes(),
-		Stderr:     stderr.Bytes(),
-
-		OutputParams: outputService.OutputParams,
+		Result: result,
+		Stdout: stdout.Bytes(),
+		Stderr: stderr.Bytes(),
 	}, nil
 }
 

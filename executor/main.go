@@ -14,6 +14,7 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/golang/glog"
+	"github.com/kballard/go-shellquote"
 	_ "github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
@@ -37,16 +38,15 @@ var (
 
 	postgresURL = flag.String("postgres_url", "postgres://", "URL to Postgres database")
 
+	supervisorPrefix = flag.String("supervisor_prefix", "", "Command to prefix supervisor with")
+	supervisorPath   = flag.String("supervisor_path", "delegator/supervisor/supervisor", "Path to supervisor")
+
+	containersPath  = flag.String("containers_path", "containers", "Path to containers")
 	k4LibraryPath   = flag.String("k4_library_path", "clients", "Path to library root")
 	chrootPath      = flag.String("chroot_path", "chroot", "Path to chroot")
+	parentCgroup    = flag.String("parent_cgroup", "kobun4-executor", "Parent cgroup")
 	scriptsRootPath = flag.String("scripts_root_path", "scripts", "Path to script root")
 	storageRootPath = flag.String("storage_root_path", "storage", "Path to image root")
-
-	kafelSeccompPolicy = flag.String("kafel_seccomp_policy", "POLICY default { } USE default DEFAULT ALLOW", "Kafel policy to use for seccomp")
-
-	macvlanIface = flag.String("macvlan_iface", "veth1", "Network interface which will be cloned as 'vs'")
-	macvlanVsNM  = flag.String("macvlan_vs_nm", "255.0.0.0", "Netmask of the 'vs' interface")
-	macvlanVsGW  = flag.String("macvlan_vs_gw", "10.0.0.1", "Gateway of the 'vs' interface")
 )
 
 func main() {
@@ -85,16 +85,13 @@ func main() {
 		glog.Fatalf("failed to open scripts store: %v", err)
 	}
 
+	supervisorPrefixSplit, err := shellquote.Split(*supervisorPrefix)
+	if err != nil {
+		glog.Fatalf("failed to split supervisor prefix: %v", err)
+	}
+
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scriptsStore, accountStore, *k4LibraryPath, &scriptsservice.WorkerOptions{
-		Chroot:             *chrootPath,
-		KafelSeccompPolicy: *kafelSeccompPolicy,
-		NetworkInterface:   *macvlanIface,
-		IPNet: net.IPNet{
-			IP:   net.ParseIP(*macvlanVsGW),
-			Mask: net.IPMask(net.ParseIP(*macvlanVsNM)),
-		},
-	}))
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scriptsStore, accountStore, supervisorPrefixSplit, *k4LibraryPath, *supervisorPath, *containersPath, *chrootPath, *parentCgroup))
 	accountspb.RegisterAccountsServer(s, accountsservice.New(accountStore))
 	reflection.Register(s)
 
