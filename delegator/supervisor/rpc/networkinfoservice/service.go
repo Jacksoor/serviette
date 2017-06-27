@@ -3,7 +3,7 @@ package networkinfoservice
 import (
 	"golang.org/x/net/context"
 
-        srpc "github.com/porpoises/kobun4/delegator/supervisor/rpc"
+	srpc "github.com/porpoises/kobun4/delegator/supervisor/rpc"
 
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
 )
@@ -31,7 +31,7 @@ func (s *Service) GetUserInfo(req *struct {
 	}
 
 	resp.Body = &struct {
-	        Name  string            `json:"name"`
+		Name  string            `json:"name"`
 		Extra map[string]string `json:"extra"`
 	}{
 		grpcResp.Name,
@@ -51,9 +51,9 @@ func (s *Service) GetChannelInfo(req *struct {
 	}
 
 	resp.Body = &struct {
-	        Name       string            `json:"name"`
+		Name       string            `json:"name"`
 		IsOneOnOne bool              `json:"is_one_on_one"`
-	        Extra      map[string]string `json:"extra"`
+		Extra      map[string]string `json:"extra"`
 	}{
 		grpcResp.Name,
 		grpcResp.IsOneOnOne,
@@ -73,7 +73,7 @@ func (s *Service) GetGroupInfo(req *struct {
 	}
 
 	resp.Body = &struct {
-	        Name  string            `json:"name"`
+		Name  string            `json:"name"`
 		Extra map[string]string `json:"extra"`
 	}{
 		grpcResp.Name,

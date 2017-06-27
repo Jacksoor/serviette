@@ -195,17 +195,17 @@ func (s *singleListener) Addr() net.Addr {
 }
 
 func makeCgroup(subsystem string, name string) (string, error) {
-        mountpoint, err := cgroups.FindCgroupMountpoint(subsystem)
-        if err != nil {
-                return "", err
-        }
+	mountpoint, err := cgroups.FindCgroupMountpoint(subsystem)
+	if err != nil {
+		return "", err
+	}
 
-        cgroupPath := filepath.Join(mountpoint, name)
-        if err := os.MkdirAll(cgroupPath, 0755); err != nil {
-                return "", err
-        }
+	cgroupPath := filepath.Join(mountpoint, name)
+	if err := os.MkdirAll(cgroupPath, 0755); err != nil {
+		return "", err
+	}
 
-        return cgroupPath, nil
+	return cgroupPath, nil
 }
 
 func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
