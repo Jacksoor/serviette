@@ -73,6 +73,7 @@ message WorkerExecutionRequest {
     message Configuration {
         string containers_path = 2;
         string chroot = 3;
+        string rootfses_path = 4;
 
         string hostname = 10;
 
@@ -82,6 +83,9 @@ message WorkerExecutionRequest {
 
         uint32 uid = 31;
         uint32 gid = 32;
+
+        string bridge_target = 41;
+        string executor_target = 42;
     }
 
     Configuration config = 1;
@@ -90,9 +94,6 @@ message WorkerExecutionRequest {
     string name = 12;
 
     Context context = 20;
-
-    string bridge_target = 31;
-    string executor_target = 32;
 }
 
 message WorkerExecutionResult {

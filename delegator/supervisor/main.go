@@ -49,9 +49,6 @@ type serviceFactory func(ctx context.Context, account *accountspb.Traits, params
 type serviceParams struct {
 	bridgeConn *grpc.ClientConn
 
-	bridgeTarget   string
-	executorTarget string
-
 	currentCgroup string
 
 	config  *scriptspb.WorkerExecutionRequest_Configuration
@@ -72,7 +69,7 @@ var serviceFactories map[string]serviceFactory = map[string]serviceFactory{
 	},
 
 	"Supervisor": func(ctx context.Context, account *accountspb.Traits, params serviceParams) (interface{}, error) {
-		return supervisorservice.New(params.currentCgroup, params.config, params.context, params.bridgeTarget, params.executorTarget), nil
+		return supervisorservice.New(params.currentCgroup, params.config, params.context), nil
 	},
 }
 
@@ -206,7 +203,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	executorConn, err := grpc.Dial(req.ExecutorTarget, grpc.WithInsecure(), grpc.WithDialer(func(address string, timeout time.Duration) (net.Conn, error) {
+	executorConn, err := grpc.Dial(req.Config.ExecutorTarget, grpc.WithInsecure(), grpc.WithDialer(func(address string, timeout time.Duration) (net.Conn, error) {
 		return net.DialTimeout("unix", address, timeout)
 	}))
 	if err != nil {
@@ -239,8 +236,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	rootfsPath, err := ioutil.TempDir("", "kobun4-supervisor-rootfs-")
-	if err != nil {
+	rootfsPath := filepath.Join(req.Config.RootfsesPath, strconv.Itoa(os.Getpid()))
+	if err := os.Mkdir(rootfsPath, 0755); err != nil {
 		glog.Error(err)
 		os.Exit(1)
 	}
@@ -348,7 +345,7 @@ func main() {
 	}
 	defer container.Destroy()
 
-	bridgeConn, err := grpc.Dial(req.BridgeTarget, grpc.WithInsecure(), grpc.WithDialer(func(address string, timeout time.Duration) (net.Conn, error) {
+	bridgeConn, err := grpc.Dial(req.Config.BridgeTarget, grpc.WithInsecure(), grpc.WithDialer(func(address string, timeout time.Duration) (net.Conn, error) {
 		return net.DialTimeout("unix", address, timeout)
 	}))
 	if err != nil {
@@ -381,9 +378,6 @@ func main() {
 		currentCgroup: currentCgroup,
 		config:        req.Config,
 		context:       req.Context,
-
-		bridgeTarget:   req.BridgeTarget,
-		executorTarget: req.ExecutorTarget,
 	}
 
 	for _, serviceName := range traits.AllowedService {

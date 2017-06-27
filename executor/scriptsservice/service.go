@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -66,14 +67,14 @@ type Service struct {
 	supervisorPrefix []string
 	supervisorPath   string
 	k4LibraryPath    string
-	containersPath   string
-	chroot           string
-	parentCgroup     string
+
+	chroot       string
+	parentCgroup string
 
 	executionID int64
 }
 
-func New(lis net.Listener, scripts *scripts.Store, accounts *accounts.Store, budgeter *budget.Budgeter, supervisorPrefix []string, supervisorPath string, k4LibraryPath string, containersPath string, chroot string, parentCgroup string) *Service {
+func New(lis net.Listener, scripts *scripts.Store, accounts *accounts.Store, budgeter *budget.Budgeter, supervisorPrefix []string, supervisorPath string, k4LibraryPath string, chroot string, parentCgroup string) *Service {
 	prometheus.MustRegister(scriptRealExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptCPUExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptUsesByServer)
@@ -89,9 +90,9 @@ func New(lis net.Listener, scripts *scripts.Store, accounts *accounts.Store, bud
 		supervisorPrefix: supervisorPrefix,
 		supervisorPath:   supervisorPath,
 		k4LibraryPath:    k4LibraryPath,
-		containersPath:   containersPath,
-		chroot:           chroot,
-		parentCgroup:     parentCgroup,
+
+		chroot:       chroot,
+		parentCgroup: parentCgroup,
 
 		executionID: 0,
 	}
@@ -255,6 +256,20 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 	defer os.RemoveAll(memoryCgroupPath)
 
+	containersPath, err := ioutil.TempDir("", "kobun4-executor-containers-")
+	if err != nil {
+		glog.Errorf("Failed to create containers temp directory: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+	defer os.RemoveAll(containersPath)
+
+	rootfsesPath, err := ioutil.TempDir("", "kobun4-executor-rootfses-")
+	if err != nil {
+		glog.Errorf("Failed to create rootfses temp directory: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+	defer os.RemoveAll(rootfsesPath)
+
 	var wg sync.WaitGroup
 
 	var stdout bytes.Buffer
@@ -361,8 +376,9 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	workerReq := &pb.WorkerExecutionRequest{
 		Config: &pb.WorkerExecutionRequest_Configuration{
-			ContainersPath: s.containersPath,
+			ContainersPath: containersPath,
 			Chroot:         s.chroot,
+			RootfsesPath:   rootfsesPath,
 
 			Hostname: "kobun4",
 
@@ -372,14 +388,14 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 			Uid: defaultUid,
 			Gid: defaultGid,
+
+			BridgeTarget:   req.BridgeTarget,
+			ExecutorTarget: s.lis.Addr().String(),
 		},
 		OwnerName: script.OwnerName,
 		Name:      script.Name,
 
 		Context: req.Context,
-
-		BridgeTarget:   req.BridgeTarget,
-		ExecutorTarget: s.lis.Addr().String(),
 	}
 	glog.Infof("Execution request: %s", workerReq)
 

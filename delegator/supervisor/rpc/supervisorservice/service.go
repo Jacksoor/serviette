@@ -30,21 +30,15 @@ type Service struct {
 	currentCgroup string
 	config        *scriptspb.WorkerExecutionRequest_Configuration
 	context       *scriptspb.Context
-
-	bridgeTarget   string
-	executorTarget string
 }
 
-func New(currentCgroup string, config *scriptspb.WorkerExecutionRequest_Configuration, context *scriptspb.Context, bridgeTarget string, executorTarget string) *Service {
+func New(currentCgroup string, config *scriptspb.WorkerExecutionRequest_Configuration, context *scriptspb.Context) *Service {
 	return &Service{
 		children: make([]*Child, 0),
 
 		currentCgroup: currentCgroup,
 		config:        config,
 		context:       context,
-
-		bridgeTarget:   bridgeTarget,
-		executorTarget: executorTarget,
 	}
 }
 
@@ -110,9 +104,6 @@ func (s *Service) Spawn(req *struct {
 		OwnerName: req.OwnerName,
 		Name:      req.Name,
 		Context:   s.context,
-
-		BridgeTarget:   s.bridgeTarget,
-		ExecutorTarget: s.executorTarget,
 	}
 
 	rawReq, err := proto.Marshal(workerReq)
