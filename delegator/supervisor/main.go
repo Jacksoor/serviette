@@ -104,50 +104,21 @@ func init() {
 	}
 }
 
-func applyRlimits(traits *accountspb.Traits) error {
-	if err := syscall.Setrlimit(unix.RLIMIT_AS, &syscall.Rlimit{Cur: uint64(1 * 1024 * 1024 * 1024), Max: uint64(1 * 1024 * 1024 * 1024)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_AS): %v", err)
-	}
-	if err := syscall.Setrlimit(unix.RLIMIT_CORE, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_CORE): %v", err)
-	}
-	if err := syscall.Setrlimit(unix.RLIMIT_CPU, &syscall.Rlimit{Cur: uint64(traits.TimeLimitSeconds), Max: uint64(traits.TimeLimitSeconds)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_CPU): %v", err)
-	}
-	if err := syscall.Setrlimit(unix.RLIMIT_DATA, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_DATA): %v", err)
-	}
-	if err := syscall.Setrlimit(unix.RLIMIT_FSIZE, &syscall.Rlimit{Cur: uint64(1 * 1024 * 1024), Max: uint64(1 * 1024 * 1024)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_FSIZE): %v", err)
-	}
-	if err := syscall.Setrlimit(unix.RLIMIT_MEMLOCK, &syscall.Rlimit{Cur: uint64(64 * 1024), Max: uint64(64 * 1024)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_MEMLOCK): %v", err)
-	}
-	if err := syscall.Setrlimit(unix.RLIMIT_MSGQUEUE, &syscall.Rlimit{Cur: uint64(800 * 1024), Max: uint64(800 * 1024)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_MSGQUEUE): %v", err)
-	}
-	if err := syscall.Setrlimit(unix.RLIMIT_NICE, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_NICE): %v", err)
-	}
-	if err := syscall.Setrlimit(unix.RLIMIT_NOFILE, &syscall.Rlimit{Cur: uint64(32), Max: uint64(32)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_NOFILE): %v", err)
-	}
-	if err := syscall.Setrlimit(unix.RLIMIT_NPROC, &syscall.Rlimit{Cur: uint64(100), Max: uint64(100)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_NPROC): %v", err)
-	}
-	if err := syscall.Setrlimit(unix.RLIMIT_RSS, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_RSS): %v", err)
-	}
-	if err := syscall.Setrlimit(unix.RLIMIT_RTPRIO, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_RTPRIO): %v", err)
-	}
-	if err := syscall.Setrlimit(unix.RLIMIT_RTTIME, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_RTTIME): %v", err)
-	}
-	if err := syscall.Setrlimit(unix.RLIMIT_STACK, &syscall.Rlimit{Cur: uint64(8 * 1024 * 1024), Max: uint64(8 * 1024 * 1024)}); err != nil {
-		return fmt.Errorf("Setrlimit(RLIMIT_STACK): %v", err)
-	}
-	return nil
+func applyRlimits(traits *accountspb.Traits) {
+	syscall.Setrlimit(unix.RLIMIT_AS, &syscall.Rlimit{Cur: uint64(1 * 1024 * 1024 * 1024), Max: uint64(1 * 1024 * 1024 * 1024)})
+	syscall.Setrlimit(unix.RLIMIT_CORE, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)})
+	syscall.Setrlimit(unix.RLIMIT_CPU, &syscall.Rlimit{Cur: uint64(traits.TimeLimitSeconds), Max: uint64(traits.TimeLimitSeconds)})
+	syscall.Setrlimit(unix.RLIMIT_DATA, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)})
+	syscall.Setrlimit(unix.RLIMIT_FSIZE, &syscall.Rlimit{Cur: uint64(1 * 1024 * 1024), Max: uint64(1 * 1024 * 1024)})
+	syscall.Setrlimit(unix.RLIMIT_MEMLOCK, &syscall.Rlimit{Cur: uint64(64 * 1024), Max: uint64(64 * 1024)})
+	syscall.Setrlimit(unix.RLIMIT_MSGQUEUE, &syscall.Rlimit{Cur: uint64(800 * 1024), Max: uint64(800 * 1024)})
+	syscall.Setrlimit(unix.RLIMIT_NICE, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)})
+	syscall.Setrlimit(unix.RLIMIT_NOFILE, &syscall.Rlimit{Cur: uint64(32), Max: uint64(32)})
+	syscall.Setrlimit(unix.RLIMIT_NPROC, &syscall.Rlimit{Cur: uint64(100), Max: uint64(100)})
+	syscall.Setrlimit(unix.RLIMIT_RSS, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)})
+	syscall.Setrlimit(unix.RLIMIT_RTPRIO, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)})
+	syscall.Setrlimit(unix.RLIMIT_RTTIME, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)})
+	syscall.Setrlimit(unix.RLIMIT_STACK, &syscall.Rlimit{Cur: uint64(8 * 1024 * 1024), Max: uint64(8 * 1024 * 1024)})
 }
 
 func makeCgroup(subsystem string, name string) (string, error) {
@@ -189,9 +160,7 @@ func applyCgroups(traits *accountspb.Traits, currentCgroup string) error {
 }
 
 func applyRestrictions(traits *accountspb.Traits, currentCgroup string) error {
-	if err := applyRlimits(traits); err != nil {
-		return err
-	}
+	applyRlimits(traits)
 
 	if err := applyCgroups(traits, currentCgroup); err != nil {
 		return err
