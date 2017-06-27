@@ -19,9 +19,10 @@ import (
 )
 
 type Child struct {
-	cmd       *exec.Cmd
-	wg        sync.WaitGroup
-	statusBuf bytes.Buffer
+	cmd          *exec.Cmd
+	wg           sync.WaitGroup
+	statusReader *os.File
+	statusBuf    bytes.Buffer
 }
 
 type Service struct {
@@ -54,13 +55,15 @@ func (s *Service) Spawn(req *struct {
 
 	glog.Infof("Supervisor is spawning: %s/%s", req.OwnerName, req.Name)
 
-	child := &Child{}
-
 	statusReader, statusWriter, err := os.Pipe()
 	if err != nil {
 		return err
 	}
 	defer statusWriter.Close()
+
+	child := &Child{
+		statusReader: statusReader,
+	}
 
 	child.wg.Add(1)
 	go func() {
@@ -140,6 +143,8 @@ func (s *Service) Wait(req *struct {
 			return err
 		}
 	}
+
+	child.statusReader.Close()
 
 	child.wg.Wait()
 	rawStatus := child.statusBuf.Bytes()

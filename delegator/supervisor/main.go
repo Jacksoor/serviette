@@ -244,9 +244,10 @@ func main() {
 	defer os.RemoveAll(rootfsPath)
 
 	config := &configs.Config{
-		Rootfs:     rootfsPath,
-		Rootless:   true,
-		Readonlyfs: true,
+		Rootfs:            rootfsPath,
+		Rootless:          true,
+		Readonlyfs:        true,
+		ParentDeathSignal: int(syscall.SIGKILL),
 		Capabilities: &configs.Capabilities{
 			Bounding:    []string{},
 			Effective:   []string{},

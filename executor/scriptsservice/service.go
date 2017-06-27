@@ -214,6 +214,24 @@ func makeCgroup(subsystem string, name string) (string, error) {
 	return cgroupPath, nil
 }
 
+func removeCgroups(path string) error {
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range files {
+		if f.IsDir() {
+			if err := removeCgroups(filepath.Join(path, f.Name())); err != nil {
+				return err
+			}
+		}
+	}
+
+	glog.Infof("Removing cgroup path: %s", path)
+	return os.Remove(path)
+}
+
 func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
 	remainingBudget, err := s.budgeter.Remaining(ctx, req.Context.NetworkId, req.Context.UserId)
 	if err != nil {
@@ -247,14 +265,18 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
-	cgroup := fmt.Sprintf("%s/execution-%d", s.parentCgroup, s.executionID)
+	cgroup := fmt.Sprintf("%s/execution-%d-%d", s.parentCgroup, time.Now().Unix(), s.executionID)
 	s.executionID++
 	memoryCgroupPath, err := makeCgroup("memory", cgroup)
 	if err != nil {
 		glog.Errorf("Failed to open parent file conn: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
-	defer os.RemoveAll(memoryCgroupPath)
+	defer func() {
+		if err := removeCgroups(memoryCgroupPath); err != nil {
+			glog.Errorf("Failed to remove all cgroups: %v", err)
+		}
+	}()
 
 	containersPath, err := ioutil.TempDir("", "kobun4-executor-containers-")
 	if err != nil {
@@ -297,12 +319,6 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 	defer stdoutReader.Close()
 	defer stdoutWriter.Close()
-	wg.Add(1)
-	go func() {
-		io.Copy(limio.LimitWriter(&stdout, maxBufferSize), stdoutReader)
-		stdoutReader.Close()
-		wg.Done()
-	}()
 
 	stderrReader, stderrWriter, err := os.Pipe()
 	if err != nil {
@@ -311,12 +327,6 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 	defer stderrReader.Close()
 	defer stderrWriter.Close()
-	wg.Add(1)
-	go func() {
-		io.Copy(limio.LimitWriter(&stderr, maxBufferSize), stderrReader)
-		stderrReader.Close()
-		wg.Done()
-	}()
 
 	statusReader, statusWriter, err := os.Pipe()
 	if err != nil {
@@ -325,12 +335,6 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	}
 	defer statusReader.Close()
 	defer statusWriter.Close()
-	wg.Add(1)
-	go func() {
-		io.Copy(&status, statusReader)
-		statusReader.Close()
-		wg.Done()
-	}()
 
 	reqReader, reqWriter, err := os.Pipe()
 	if err != nil {
@@ -353,7 +357,6 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid:    true,
 		Pdeathsig: syscall.SIGKILL,
 	}
 	cmd.ExtraFiles = []*os.File{
@@ -367,6 +370,27 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		glog.Errorf("Failed to start supervisor: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
+
+	wg.Add(1)
+	go func() {
+		io.Copy(limio.LimitWriter(&stdout, maxBufferSize), stdoutReader)
+		stdoutReader.Close()
+		wg.Done()
+	}()
+
+	wg.Add(1)
+	go func() {
+		io.Copy(limio.LimitWriter(&stderr, maxBufferSize), stderrReader)
+		stderrReader.Close()
+		wg.Done()
+	}()
+
+	wg.Add(1)
+	go func() {
+		io.Copy(&status, statusReader)
+		statusReader.Close()
+		wg.Done()
+	}()
 
 	stdinReader.Close()
 	stdoutWriter.Close()
@@ -417,6 +441,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 			return nil, grpc.Errorf(codes.Internal, "failed to run script")
 		}
 	}
+
+	stdinWriter.Close()
+	stdoutReader.Close()
+	stderrReader.Close()
+	statusReader.Close()
 
 	wg.Wait()
 	rawStatus := status.Bytes()
