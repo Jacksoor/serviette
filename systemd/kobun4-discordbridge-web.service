@@ -17,6 +17,7 @@ PrivateDevices=true
 ProtectSystem=full
 ProtectHome=true
 ReadWriteDirectories=/var/lib/kobun4/discordbridge
+RuntimeDirectory=kobun4-discordbridge-web
 
 [Install]
 WantedBy=multi-user.target

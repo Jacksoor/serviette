@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"golang.org/x/net/trace"
 	"net/http"
@@ -35,8 +36,8 @@ import (
 )
 
 var (
-	bindSocket      = flag.String("bind_socket", "localhost:5903", "Bind for socket")
-	bindDebugSocket = flag.String("bind_debug_socket", "localhost:5913", "Bind for socket")
+	bindSocket      = flag.String("bind_socket", "/run/kobun4-discordbridge/main.socket", "Bind for socket")
+	bindDebugSocket = flag.String("bind_debug_socket", "/run/kobun4-discordbridge/debug.socket", "Bind for socket")
 
 	botToken = flag.String("bot_token", "", "Bot token.")
 	status   = flag.String("status", "", "Status to show.")
@@ -45,7 +46,7 @@ var (
 
 	postgresURL = flag.String("postgres_url", "postgres://", "URL to Postgres database")
 
-	executorTarget = flag.String("executor_target", "localhost:5902", "Executor target")
+	executorTarget = flag.String("executor_target", "/run/kobun4-executor/main.socket", "Executor target")
 
 	homeURL = flag.String("home_url", "http://kobun", "URL to web UI")
 )
@@ -58,7 +59,8 @@ func main() {
 		return true, true
 	}
 
-	debugLis, err := net.Listen("tcp", *bindDebugSocket)
+	os.Remove(*bindDebugSocket)
+	debugLis, err := net.Listen("unix", *bindDebugSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
@@ -67,7 +69,9 @@ func main() {
 
 	go http.Serve(debugLis, nil)
 
-	executorConn, err := grpc.Dial(*executorTarget, grpc.WithInsecure())
+	executorConn, err := grpc.Dial(*executorTarget, grpc.WithInsecure(), grpc.WithDialer(func(address string, timeout time.Duration) (net.Conn, error) {
+		return net.DialTimeout("unix", address, timeout)
+	}))
 	if err != nil {
 		glog.Fatalf("did not connect to executor: %v", err)
 	}
@@ -81,11 +85,13 @@ func main() {
 	vars := varstore.New(db)
 	stats := statsstore.New(db)
 
-	lis, err := net.Listen("tcp", *bindSocket)
+	os.Remove(*bindSocket)
+	lis, err := net.Listen("unix", *bindSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
 	defer lis.Close()
+	os.Chmod(*bindSocket, 0777)
 	glog.Infof("Listening on: %s", lis.Addr())
 
 	client, err := client.New(*botToken, &client.Options{

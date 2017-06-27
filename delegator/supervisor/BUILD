@@ -5,6 +5,7 @@ go_library(
     srcs = ["main.go"],
     visibility = ["//visibility:private"],
     deps = [
+        "//delegator/supervisor/rpc:go_default_library",
         "//delegator/supervisor/rpc/messagingservice:go_default_library",
         "//delegator/supervisor/rpc/networkinfoservice:go_default_library",
         "//delegator/supervisor/rpc/outputservice:go_default_library",

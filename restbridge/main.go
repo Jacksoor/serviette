@@ -24,13 +24,13 @@ import (
 )
 
 var (
-	bindSocket      = flag.String("bind_socket", "localhost:5905", "Bind for socket")
-	bindDebugSocket = flag.String("bind_debug_socket", "localhost:5915", "Bind for socket")
+	bindSocket      = flag.String("bind_socket", "/run/kobun4-restbridge/main.socket", "Bind for socket")
+	bindDebugSocket = flag.String("bind_debug_socket", "/run/kobun4-restbridge/debug.socket", "Bind for socket")
 
 	tokenSecret   = flag.String("token_secret", "", "Token secret")
 	tokenDuration = flag.Duration("token_duration", 24*time.Hour, "Token duration")
 
-	executorTarget = flag.String("executor_target", "localhost:5902", "Executor target")
+	executorTarget = flag.String("executor_target", "/run/kobun4-executor/main.socket", "Executor target")
 )
 
 func main() {
@@ -41,7 +41,8 @@ func main() {
 		return true, true
 	}
 
-	debugLis, err := net.Listen("tcp", *bindDebugSocket)
+	os.Remove(*bindDebugSocket)
+	debugLis, err := net.Listen("unix", *bindDebugSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
@@ -54,7 +55,9 @@ func main() {
 		glog.Fatal("-token_secret not provided")
 	}
 
-	executorConn, err := grpc.Dial(*executorTarget, grpc.WithInsecure())
+	executorConn, err := grpc.Dial(*executorTarget, grpc.WithInsecure(), grpc.WithDialer(func(address string, timeout time.Duration) (net.Conn, error) {
+		return net.DialTimeout("unix", address, timeout)
+	}))
 	if err != nil {
 		glog.Fatalf("did not connect to executor: %v", err)
 	}
@@ -77,10 +80,12 @@ func main() {
 		Handler: wsContainer,
 	}
 
-	lis, err := net.Listen("tcp", *bindSocket)
+	os.Remove(*bindSocket)
+	lis, err := net.Listen("unix", *bindSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
+	os.Chmod(*bindSocket, 0777)
 	defer lis.Close()
 
 	signalChan := make(chan os.Signal, 1)

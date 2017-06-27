@@ -17,6 +17,7 @@ PrivateDevices=true
 ProtectSystem=full
 ProtectHome=true
 ReadWriteDirectories=/var/lib/kobun4/restbridge
+RuntimeDirectory=kobun4-restbridge
 
 [Install]
 WantedBy=multi-user.target

@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/rpc"
-	"net/rpc/jsonrpc"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -31,6 +30,7 @@ import (
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
 	statspb "github.com/porpoises/kobun4/executor/statsservice/v1pb"
 
+	srpc "github.com/porpoises/kobun4/delegator/supervisor/rpc"
 	"github.com/porpoises/kobun4/delegator/supervisor/rpc/messagingservice"
 	"github.com/porpoises/kobun4/delegator/supervisor/rpc/networkinfoservice"
 	"github.com/porpoises/kobun4/delegator/supervisor/rpc/outputservice"
@@ -48,7 +48,14 @@ type serviceFactory func(ctx context.Context, account *accountspb.Traits, params
 
 type serviceParams struct {
 	bridgeConn *grpc.ClientConn
-	parentConn *grpc.ClientConn
+
+	bridgeTarget   string
+	executorTarget string
+
+	currentCgroup string
+
+	config  *scriptspb.WorkerExecutionRequest_Configuration
+	context *scriptspb.Context
 }
 
 var serviceFactories map[string]serviceFactory = map[string]serviceFactory{
@@ -65,7 +72,7 @@ var serviceFactories map[string]serviceFactory = map[string]serviceFactory{
 	},
 
 	"Supervisor": func(ctx context.Context, account *accountspb.Traits, params serviceParams) (interface{}, error) {
-		return supervisorservice.New(), nil
+		return supervisorservice.New(params.currentCgroup, params.config, params.context, params.bridgeTarget, params.executorTarget), nil
 	},
 }
 
@@ -143,8 +150,6 @@ func applyRlimits(traits *accountspb.Traits) error {
 	return nil
 }
 
-const cgroupMemoryLimit = "memory.limit_in_bytes"
-
 func makeCgroup(subsystem string, name string) (string, error) {
 	mountpoint, err := cgroups.FindCgroupMountpoint(subsystem)
 	if err != nil {
@@ -159,21 +164,23 @@ func makeCgroup(subsystem string, name string) (string, error) {
 	return cgroupPath, nil
 }
 
-func applyCgroups(traits *accountspb.Traits) error {
+const cgroupMemoryLimit = "memory.limit_in_bytes"
+
+func applyCgroups(traits *accountspb.Traits, currentCgroup string) error {
 	cgroupPaths := make(map[string]string, 0)
 	if traits.MemoryLimit >= 0 {
-		memoryCgroupPath, err := makeCgroup("memory", filepath.Join(*parentCgroup, strconv.Itoa(os.Getpid())))
+		memoryCgroupPath, err := makeCgroup("memory", currentCgroup)
 		if err != nil {
-			return nil
+			return err
 		}
-		defer os.Remove(memoryCgroupPath)
 
 		if err := ioutil.WriteFile(filepath.Join(memoryCgroupPath, cgroupMemoryLimit), []byte(strconv.FormatInt(traits.MemoryLimit, 10)), 0700); err != nil {
-			return nil
+			return err
 		}
 
 		cgroupPaths["memory"] = memoryCgroupPath
 	}
+
 	if err := cgroups.EnterPid(cgroupPaths, os.Getpid()); err != nil {
 		return err
 	}
@@ -181,12 +188,12 @@ func applyCgroups(traits *accountspb.Traits) error {
 	return nil
 }
 
-func applyRestrictions(traits *accountspb.Traits) error {
+func applyRestrictions(traits *accountspb.Traits, currentCgroup string) error {
 	if err := applyRlimits(traits); err != nil {
 		return err
 	}
 
-	if err := applyCgroups(traits); err != nil {
+	if err := applyCgroups(traits, currentCgroup); err != nil {
 		return err
 	}
 
@@ -196,6 +203,8 @@ func applyRestrictions(traits *accountspb.Traits) error {
 func main() {
 	flag.Parse()
 
+	glog.Infof("Hello! I'm a supervisor and my parent cgroup is %s!", *parentCgroup)
+
 	ctx := context.Background()
 
 	childStdin := os.NewFile(3, "child stdin")
@@ -203,8 +212,6 @@ func main() {
 	childStderr := os.NewFile(5, "child stderr")
 	childStatus := os.NewFile(6, "child status")
 	supervisorRequestFile := os.NewFile(7, "supervisor execution request")
-	bridgeConnFile := os.NewFile(8, "bridge connection")
-	parentConnFile := os.NewFile(9, "parent connection")
 
 	rawReq, err := ioutil.ReadAll(supervisorRequestFile)
 	if err != nil {
@@ -230,16 +237,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	parentConn, err := grpc.Dial("", grpc.WithInsecure(), grpc.WithDialer(func(string, time.Duration) (net.Conn, error) {
-		return net.FileConn(parentConnFile)
+	executorConn, err := grpc.Dial(req.ExecutorTarget, grpc.WithInsecure(), grpc.WithDialer(func(address string, timeout time.Duration) (net.Conn, error) {
+		return net.DialTimeout("unix", address, timeout)
 	}))
 	if err != nil {
 		glog.Error(err)
 		os.Exit(1)
 	}
-	traits := req.Traits
 
-	if err := applyRestrictions(traits); err != nil {
+	accountsClient := accountspb.NewAccountsClient(executorConn)
+
+	glog.Infof("Retrieving account information from delegator: %s", req.OwnerName)
+	accountResp, err := accountsClient.Get(ctx, &accountspb.GetRequest{
+		Username: req.OwnerName,
+	})
+	if err != nil {
+		glog.Error(err)
+	}
+	glog.Infof("Owner account traits: %s", accountResp)
+
+	traits := accountResp.Traits
+	currentCgroup := filepath.Join(*parentCgroup, strconv.Itoa(os.Getpid()))
+
+	if err := applyRestrictions(traits, currentCgroup); err != nil {
 		glog.Error(err)
 		os.Exit(1)
 	}
@@ -298,7 +318,7 @@ func main() {
 			},
 			{
 				Device:      "bind",
-				Source:      req.Config.PrivateStoragePath,
+				Source:      filepath.Join(req.Config.StoragePath, req.OwnerName),
 				Destination: privateStorageMountDir,
 				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_REC,
 			},
@@ -359,8 +379,8 @@ func main() {
 	}
 	defer container.Destroy()
 
-	bridgeConn, err := grpc.Dial("", grpc.WithInsecure(), grpc.WithDialer(func(string, time.Duration) (net.Conn, error) {
-		return net.FileConn(bridgeConnFile)
+	bridgeConn, err := grpc.Dial(req.BridgeTarget, grpc.WithInsecure(), grpc.WithDialer(func(address string, timeout time.Duration) (net.Conn, error) {
+		return net.DialTimeout("unix", address, timeout)
 	}))
 	if err != nil {
 		glog.Error(err)
@@ -380,12 +400,21 @@ func main() {
 
 	rpcServer := rpc.NewServer()
 
-	outputService := outputservice.New(traits)
+	outputParams := &scriptspb.OutputParams{
+		Format: "text",
+	}
+	outputService := outputservice.New(traits, outputParams)
 	rpcServer.RegisterName("Output", outputService)
 
 	params := serviceParams{
 		bridgeConn: bridgeConn,
-		parentConn: parentConn,
+
+		currentCgroup: currentCgroup,
+		config:        req.Config,
+		context:       req.Context,
+
+		bridgeTarget:   req.BridgeTarget,
+		executorTarget: req.ExecutorTarget,
 	}
 
 	for _, serviceName := range traits.AllowedService {
@@ -403,7 +432,12 @@ func main() {
 		rpcServer.RegisterName(serviceName, service)
 	}
 
-	go rpcServer.ServeCodec(jsonrpc.NewServerCodec(parentFile))
+	serverCodec, err := srpc.NewServerCodec(parentFile)
+	if err != nil {
+		glog.Error(err)
+		os.Exit(1)
+	}
+	go rpcServer.ServeCodec(serverCodec)
 
 	jsonK4Context, err := marshaler.MarshalToString(req.Context)
 	if err != nil {
@@ -454,13 +488,17 @@ func main() {
 	}
 	close(done)
 
+	childStdin.Close()
+	childStdout.Close()
+	childStderr.Close()
+
 	endTime := time.Now()
 
 	waitStatus := state.Sys().(syscall.WaitStatus)
 	result := &scriptspb.WorkerExecutionResult{
 		WaitStatus:        uint32(waitStatus),
 		TimeLimitExceeded: timeLimitExceeded,
-		OutputParams:      outputService.OutputParams,
+		OutputParams:      outputParams,
 		Timings: &scriptspb.WorkerExecutionResult_Timings{
 			RealNanos:   uint64((endTime.Sub(startTime)) / time.Nanosecond),
 			UserNanos:   uint64(state.UserTime() / time.Nanosecond),

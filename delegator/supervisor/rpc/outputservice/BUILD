@@ -5,6 +5,7 @@ go_library(
     srcs = ["service.go"],
     visibility = ["//visibility:public"],
     deps = [
+        "//delegator/supervisor/rpc:go_default_library",
         "//executor/accountsservice/v1pb:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
     ],

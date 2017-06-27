@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package kobun4.executor.scripts.v1;
 
-import "executor/accountsservice/v1pb/v1.proto";
-
 option go_package = "v1pb";
 
 message Meta {
@@ -78,7 +76,7 @@ message WorkerExecutionRequest {
 
         string hostname = 10;
 
-        string private_storage_path = 21;
+        string storage_path = 21;
         string scripts_path = 22;
         string k4_library_path = 23;
 
@@ -93,7 +91,8 @@ message WorkerExecutionRequest {
 
     Context context = 20;
 
-    kobun4.executor.accounts.v1.Traits traits = 30;
+    string bridge_target = 31;
+    string executor_target = 32;
 }
 
 message WorkerExecutionResult {

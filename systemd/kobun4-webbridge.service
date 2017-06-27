@@ -16,6 +16,7 @@ PrivateDevices=true
 ProtectSystem=full
 ProtectHome=true
 ReadWriteDirectories=/var/lib/kobun4/webbridge
+RuntimeDirectory=kobun4-webbridge
 
 [Install]
 WantedBy=multi-user.target

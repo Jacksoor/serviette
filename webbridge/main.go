@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"golang.org/x/net/trace"
 	_ "net/http/pprof"
@@ -21,10 +22,10 @@ import (
 )
 
 var (
-	bindSocket      = flag.String("bind_socket", "localhost:5904", "Bind for socket")
-	bindDebugSocket = flag.String("bind_debug_socket", "localhost:5914", "Bind for socket")
+	bindSocket      = flag.String("bind_socket", "/run/kobun4-webbridge/main.socket", "Bind for socket")
+	bindDebugSocket = flag.String("bind_debug_socket", "/run/kobun4-webbridge/debug.socket", "Bind for socket")
 
-	executorTarget = flag.String("executor_target", "localhost:5902", "Executor target")
+	executorTarget = flag.String("executor_target", "/run/kobun4-executor/main.socket", "Executor target")
 
 	staticPath   = flag.String("static_path", "Path to templates", "static")
 	templatePath = flag.String("template_path", "Path to templates", "templates")
@@ -38,7 +39,8 @@ func main() {
 		return true, true
 	}
 
-	debugLis, err := net.Listen("tcp", *bindDebugSocket)
+	os.Remove(*bindDebugSocket)
+	debugLis, err := net.Listen("unix", *bindDebugSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
@@ -47,7 +49,9 @@ func main() {
 
 	go http.Serve(debugLis, nil)
 
-	executorConn, err := grpc.Dial(*executorTarget, grpc.WithInsecure())
+	executorConn, err := grpc.Dial(*executorTarget, grpc.WithInsecure(), grpc.WithDialer(func(address string, timeout time.Duration) (net.Conn, error) {
+		return net.DialTimeout("unix", address, timeout)
+	}))
 	if err != nil {
 		glog.Fatalf("did not connect to executor: %v", err)
 	}
@@ -61,10 +65,12 @@ func main() {
 		Handler: handler,
 	}
 
-	lis, err := net.Listen("tcp", *bindSocket)
+	os.Remove(*bindSocket)
+	lis, err := net.Listen("unix", *bindSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
+	os.Chmod(*bindSocket, 0777)
 	defer lis.Close()
 
 	signalChan := make(chan os.Signal, 1)

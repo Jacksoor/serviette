@@ -2,10 +2,12 @@ package scriptsservice
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/djherbis/buffer/limio"
 	"github.com/golang/glog"
 	"github.com/golang/protobuf/proto"
+	"github.com/opencontainers/runc/libcontainer/cgroups"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -52,6 +55,8 @@ var (
 const maxBufferSize int64 = 5 * 1024 * 1024 // 5MB
 
 type Service struct {
+	lis net.Listener
+
 	scripts  *scripts.Store
 	accounts *accounts.Store
 
@@ -61,14 +66,18 @@ type Service struct {
 	containersPath   string
 	chroot           string
 	parentCgroup     string
+
+	executionID int64
 }
 
-func New(scripts *scripts.Store, accounts *accounts.Store, supervisorPrefix []string, supervisorPath string, k4LibraryPath string, containersPath string, chroot string, parentCgroup string) *Service {
+func New(lis net.Listener, scripts *scripts.Store, accounts *accounts.Store, supervisorPrefix []string, supervisorPath string, k4LibraryPath string, containersPath string, chroot string, parentCgroup string) *Service {
 	prometheus.MustRegister(scriptRealExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptCPUExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptUsesByServer)
 
 	return &Service{
+		lis: lis,
+
 		scripts:  scripts,
 		accounts: accounts,
 
@@ -78,6 +87,8 @@ func New(scripts *scripts.Store, accounts *accounts.Store, supervisorPrefix []st
 		containersPath:   containersPath,
 		chroot:           chroot,
 		parentCgroup:     parentCgroup,
+
+		executionID: 0,
 	}
 }
 
@@ -156,6 +167,47 @@ const (
 	defaultGid        = 0
 )
 
+type singleListener struct {
+	conn net.Conn
+	once sync.Once
+}
+
+func (s *singleListener) Accept() (net.Conn, error) {
+	var c net.Conn
+	s.once.Do(func() {
+		c = s.conn
+	})
+	if c != nil {
+		return c, nil
+	}
+	return nil, io.EOF
+}
+
+func (s *singleListener) Close() error {
+	s.once.Do(func() {
+		s.conn.Close()
+	})
+	return nil
+}
+
+func (s *singleListener) Addr() net.Addr {
+	return s.conn.LocalAddr()
+}
+
+func makeCgroup(subsystem string, name string) (string, error) {
+        mountpoint, err := cgroups.FindCgroupMountpoint(subsystem)
+        if err != nil {
+                return "", err
+        }
+
+        cgroupPath := filepath.Join(mountpoint, name)
+        if err := os.MkdirAll(cgroupPath, 0755); err != nil {
+                return "", err
+        }
+
+        return cgroupPath, nil
+}
+
 func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
 	account, err := s.accounts.Account(ctx, req.OwnerName)
 	if err != nil {
@@ -178,6 +230,15 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		glog.Errorf("Failed to load script: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
+
+	cgroup := fmt.Sprintf("%s/execution-%d", s.parentCgroup, s.executionID)
+	s.executionID++
+	memoryCgroupPath, err := makeCgroup("memory", cgroup)
+	if err != nil {
+		glog.Errorf("Failed to open parent file conn: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
+	defer os.RemoveAll(memoryCgroupPath)
 
 	var wg sync.WaitGroup
 
@@ -249,32 +310,8 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	defer reqWriter.Close()
 	defer reqReader.Close()
 
-	bridgeConn, err := net.Dial("tcp", req.BridgeTarget)
-	if err != nil {
-		glog.Errorf("Failed to connect to bridge: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to run script")
-	}
-	defer bridgeConn.Close()
-
-	bridgeFile, err := bridgeConn.(*net.TCPConn).File()
-	if err != nil {
-		glog.Errorf("Failed to get bridge file: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to run script")
-	}
-
-	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
-	if err != nil {
-		glog.Errorf("Failed to create socket pair: %v", err)
-		return nil, grpc.Errorf(codes.Internal, "failed to run script")
-	}
-
-	parentFile := os.NewFile(uintptr(fds[0]), "")
-	childFile := os.NewFile(uintptr(fds[1]), "")
-	defer parentFile.Close()
-	defer childFile.Close()
-
 	args := append(s.supervisorPrefix, s.supervisorPath, "-logtostderr",
-		"-parent_cgroup", s.parentCgroup)
+		"-parent_cgroup", cgroup)
 
 	timeout := time.Duration(account.Traits.TimeLimitSeconds) * 2 * time.Second
 	glog.Infof("Starting supervisor with timeout: %s", timeout)
@@ -285,14 +322,16 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	cmd := exec.CommandContext(commandCtx, args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setsid:    true,
+		Pdeathsig: syscall.SIGKILL,
+	}
 	cmd.ExtraFiles = []*os.File{
 		stdinReader,
 		stdoutWriter,
 		stderrWriter,
 		statusWriter,
 		reqReader,
-		bridgeFile,
-		childFile,
 	}
 	if err := cmd.Start(); err != nil {
 		glog.Errorf("Failed to start supervisor: %v", err)
@@ -304,7 +343,6 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	stderrWriter.Close()
 	statusWriter.Close()
 	reqReader.Close()
-	childFile.Close()
 
 	workerReq := &pb.WorkerExecutionRequest{
 		Config: &pb.WorkerExecutionRequest_Configuration{
@@ -313,9 +351,9 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 			Hostname: "kobun4",
 
-			PrivateStoragePath: account.StoragePath(),
-			ScriptsPath:        s.scripts.RootPath(),
-			K4LibraryPath:      s.k4LibraryPath,
+			StoragePath:   s.accounts.StoragePath(),
+			ScriptsPath:   s.scripts.RootPath(),
+			K4LibraryPath: s.k4LibraryPath,
 
 			Uid: defaultUid,
 			Gid: defaultGid,
@@ -324,7 +362,9 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		Name:      script.Name,
 
 		Context: req.Context,
-		Traits:  account.Traits,
+
+		BridgeTarget:   req.BridgeTarget,
+		ExecutorTarget: s.lis.Addr().String(),
 	}
 	glog.Infof("Execution request: %s", workerReq)
 

@@ -32,9 +32,9 @@ import (
 )
 
 var (
-	bindSocket       = flag.String("bind_socket", "localhost:5902", "Bind for socket")
-	bindDebugSocket  = flag.String("bind_debug_socket", "localhost:5912", "Bind for socket")
-	bindWebdavSocket = flag.String("bind_webdav_socket", "localhost:5922", "Bind for WebDAV socket")
+	bindSocket       = flag.String("bind_socket", "/run/kobun4-executor/main.socket", "Bind for socket")
+	bindDebugSocket  = flag.String("bind_debug_socket", "/run/kobun4-executor/debug.socket", "Bind for socket")
+	bindWebdavSocket = flag.String("bind_webdav_socket", "/run/kobun4-executor/webdav.socket", "Bind for WebDAV socket")
 
 	postgresURL = flag.String("postgres_url", "postgres://", "URL to Postgres database")
 
@@ -57,7 +57,8 @@ func main() {
 		return true, true
 	}
 
-	debugLis, err := net.Listen("tcp", *bindDebugSocket)
+	os.Remove(*bindDebugSocket)
+	debugLis, err := net.Listen("unix", *bindDebugSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
@@ -90,32 +91,35 @@ func main() {
 		glog.Fatalf("failed to split supervisor prefix: %v", err)
 	}
 
+	os.Remove(*bindSocket)
+	lis, err := net.Listen("unix", *bindSocket)
+	if err != nil {
+		glog.Fatalf("failed to listen: %v", err)
+	}
+	defer lis.Close()
+	os.Chmod(*bindSocket, 0777)
+	glog.Infof("Listening on: %s", lis.Addr())
+
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(scriptsStore, accountStore, supervisorPrefixSplit, *supervisorPath, *k4LibraryPath, *containersPath, *chrootPath, *parentCgroup))
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(lis, scriptsStore, accountStore, supervisorPrefixSplit, *supervisorPath, *k4LibraryPath, *containersPath, *chrootPath, *parentCgroup))
 	accountspb.RegisterAccountsServer(s, accountsservice.New(accountStore))
 	reflection.Register(s)
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGTERM)
 
-	lis, err := net.Listen("tcp", *bindSocket)
-	if err != nil {
-		glog.Fatalf("failed to listen: %v", err)
-	}
-	defer lis.Close()
-	glog.Infof("Listening on: %s", lis.Addr())
-
 	errChan := make(chan error)
 	go func() {
 		errChan <- s.Serve(lis)
 	}()
 
-	webdavLis, err := net.Listen("tcp", *bindWebdavSocket)
+	os.Remove(*bindWebdavSocket)
+	webdavLis, err := net.Listen("unix", *bindWebdavSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
 	defer webdavLis.Close()
-
+	os.Chmod(*bindWebdavSocket, 0777)
 	glog.Infof("WebDAV listening on: %s", webdavLis.Addr())
 
 	httpServer := &http.Server{

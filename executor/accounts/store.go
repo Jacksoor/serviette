@@ -79,6 +79,10 @@ type StorageInfo struct {
 	FreeSize    uint64
 }
 
+func (s *Store) StoragePath() string {
+	return s.storageRootPath
+}
+
 func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
 	account := &Account{
 		storageRootPath: s.storageRootPath,

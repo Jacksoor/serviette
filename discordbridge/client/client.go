@@ -62,6 +62,7 @@ func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, 
 
 	session.AddHandler(client.ready)
 	session.AddHandler(client.guildCreate)
+	session.AddHandler(client.guildDelete)
 	session.AddHandler(client.messageCreate)
 
 	if err := session.Open(); err != nil {
@@ -80,7 +81,11 @@ func (c *Client) Session() *discordgo.Session {
 }
 
 func (c *Client) ready(s *discordgo.Session, r *discordgo.Ready) {
-	glog.Info("Discord ready.")
+	guildIDs := make([]string, len(r.Guilds))
+	for i, guild := range r.Guilds {
+		guildIDs[i] = guild.ID
+	}
+	glog.Infof("Discord ready; connected guilds: %+v", guildIDs)
 	s.UpdateStatus(0, c.opts.Status)
 	c.metaCommandRegexp = regexp.MustCompile(fmt.Sprintf(`^<@!?%s>(.*)$`, regexp.QuoteMeta(s.State.User.ID)))
 }
@@ -128,6 +133,26 @@ func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
 	} else {
 		glog.Infof("Guild vars for %s: %+v", m.Guild.ID, guildVars)
 	}
+}
+
+func (c *Client) guildDelete(s *discordgo.Session, m *discordgo.GuildDelete) {
+	ctx := context.Background()
+
+	tx, err := c.vars.BeginTx(ctx)
+	if err != nil {
+		glog.Errorf("Failed to start transaction: %v", err)
+		return
+	}
+	defer tx.Rollback()
+
+	if err := c.vars.SetGuildVars(ctx, tx, m.Guild.ID, nil); err != nil {
+		glog.Errorf("Failed to clear guild vars: %v", err)
+		return
+	}
+
+	tx.Commit()
+
+	glog.Infof("Cleared guild vars for %s", m.Guild.ID)
 }
 
 var privateGuildVars = &varstore.GuildVars{

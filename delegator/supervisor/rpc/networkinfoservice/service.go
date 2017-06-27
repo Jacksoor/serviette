@@ -3,6 +3,8 @@ package networkinfoservice
 import (
 	"golang.org/x/net/context"
 
+        srpc "github.com/porpoises/kobun4/delegator/supervisor/rpc"
+
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
 )
 
@@ -20,10 +22,7 @@ func New(ctx context.Context, networkInfoClient networkinfopb.NetworkInfoClient)
 
 func (s *Service) GetUserInfo(req *struct {
 	ID string `json:"id"`
-}, resp *struct {
-	Name  string            `json:"name"`
-	Extra map[string]string `json:"extra"`
-}) error {
+}, resp *srpc.Response) error {
 	grpcResp, err := s.networkInfoClient.GetUserInfo(s.ctx, &networkinfopb.GetUserInfoRequest{
 		UserId: req.ID,
 	})
@@ -31,18 +30,19 @@ func (s *Service) GetUserInfo(req *struct {
 		return err
 	}
 
-	resp.Name = grpcResp.Name
-	resp.Extra = grpcResp.Extra
+	resp.Body = &struct {
+	        Name  string            `json:"name"`
+		Extra map[string]string `json:"extra"`
+	}{
+		grpcResp.Name,
+		grpcResp.Extra,
+	}
 	return nil
 }
 
 func (s *Service) GetChannelInfo(req *struct {
 	ID string `json:"id"`
-}, resp *struct {
-	Name       string            `json:"name"`
-	IsOneOnOne bool              `json:"isOneOnOne"`
-	Extra      map[string]string `json:"extra"`
-}) error {
+}, resp *srpc.Response) error {
 	grpcResp, err := s.networkInfoClient.GetChannelInfo(s.ctx, &networkinfopb.GetChannelInfoRequest{
 		ChannelId: req.ID,
 	})
@@ -50,18 +50,21 @@ func (s *Service) GetChannelInfo(req *struct {
 		return err
 	}
 
-	resp.Name = grpcResp.Name
-	resp.IsOneOnOne = grpcResp.IsOneOnOne
-	resp.Extra = grpcResp.Extra
+	resp.Body = &struct {
+	        Name       string            `json:"name"`
+		IsOneOnOne bool              `json:"is_one_on_one"`
+	        Extra      map[string]string `json:"extra"`
+	}{
+		grpcResp.Name,
+		grpcResp.IsOneOnOne,
+		grpcResp.Extra,
+	}
 	return nil
 }
 
 func (s *Service) GetGroupInfo(req *struct {
 	ID string `json:"id"`
-}, resp *struct {
-	Name  string            `json:"name"`
-	Extra map[string]string `json:"extra"`
-}) error {
+}, resp *srpc.Response) error {
 	grpcResp, err := s.networkInfoClient.GetGroupInfo(s.ctx, &networkinfopb.GetGroupInfoRequest{
 		GroupId: req.ID,
 	})
@@ -69,19 +72,20 @@ func (s *Service) GetGroupInfo(req *struct {
 		return err
 	}
 
-	resp.Name = grpcResp.Name
-	resp.Extra = grpcResp.Extra
+	resp.Body = &struct {
+	        Name  string            `json:"name"`
+		Extra map[string]string `json:"extra"`
+	}{
+		grpcResp.Name,
+		grpcResp.Extra,
+	}
 	return nil
 }
 
 func (s *Service) GetChannelMemberInfo(req *struct {
 	ChannelID string `json:"channelId"`
 	UserID    string `json:"userId"`
-}, resp *struct {
-	Name  string            `json:"name"`
-	Roles []string          `json:"roles"`
-	Extra map[string]string `json:"extra"`
-}) error {
+}, resp *srpc.Response) error {
 	grpcResp, err := s.networkInfoClient.GetChannelMemberInfo(s.ctx, &networkinfopb.GetChannelMemberInfoRequest{
 		ChannelId: req.ChannelID,
 		UserId:    req.UserID,
@@ -90,20 +94,22 @@ func (s *Service) GetChannelMemberInfo(req *struct {
 		return err
 	}
 
-	resp.Name = grpcResp.Name
-	resp.Roles = grpcResp.Role
-	resp.Extra = grpcResp.Extra
+	resp.Body = &struct {
+		Name  string            `json:"name"`
+		Roles []string          `json:"roles"`
+		Extra map[string]string `json:"extra"`
+	}{
+		grpcResp.Name,
+		grpcResp.Role,
+		grpcResp.Extra,
+	}
 	return nil
 }
 
 func (s *Service) GetGroupMemberInfo(req *struct {
 	GroupID string `json:"groupId"`
 	UserID  string `json:"userId"`
-}, resp *struct {
-	Name  string            `json:"name"`
-	Roles []string          `json:"roles"`
-	Extra map[string]string `json:"extra"`
-}) error {
+}, resp *srpc.Response) error {
 	grpcResp, err := s.networkInfoClient.GetGroupMemberInfo(s.ctx, &networkinfopb.GetGroupMemberInfoRequest{
 		GroupId: req.GroupID,
 		UserId:  req.UserID,
@@ -112,8 +118,14 @@ func (s *Service) GetGroupMemberInfo(req *struct {
 		return err
 	}
 
-	resp.Name = grpcResp.Name
-	resp.Roles = grpcResp.Role
-	resp.Extra = grpcResp.Extra
+	resp.Body = &struct {
+		Name  string            `json:"name"`
+		Roles []string          `json:"roles"`
+		Extra map[string]string `json:"extra"`
+	}{
+		grpcResp.Name,
+		grpcResp.Role,
+		grpcResp.Extra,
+	}
 	return nil
 }

@@ -3,6 +3,8 @@ package statsservice
 import (
 	"golang.org/x/net/context"
 
+	srpc "github.com/porpoises/kobun4/delegator/supervisor/rpc"
+
 	statspb "github.com/porpoises/kobun4/executor/statsservice/v1pb"
 )
 
@@ -21,11 +23,7 @@ func New(ctx context.Context, statsClient statspb.StatsClient) *Service {
 func (s *Service) GetUserChannelStats(req *struct {
 	UserID    string `json:"userID"`
 	ChannelID string `json:"channelID"`
-}, resp *struct {
-	NumCharactersSent int64 `json:"numCharactersSent"`
-	NumMessagesSent   int64 `json:"numMessagesSent"`
-	LastResetTimeUnix int64 `json:"lastResetTimeUnix"`
-}) error {
+}, resp *srpc.Response) error {
 	grpcResp, err := s.statsClient.GetUserChannelStats(s.ctx, &statspb.GetUserChannelStatsRequest{
 		UserId:    req.UserID,
 		ChannelId: req.ChannelID,
@@ -34,8 +32,14 @@ func (s *Service) GetUserChannelStats(req *struct {
 		return err
 	}
 
-	resp.NumCharactersSent = grpcResp.NumCharactersSent
-	resp.NumMessagesSent = grpcResp.NumMessagesSent
-	resp.LastResetTimeUnix = grpcResp.LastResetTimeUnix
+	resp.Body = &struct {
+		NumCharactersSent int64 `json:"numCharactersSent"`
+		NumMessagesSent   int64 `json:"numMessagesSent"`
+		LastResetTimeUnix int64 `json:"lastResetTimeUnix"`
+	}{
+		grpcResp.NumCharactersSent,
+		grpcResp.NumMessagesSent,
+		grpcResp.LastResetTimeUnix,
+	}
 	return nil
 }

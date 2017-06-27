@@ -5,6 +5,8 @@ import (
 
 	"golang.org/x/net/context"
 
+	srpc "github.com/porpoises/kobun4/delegator/supervisor/rpc"
+
 	accountspb "github.com/porpoises/kobun4/executor/accountsservice/v1pb"
 	messagingpb "github.com/porpoises/kobun4/executor/messagingservice/v1pb"
 )
@@ -36,7 +38,7 @@ func (s *Service) MessageChannel(req *struct {
 	ID      string `json:"id"`
 	Content string `json:"content"`
 	Format  string `json:"format"`
-}, resp *struct{}) error {
+}, resp *srpc.Response) error {
 	format := req.Format
 	if format == "" {
 		format = "text"
@@ -61,7 +63,7 @@ func (s *Service) MessageUser(req *struct {
 	ID      string `json:"id"`
 	Content string `json:"content"`
 	Format  string `json:"format"`
-}, resp *struct{}) error {
+}, resp *srpc.Response) error {
 	format := req.Format
 	if format == "" {
 		format = "text"

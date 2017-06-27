@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	bindSocket = flag.String("bind_socket", "localhost:5906", "Bind for socket")
+	bindSocket = flag.String("bind_socket", "/run/kobun4-discordbridge-web/web.socket", "Bind for socket")
 
 	baseURL      = flag.String("base_url", "", "Base URL for discordweb.")
 	clientID     = flag.String("client_id", "", "Client ID")
@@ -45,7 +45,7 @@ func main() {
 		Handler: handler,
 	}
 
-	lis, err := net.Listen("tcp", *bindSocket)
+	lis, err := net.Listen("unix", *bindSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}

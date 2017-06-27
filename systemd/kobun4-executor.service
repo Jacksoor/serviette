@@ -17,6 +17,7 @@ PrivateDevices=false
 ProtectSystem=full
 ProtectHome=true
 ReadWriteDirectories=/var/lib/kobun4/executor
+RuntimeDirectory=kobun4-executor
 
 [Install]
 WantedBy=multi-user.target
