@@ -86,7 +86,8 @@ func (s *Store) StoragePath() string {
 func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
 	account := &Account{
 		storageRootPath: s.storageRootPath,
-		Traits:          &accountspb.Traits{},
+
+		Traits: &accountspb.Traits{},
 	}
 
 	if err := s.db.QueryRowContext(ctx, `

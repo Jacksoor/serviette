@@ -14,6 +14,7 @@ go_library(
         "//executor/accounts:go_default_library",
         "//executor/accountsservice:go_default_library",
         "//executor/accountsservice/v1pb:go_default_library",
+        "//executor/budget:go_default_library",
         "//executor/scripts:go_default_library",
         "//executor/scriptsservice:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",

@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"golang.org/x/net/trace"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/porpoises/kobun4/executor/accounts"
+	"github.com/porpoises/kobun4/executor/budget"
 	"github.com/porpoises/kobun4/executor/scripts"
 	"github.com/porpoises/kobun4/executor/webdav"
 
@@ -47,6 +49,9 @@ var (
 	parentCgroup    = flag.String("parent_cgroup", "kobun4-executor", "Parent cgroup")
 	scriptsRootPath = flag.String("scripts_root_path", "scripts", "Path to script root")
 	storageRootPath = flag.String("storage_root_path", "storage", "Path to image root")
+
+	maxBudgetPerUser    = flag.Duration("max_budget_per_user", 10*time.Second, "Max execution budget per user")
+	payoutPeriodPerUser = flag.Duration("payout_period_per_user", 30, "Period to pay 1 second into the execution budget")
 )
 
 func main() {
@@ -79,6 +84,8 @@ func main() {
 		glog.Fatalf("failed to get storage root path: %v", err)
 	}
 
+	budgeter := budget.New(db, *maxBudgetPerUser, *payoutPeriodPerUser)
+
 	accountStore := accounts.NewStore(db, storageRootAbsPath)
 
 	scriptsStore, err := scripts.NewStore(*scriptsRootPath)
@@ -101,7 +108,7 @@ func main() {
 	glog.Infof("Listening on: %s", lis.Addr())
 
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(lis, scriptsStore, accountStore, supervisorPrefixSplit, *supervisorPath, *k4LibraryPath, *containersPath, *chrootPath, *parentCgroup))
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(lis, scriptsStore, accountStore, budgeter, supervisorPrefixSplit, *supervisorPath, *k4LibraryPath, *containersPath, *chrootPath, *parentCgroup))
 	accountspb.RegisterAccountsServer(s, accountsservice.New(accountStore))
 	reflection.Register(s)
 

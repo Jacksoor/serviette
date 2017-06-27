@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/porpoises/kobun4/executor/accounts"
+	"github.com/porpoises/kobun4/executor/budget"
 	"github.com/porpoises/kobun4/executor/scripts"
 
 	pb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
@@ -60,6 +61,8 @@ type Service struct {
 	scripts  *scripts.Store
 	accounts *accounts.Store
 
+	budgeter *budget.Budgeter
+
 	supervisorPrefix []string
 	supervisorPath   string
 	k4LibraryPath    string
@@ -70,7 +73,7 @@ type Service struct {
 	executionID int64
 }
 
-func New(lis net.Listener, scripts *scripts.Store, accounts *accounts.Store, supervisorPrefix []string, supervisorPath string, k4LibraryPath string, containersPath string, chroot string, parentCgroup string) *Service {
+func New(lis net.Listener, scripts *scripts.Store, accounts *accounts.Store, budgeter *budget.Budgeter, supervisorPrefix []string, supervisorPath string, k4LibraryPath string, containersPath string, chroot string, parentCgroup string) *Service {
 	prometheus.MustRegister(scriptRealExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptCPUExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptUsesByServer)
@@ -80,6 +83,8 @@ func New(lis net.Listener, scripts *scripts.Store, accounts *accounts.Store, sup
 
 		scripts:  scripts,
 		accounts: accounts,
+
+		budgeter: budgeter,
 
 		supervisorPrefix: supervisorPrefix,
 		supervisorPath:   supervisorPath,
@@ -209,6 +214,16 @@ func makeCgroup(subsystem string, name string) (string, error) {
 }
 
 func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.ExecuteResponse, error) {
+	remainingBudget, err := s.budgeter.Remaining(ctx, req.Context.NetworkId, req.Context.UserId)
+	if err != nil {
+		glog.Errorf("Failed to get budget: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to get executing user info")
+	}
+
+	if remainingBudget <= 0 {
+		return nil, grpc.Errorf(codes.ResourceExhausted, "not enough budget")
+	}
+
 	account, err := s.accounts.Account(ctx, req.OwnerName)
 	if err != nil {
 		if err == accounts.ErrNotFound {
@@ -403,6 +418,11 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	scriptCPUExecutionDurationsHistogram.WithLabelValues(script.OwnerName, script.Name).Observe(float64(time.Duration(result.Timings.UserNanos+result.Timings.SystemNanos)*time.Nanosecond) / float64(time.Millisecond))
 	scriptRealExecutionDurationsHistogram.WithLabelValues(script.OwnerName, script.Name).Observe(float64(time.Duration(result.Timings.RealNanos)*time.Nanosecond) / float64(time.Millisecond))
 	scriptUsesByServer.WithLabelValues(req.Context.BridgeName, req.Context.NetworkId, req.Context.GroupId, script.OwnerName, script.Name).Inc()
+
+	if err := s.budgeter.Charge(ctx, req.Context.NetworkId, req.Context.UserId, time.Duration(result.Timings.RealNanos)*time.Nanosecond); err != nil {
+		glog.Errorf("Failed to charge to budget: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to run script")
+	}
 
 	return &pb.ExecuteResponse{
 		Result: result,

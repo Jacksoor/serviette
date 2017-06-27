@@ -174,6 +174,7 @@ const (
 	errorStatusUser
 	errorStatusUnauthorized
 	errorStatusRecoverable
+	errorStatusRateLimited
 )
 
 var errorSigils = map[errorStatus]string{
@@ -183,6 +184,7 @@ var errorSigils = map[errorStatus]string{
 	errorStatusUser:         "❎",
 	errorStatusUnauthorized: "🚫",
 	errorStatusRecoverable:  "⚠",
+	errorStatusRateLimited:  "⌛",
 }
 
 type commandError struct {
@@ -407,10 +409,11 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 				status: errorStatusNoise,
 				note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
 			}
+
 		case codes.Unavailable:
 			return &commandError{
 				status: errorStatusRecoverable,
-				note:   "Currently unavailable, please try again",
+				note:   "Currently unavailable, please try again later",
 			}
 		default:
 			return err
@@ -448,10 +451,15 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 				status: errorStatusNoise,
 				note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
 			}
+		case codes.ResourceExhausted:
+			return &commandError{
+				status: errorStatusRateLimited,
+				note:   "Rate limit exceeded, please try again later",
+			}
 		case codes.Unavailable:
 			return &commandError{
 				status: errorStatusRecoverable,
-				note:   "Currently unavailable, please try again",
+				note:   "Currently unavailable, please try again later",
 			}
 		default:
 			return err
