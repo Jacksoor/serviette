@@ -90,6 +90,10 @@ func init() {
 		runtime.GOMAXPROCS(1)
 		runtime.LockOSThread()
 
+		if err := unix.Prctl(unix.PR_SET_PDEATHSIG, uintptr(unix.SIGKILL), 0, 0, 0); err != nil {
+			panic(err)
+		}
+
 		factory, err := libcontainer.New("")
 		if err != nil {
 			panic(err)
@@ -213,7 +217,7 @@ func main() {
 
 	accountsClient := accountspb.NewAccountsClient(executorConn)
 
-	glog.Infof("Retrieving account information from delegator: %s", req.OwnerName)
+	glog.Infof("Retrieving account information from executor: %s", req.OwnerName)
 	accountResp, err := accountsClient.Get(ctx, &accountspb.GetRequest{
 		Username: req.OwnerName,
 	})
@@ -247,6 +251,7 @@ func main() {
 		Rootfs:            rootfsPath,
 		Rootless:          true,
 		Readonlyfs:        true,
+		NoNewPrivileges:   true,
 		ParentDeathSignal: int(syscall.SIGKILL),
 		Capabilities: &configs.Capabilities{
 			Bounding:    []string{},
