@@ -49,8 +49,8 @@ var (
 	scriptsRootPath = flag.String("scripts_root_path", "scripts", "Path to script root")
 	storageRootPath = flag.String("storage_root_path", "storage", "Path to image root")
 
-	maxBudgetPerUser    = flag.Duration("max_budget_per_user", 10*time.Second, "Max execution budget per user")
-	payoutPeriodPerUser = flag.Duration("payout_period_per_user", 30, "Period to pay 1 second into the execution budget")
+	maxBudgetPerUser    = flag.Duration("max_budget_per_user", 1*time.Second, "Max execution budget per user")
+	payoutPeriodPerUser = flag.Duration("payout_period_per_user", 10, "How much time to wait before paying 1 unit of time back")
 )
 
 func main() {
