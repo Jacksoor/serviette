@@ -1,3 +1,7 @@
+// The rpc package is a ripoff of net/rpc/jsonrpc, but instead of using a json.Decoder it reads from the socket one byte at a time in order to be able to read ancillary data.
+//
+// The license for net/rpc/jsonrpc is available at https://golang.org/LICENSE
+
 package rpc
 
 import (
