@@ -397,10 +397,11 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		return err
 	}
 
-	if _, err := c.scriptsClient.GetMeta(ctx, &scriptspb.GetMetaRequest{
+	metaResp, err := c.scriptsClient.GetMeta(ctx, &scriptspb.GetMetaRequest{
 		OwnerName: ownerName,
 		Name:      scriptName,
-	}); err != nil {
+	})
+	if err != nil {
 		switch grpc.Code(err) {
 		case codes.NotFound, codes.InvalidArgument:
 			if linked {
@@ -421,6 +422,18 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			}
 		default:
 			return err
+		}
+	}
+	if !metaResp.Meta.Published {
+		if linked {
+			return &commandError{
+				status: errorStatusScript,
+				note:   "Command link references non-existent script",
+			}
+		}
+		return &commandError{
+			status: errorStatusNoise,
+			note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
 		}
 	}
 

@@ -92,6 +92,9 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 						}
 						return err
 					}
+					if !getMeta.Meta.Published {
+						return nil
+					}
 
 					uniqueLinkMetas[i] = getMeta.Meta
 					return nil
@@ -213,6 +216,12 @@ Remove a command name link.`,
 					return err
 				}
 			}
+			if !getMeta.Meta.Published {
+				return &commandError{
+					status: errorStatusScript,
+					note:   "Link references invalid script name",
+				}
+			}
 
 			description := getMeta.Meta.Description
 			if description == "" {
@@ -291,6 +300,12 @@ Remove a command name link.`,
 					}
 				}
 				return err
+			}
+			if !getMeta.Meta.Published {
+				return &commandError{
+					status: errorStatusScript,
+					note:   "Script not found",
+				}
 			}
 
 			tx, err := c.vars.BeginTx(ctx)

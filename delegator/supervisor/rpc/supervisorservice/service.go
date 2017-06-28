@@ -12,6 +12,9 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/golang/protobuf/proto"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 
@@ -26,20 +29,32 @@ type Child struct {
 }
 
 type Service struct {
+	ctx context.Context
+
 	children []*Child
 
-	currentCgroup string
-	config        *scriptspb.WorkerExecutionRequest_Configuration
-	context       *scriptspb.Context
+	currentCgroup    string
+	currentOwnerName string
+
+	scriptsClient scriptspb.ScriptsClient
+
+	config  *scriptspb.WorkerExecutionRequest_Configuration
+	context *scriptspb.Context
 }
 
-func New(currentCgroup string, config *scriptspb.WorkerExecutionRequest_Configuration, context *scriptspb.Context) *Service {
+func New(ctx context.Context, currentCgroup string, currentOwnerName string, scriptsClient scriptspb.ScriptsClient, config *scriptspb.WorkerExecutionRequest_Configuration, context *scriptspb.Context) *Service {
 	return &Service{
+		ctx: ctx,
+
 		children: make([]*Child, 0),
 
-		currentCgroup: currentCgroup,
-		config:        config,
-		context:       context,
+		currentCgroup:    currentCgroup,
+		currentOwnerName: currentOwnerName,
+
+		scriptsClient: scriptsClient,
+
+		config:  config,
+		context: context,
 	}
 }
 
@@ -51,6 +66,23 @@ func (s *Service) Spawn(req *struct {
 }, resp *srpc.Response) error {
 	if len(req.UnixRights) != 3 {
 		return fmt.Errorf("incorrect number of files passed: len(fds) = %d", len(req.UnixRights))
+	}
+
+	metaResp, err := s.scriptsClient.GetMeta(s.ctx, &scriptspb.GetMetaRequest{
+		OwnerName: req.OwnerName,
+		Name:      req.Name,
+	})
+	if err != nil {
+		switch grpc.Code(err) {
+		case codes.NotFound, codes.InvalidArgument:
+			return errors.New("script not found")
+		default:
+			return err
+		}
+	}
+
+	if !metaResp.Meta.Published && req.OwnerName != s.currentOwnerName {
+		return errors.New("script not found")
 	}
 
 	glog.Infof("Supervisor is spawning: %s/%s", req.OwnerName, req.Name)

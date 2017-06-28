@@ -47,12 +47,12 @@ var (
 type serviceFactory func(ctx context.Context, account *accountspb.Traits, params serviceParams) (interface{}, error)
 
 type serviceParams struct {
-	bridgeConn *grpc.ClientConn
+	bridgeConn   *grpc.ClientConn
+	executorConn *grpc.ClientConn
 
 	currentCgroup string
 
-	config  *scriptspb.WorkerExecutionRequest_Configuration
-	context *scriptspb.Context
+	req *scriptspb.WorkerExecutionRequest
 }
 
 var serviceFactories map[string]serviceFactory = map[string]serviceFactory{
@@ -69,7 +69,7 @@ var serviceFactories map[string]serviceFactory = map[string]serviceFactory{
 	},
 
 	"Supervisor": func(ctx context.Context, account *accountspb.Traits, params serviceParams) (interface{}, error) {
-		return supervisorservice.New(params.currentCgroup, params.config, params.context), nil
+		return supervisorservice.New(ctx, params.currentCgroup, params.req.OwnerName, scriptspb.NewScriptsClient(params.executorConn), params.req.Config, params.req.Context), nil
 	},
 }
 
@@ -379,11 +379,11 @@ func main() {
 	rpcServer.RegisterName("Output", outputService)
 
 	params := serviceParams{
-		bridgeConn: bridgeConn,
+		bridgeConn:   bridgeConn,
+		executorConn: executorConn,
 
 		currentCgroup: currentCgroup,
-		config:        req.Config,
-		context:       req.Context,
+		req:           req,
 	}
 
 	for _, serviceName := range traits.AllowedService {
