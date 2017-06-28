@@ -45,11 +45,13 @@ func main() {
 		Handler: handler,
 	}
 
+	os.Remove(*bindSocket)
 	lis, err := net.Listen("unix", *bindSocket)
 	if err != nil {
 		glog.Fatalf("failed to listen: %v", err)
 	}
 	defer lis.Close()
+	os.Chmod(*bindSocket, 0777)
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill, syscall.SIGTERM)
