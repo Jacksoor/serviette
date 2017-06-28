@@ -425,15 +425,21 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		}
 	}
 	if !metaResp.Meta.Published {
-		if linked {
-			return &commandError{
-				status: errorStatusScript,
-				note:   "Command link references non-existent script",
+		if err := c.vars.CanRunUnpublishedScript(ctx, m.Author.ID, ownerName); err != nil {
+			if err != varstore.ErrNotPermitted {
+				return err
 			}
-		}
-		return &commandError{
-			status: errorStatusNoise,
-			note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
+
+			if linked {
+				return &commandError{
+					status: errorStatusScript,
+					note:   "Command link references non-existent script",
+				}
+			}
+			return &commandError{
+				status: errorStatusNoise,
+				note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
+			}
 		}
 	}
 

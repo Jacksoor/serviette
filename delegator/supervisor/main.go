@@ -76,9 +76,9 @@ var serviceFactories map[string]serviceFactory = map[string]serviceFactory{
 var nameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 var (
-	scriptMountDir         string = "/mnt/scripts"
-	privateStorageMountDir        = "/mnt/storage"
-	k4LibraryMountDir             = "/usr/lib/k4"
+	scriptMountDir    string = "/mnt/scripts"
+	storageMountDir          = "/mnt/storage"
+	k4LibraryMountDir        = "/usr/lib/k4"
 )
 
 var marshaler = jsonpb.Marshaler{
@@ -291,12 +291,12 @@ func main() {
 			{
 				Device:      "bind",
 				Source:      filepath.Join(req.Config.StoragePath, req.OwnerName),
-				Destination: privateStorageMountDir,
+				Destination: storageMountDir,
 				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_REC,
 			},
 			{
 				Device:      "bind",
-				Source:      req.Config.ScriptsPath,
+				Source:      filepath.Join(req.Config.ScriptsPath, req.OwnerName),
 				Destination: scriptMountDir,
 				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_REC | unix.MS_RDONLY,
 			},
@@ -416,12 +416,12 @@ func main() {
 
 	process := &libcontainer.Process{
 		Args: []string{
-			filepath.Join(scriptMountDir, req.OwnerName, req.Name),
+			filepath.Join(scriptMountDir, req.Name),
 		},
 		Env: []string{
 			fmt.Sprintf("K4_CONTEXT=%s", jsonK4Context),
 		},
-		Cwd:    privateStorageMountDir,
+		Cwd:    storageMountDir,
 		Stdin:  childStdin,
 		Stdout: childStdout,
 		Stderr: childStderr,
