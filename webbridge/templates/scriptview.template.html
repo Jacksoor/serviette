@@ -21,6 +21,12 @@
             <textarea name="description">{{.Meta.Description}}</textarea>
         </label>
     </p>
+    <p>
+        <label>
+            <input type="checkbox" name="published"{{if .Meta.Published}} checked{{end}}>
+            <strong>Published?</strong>
+        </label>
+    </p>
 
     <p>
         <textarea name="content" id="editor">{{.ScriptContent}}</textarea>

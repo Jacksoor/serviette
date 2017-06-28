@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -35,6 +36,7 @@ type AccountInfo struct {
 type Script struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Published   bool   `json:"published"`
 	Content     string `json:"content,omitempty"`
 }
 
@@ -159,18 +161,64 @@ func (a AccountsResource) read(req *restful.Request, resp *restful.Response) {
 		return
 	}
 
+	var g errgroup.Group
+	scriptNamesAcc := make([]*string, len(listResp.Name))
+	for i, scriptName := range listResp.Name {
+		i, scriptName := i, scriptName
+		g.Go(func() error {
+			metaResp, err := a.scriptsClient.GetMeta(req.Request.Context(), &scriptspb.GetMetaRequest{
+				OwnerName: accountName,
+				Name:      scriptName,
+			})
+			if err != nil {
+				return err
+			}
+
+			if !metaResp.Meta.Published && username != accountName {
+				return nil
+			}
+
+			scriptNamesAcc[i] = &scriptName
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		glog.Errorf("Failed to get script: %v", err)
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	scriptNames := make([]string, 0)
+	for _, scriptName := range scriptNamesAcc {
+		if scriptName != nil {
+			scriptNames = append(scriptNames, *scriptName)
+		}
+	}
+
 	resp.WriteEntity(Account{
 		Name:    accountName,
-		Scripts: listResp.Name,
+		Scripts: scriptNames,
 		Info:    accountInfo,
 	})
 }
 
+var errNotPublished = errors.New("not published")
+
 func (a AccountsResource) readScript(req *restful.Request, resp *restful.Response) {
+	username, err := a.authenticate(req, resp)
+	if err != nil {
+		glog.Errorf("Failed to authenticate: %v", err)
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		return
+	}
+
 	accountName := req.PathParameter("accountName")
 	scriptName := req.PathParameter("scriptName")
 
-	var description string
+	var meta *scriptspb.Meta
 	var content string
 
 	var g errgroup.Group
@@ -184,7 +232,10 @@ func (a AccountsResource) readScript(req *restful.Request, resp *restful.Respons
 			return err
 		}
 
-		description = metaResp.Meta.Description
+		meta = metaResp.Meta
+		if !meta.Published && username != accountName {
+			return errNotPublished
+		}
 		return nil
 	})
 
@@ -204,6 +255,12 @@ func (a AccountsResource) readScript(req *restful.Request, resp *restful.Respons
 	}
 
 	if err := g.Wait(); err != nil {
+		if err == errNotPublished {
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusNotFound, "script not found")
+			return
+		}
+
 		switch grpc.Code(err) {
 		case codes.InvalidArgument:
 			resp.AddHeader("Content-Type", "text/plain")
@@ -216,12 +273,14 @@ func (a AccountsResource) readScript(req *restful.Request, resp *restful.Respons
 			resp.AddHeader("Content-Type", "text/plain")
 			resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
 		}
+
 		return
 	}
 
 	resp.WriteEntity(Script{
 		Name:        scriptName,
-		Description: description,
+		Description: meta.Description,
+		Published:   meta.Published,
 		Content:     content,
 	})
 }
@@ -278,6 +337,7 @@ func (a AccountsResource) createScript(req *restful.Request, resp *restful.Respo
 		Name:      script.Name,
 		Meta: &scriptspb.Meta{
 			Description: script.Description,
+			Published:   script.Published,
 		},
 		Content: []byte(strings.Replace(script.Content, "\r", "", -1)),
 	}); err != nil {
@@ -350,6 +410,7 @@ func (a AccountsResource) updateScript(req *restful.Request, resp *restful.Respo
 		Name:      script.Name,
 		Meta: &scriptspb.Meta{
 			Description: script.Description,
+			Published:   script.Published,
 		},
 		Content: []byte(strings.Replace(script.Content, "\r", "", -1)),
 	}); err != nil {

@@ -10,6 +10,7 @@ go_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        "//discordbridge/budget:go_default_library",
         "//discordbridge/statsstore:go_default_library",
         "//discordbridge/varstore:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",

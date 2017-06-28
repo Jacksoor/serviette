@@ -314,6 +314,7 @@ func (h *Handler) scriptUpdate(w http.ResponseWriter, r *http.Request, ps httpro
 		Name:      scriptName,
 		Meta: &scriptspb.Meta{
 			Description: r.Form.Get("description"),
+			Published:   r.Form.Get("published") == "on",
 		},
 		Content: []byte(strings.Replace(r.Form.Get("content"), "\r", "", -1)),
 	}); err != nil {

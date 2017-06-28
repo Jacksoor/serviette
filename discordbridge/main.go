@@ -19,6 +19,7 @@ import (
 	_ "google.golang.org/grpc/grpclog/glogger"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/porpoises/kobun4/discordbridge/budget"
 	"github.com/porpoises/kobun4/discordbridge/client"
 
 	"github.com/porpoises/kobun4/discordbridge/messagingservice"
@@ -49,6 +50,9 @@ var (
 	executorTarget = flag.String("executor_target", "/run/kobun4-executor/main.socket", "Executor target")
 
 	homeURL = flag.String("home_url", "http://kobun", "URL to web UI")
+
+	maxBudgetPerUser    = flag.Duration("max_budget_per_user", 1*time.Second, "Max execution budget per user")
+	payoutPeriodPerUser = flag.Duration("payout_period_per_user", 10, "How much time to wait before paying 1 unit of time back")
 )
 
 func main() {
@@ -94,10 +98,12 @@ func main() {
 	os.Chmod(*bindSocket, 0777)
 	glog.Infof("Listening on: %s", lis.Addr())
 
+	budgeter := budget.New(db, *maxBudgetPerUser, *payoutPeriodPerUser)
+
 	client, err := client.New(*botToken, &client.Options{
 		Status:  *status,
 		HomeURL: *homeURL,
-	}, *knownGuildsOnly, lis.Addr(), vars, stats, scriptspb.NewScriptsClient(executorConn))
+	}, *knownGuildsOnly, lis.Addr(), vars, stats, budgeter, scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}

@@ -6,6 +6,7 @@ option go_package = "v1pb";
 
 message Meta {
     string description = 1;
+    bool published = 2;
 }
 
 message Context {

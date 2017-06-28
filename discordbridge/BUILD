@@ -7,6 +7,7 @@ go_library(
     srcs = ["main.go"],
     visibility = ["//visibility:private"],
     deps = [
+        "//discordbridge/budget:go_default_library",
         "//discordbridge/client:go_default_library",
         "//discordbridge/messagingservice:go_default_library",
         "//discordbridge/networkinfoservice:go_default_library",

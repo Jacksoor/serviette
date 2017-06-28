@@ -15,6 +15,8 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
+	"github.com/porpoises/kobun4/discordbridge/budget"
+
 	"github.com/porpoises/kobun4/discordbridge/statsstore"
 	"github.com/porpoises/kobun4/discordbridge/varstore"
 
@@ -33,15 +35,16 @@ type Client struct {
 	knownGuildsOnly bool
 	rpcTarget       net.Addr
 
-	vars  *varstore.Store
-	stats *statsstore.Store
+	vars     *varstore.Store
+	stats    *statsstore.Store
+	budgeter *budget.Budgeter
 
 	scriptsClient scriptspb.ScriptsClient
 
 	metaCommandRegexp *regexp.Regexp
 }
 
-func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, vars *varstore.Store, stats *statsstore.Store, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
+func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, vars *varstore.Store, stats *statsstore.Store, budgeter *budget.Budgeter, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 	if err != nil {
 		return nil, err
@@ -54,8 +57,9 @@ func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, 
 		knownGuildsOnly: knownGuildsOnly,
 		rpcTarget:       rpcTarget,
 
-		vars:  vars,
-		stats: stats,
+		vars:     vars,
+		stats:    stats,
+		budgeter: budgeter,
 
 		scriptsClient: scriptsClient,
 	}
@@ -184,7 +188,7 @@ var errorSigils = map[errorStatus]string{
 	errorStatusUser:         "❎",
 	errorStatusUnauthorized: "🚫",
 	errorStatusRecoverable:  "⚠",
-	errorStatusRateLimited:  "⌛",
+	errorStatusRateLimited:  "🐢",
 }
 
 type commandError struct {
@@ -420,6 +424,18 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		}
 	}
 
+	remainingBudget, err := c.budgeter.Remaining(ctx, m.Author.ID)
+	if err != nil {
+		return err
+	}
+
+	if remainingBudget <= 0 {
+		return &commandError{
+			status: errorStatusRateLimited,
+			note:   "Too many commands, please slow down",
+		}
+	}
+
 	c.session.ChannelTyping(m.ChannelID)
 	resp, err := c.scriptsClient.Execute(ctx, &scriptspb.ExecuteRequest{
 		OwnerName: ownerName,
@@ -451,11 +467,6 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 				status: errorStatusNoise,
 				note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
 			}
-		case codes.ResourceExhausted:
-			return &commandError{
-				status: errorStatusRateLimited,
-				note:   "Rate limit exceeded, please try again later",
-			}
 		case codes.Unavailable:
 			return &commandError{
 				status: errorStatusRecoverable,
@@ -464,6 +475,10 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		default:
 			return err
 		}
+	}
+
+	if err := c.budgeter.Charge(ctx, m.Author.ID, time.Duration(resp.Result.Timings.RealNanos)*time.Nanosecond); err != nil {
+		return err
 	}
 
 	channelID := m.ChannelID

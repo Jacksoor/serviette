@@ -8,12 +8,3 @@ create table accounts (
     allowed_output_formats character varying[] not null default array['text']::character varying[],
     allowed_services character varying[] not null default array[]::character varying[]
 );
-
-create table execution_budgets (
-    network_id character varying not null,
-    user_id character varying not null,
-    remaining_budget bigint not null,
-    last_update_time timestamp with time zone not null,
-
-    primary key (network_id, user_id)
-);
