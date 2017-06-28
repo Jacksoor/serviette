@@ -81,7 +81,7 @@ func (s *Service) Spawn(req *struct {
 		}
 	}
 
-	if !metaResp.Meta.Published && req.OwnerName != s.currentOwnerName {
+	if !metaResp.Meta.Published {
 		return errors.New("script not found")
 	}
 
