@@ -28,11 +28,12 @@ func (s *Store) BeginTx(ctx context.Context) (*sql.Tx, error) {
 }
 
 type GuildVars struct {
-	ScriptCommandPrefix string
-	Quiet               bool
-	AdminRoleID         string
-	Announcement        string
-	DeleteErrorsAfter   time.Duration
+	ScriptCommandPrefix               string
+	Quiet                             bool
+	AdminRoleID                       string
+	Announcement                      string
+	DeleteErrorsAfter                 time.Duration
+	AllowUnprivilegedUnlinkedCommands bool
 }
 
 func (s *Store) GuildVars(ctx context.Context, tx *sql.Tx, guildID string) (*GuildVars, error) {
@@ -41,10 +42,10 @@ func (s *Store) GuildVars(ctx context.Context, tx *sql.Tx, guildID string) (*Gui
 	guildVars := &GuildVars{}
 
 	if err := tx.QueryRowContext(ctx, `
-		select script_command_prefix, quiet, admin_role_id, announcement, delete_errors_after_seconds
+		select script_command_prefix, quiet, admin_role_id, announcement, delete_errors_after_seconds, allow_unprivileged_unlinked_commands
 		from guild_vars
 		where guild_id = $1
-	`, guildID).Scan(&guildVars.ScriptCommandPrefix, &guildVars.Quiet, &guildVars.AdminRoleID, &guildVars.Announcement, &deleteErrorsAfterSeconds); err != nil {
+	`, guildID).Scan(&guildVars.ScriptCommandPrefix, &guildVars.Quiet, &guildVars.AdminRoleID, &guildVars.Announcement, &deleteErrorsAfterSeconds, &guildVars.AllowUnprivilegedUnlinkedCommands); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
@@ -67,15 +68,16 @@ func (s *Store) SetGuildVars(ctx context.Context, tx *sql.Tx, guildID string, gu
 		`, guildID)
 	} else {
 		r, err = tx.ExecContext(ctx, `
-			insert into guild_vars (guild_id, script_command_prefix, quiet, admin_role_id, announcement, delete_errors_after_seconds)
-			values ($1, $2, $3, $4, $5)
+			insert into guild_vars (guild_id, script_command_prefix, quiet, admin_role_id, announcement, delete_errors_after_seconds, allow_unprivileged_unlinked_commands)
+			values ($1, $2, $3, $4, $5, $6)
 			on conflict (guild_id) do update
 			set script_command_prefix = excluded.script_command_prefix,
 			    quiet = excluded.quiet,
 			    admin_role_id = excluded.admin_role_id,
 			    announcement = excluded.announcement
 			    delete_errors_after_seconds = excluded.delete_errors_after_seconds
-		`, guildID, guildVars.ScriptCommandPrefix, guildVars.Quiet, guildVars.AdminRoleID, guildVars.Announcement, int64(guildVars.DeleteErrorsAfter/time.Second))
+			    allow_unprivileged_unlinked_commands = excluded.allow_unprivileged_unlinked_commands
+		`, guildID, guildVars.ScriptCommandPrefix, guildVars.Quiet, guildVars.AdminRoleID, guildVars.Announcement, int64(guildVars.DeleteErrorsAfter/time.Second), guildVars.AllowUnprivilegedUnlinkedCommands)
 	}
 
 	if err != nil {

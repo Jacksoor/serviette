@@ -4,7 +4,8 @@ create table guild_vars (
     quiet boolean not null default false,
     admin_role_id character varying not null,
     announcement character varying not null,
-    delete_errors_after_seconds integer not null default 5
+    delete_errors_after_seconds integer not null default 5,
+    allow_unprivileged_unlinked_commands boolean not null default false
 );
 
 create table guild_links (

@@ -8,11 +8,11 @@
 </p>
 <ul>
 {{range $_, $name := .ScriptNames}}
-    <li><a href="/scripts/{{$.Username}}/{{$name}}"><samp>{{$name}}</samp></a></li>
+    <li><a href="/scripts/{{$name}}"><samp>{{$name}}</samp></a></li>
 {{end}}
 </ul>
 
-<form method="POST" action="/scripts/{{.Username}}">
+<form method="POST" action="/scripts">
     <input type="text" name="name">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <button type="submit">Create new script</button>

@@ -378,7 +378,7 @@ func (s ByFieldName) Less(i, j int) bool {
 
 func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, member *discordgo.Member, commandName string, rest string) error {
 	linked := commandNameIsLinked(commandName)
-	if member != nil && !linked && !memberIsAdmin(guildVars.AdminRoleID, member) {
+	if member != nil && !linked && !guildVars.AllowUnprivilegedUnlinkedCommands && !memberIsAdmin(guildVars.AdminRoleID, member) {
 		return &commandError{
 			status: errorStatusNoise,
 			note:   "Only the server's Kobun administrators can run unlinked commands",

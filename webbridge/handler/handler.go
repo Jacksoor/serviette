@@ -66,11 +66,10 @@ func New(staticPath string, templatePath string, accountsClient accountspb.Accou
 
 	csrfHandler.SetFailureHandler(http.HandlerFunc(h.csrfFailure))
 	router.GET("/", h.home)
-	router.GET("/scripts/:ownerName", h.scriptAccountIndex)
-	router.POST("/scripts/:ownerName", h.scriptCreate)
-	router.GET("/scripts/:ownerName/:scriptName", h.scriptGet)
-	router.POST("/scripts/:ownerName/:scriptName", h.scriptUpdate)
-	router.POST("/scripts/:ownerName/:scriptName/delete", h.scriptDelete)
+	router.POST("/scripts", h.scriptCreate)
+	router.GET("/scripts/:scriptName", h.scriptGet)
+	router.POST("/scripts/:scriptName", h.scriptUpdate)
+	router.POST("/scripts/:scriptName/delete", h.scriptDelete)
 
 	return h, nil
 }
@@ -164,35 +163,9 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	})
 }
 
-func (h *Handler) scriptAccountIndex(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	ownerName := ps.ByName("ownerName")
-
-	listResp, err := h.scriptsClient.List(r.Context(), &scriptspb.ListRequest{
-		OwnerName: ownerName,
-	})
-	if err != nil {
-		glog.Errorf("Failed to get script names: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	h.renderTemplate(w, []string{"_layout", "scriptaccountindex"}, struct {
-		OwnerName string
-		Names     []string
-	}{
-		ownerName,
-		listResp.Name,
-	})
-}
-
 func (h *Handler) scriptCreate(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	username, err := h.authenticate(w, r)
 	if err != nil {
-		return
-	}
-
-	if username != ps.ByName("ownerName") {
-		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -228,15 +201,19 @@ func (h *Handler) scriptCreate(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/scripts/%s/%s", username, scriptName), http.StatusFound)
+	http.Redirect(w, r, fmt.Sprintf("/scripts/%s", scriptName), http.StatusFound)
 }
 
 func (h *Handler) scriptGet(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	username, err := h.authenticate(w, r)
+	if err != nil {
+		return
+	}
+
 	scriptName := ps.ByName("scriptName")
-	ownerName := ps.ByName("ownerName")
 
 	contentResp, err := h.scriptsClient.GetContent(r.Context(), &scriptspb.GetContentRequest{
-		OwnerName: ownerName,
+		OwnerName: username,
 		Name:      scriptName,
 	})
 	if err != nil {
@@ -251,7 +228,7 @@ func (h *Handler) scriptGet(w http.ResponseWriter, r *http.Request, ps httproute
 	}
 
 	getMetaResp, err := h.scriptsClient.GetMeta(r.Context(), &scriptspb.GetMetaRequest{
-		OwnerName: ownerName,
+		OwnerName: username,
 		Name:      scriptName,
 	})
 	if err != nil {
@@ -261,14 +238,12 @@ func (h *Handler) scriptGet(w http.ResponseWriter, r *http.Request, ps httproute
 	}
 
 	h.renderTemplate(w, []string{"_layout", "scriptview"}, struct {
-		OwnerName     string
 		ScriptName    string
 		ScriptContent string
 		Meta          *scriptspb.Meta
 
 		CSRFToken string
 	}{
-		ownerName,
 		scriptName,
 		string(contentResp.Content),
 		getMetaResp.Meta,
@@ -284,11 +259,6 @@ func (h *Handler) scriptUpdate(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 
 	scriptName := ps.ByName("scriptName")
-
-	if username != ps.ByName("ownerName") {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
 
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
@@ -323,7 +293,7 @@ func (h *Handler) scriptUpdate(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/scripts/%s/%s", username, scriptName), http.StatusFound)
+	http.Redirect(w, r, fmt.Sprintf("/scripts/%s", scriptName), http.StatusFound)
 }
 
 func (h *Handler) scriptDelete(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -333,11 +303,6 @@ func (h *Handler) scriptDelete(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 
 	scriptName := ps.ByName("scriptName")
-
-	if username != ps.ByName("ownerName") {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
 
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
