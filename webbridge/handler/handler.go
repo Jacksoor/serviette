@@ -140,15 +140,20 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	}
 
 	scriptsListResp, err := h.scriptsClient.List(r.Context(), &scriptspb.ListRequest{
-		OwnerName:       username,
-		Offset:          0,
-		Limit:           ^uint32(0),
-		ShowUnpublished: true,
+		OwnerName:  username,
+		ViewerName: username,
+		Offset:     0,
+		Limit:      ^uint32(0),
 	})
 	if err != nil {
 		glog.Errorf("Failed to get script names: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
+	}
+
+	names := make([]string, len(scriptsListResp.Entry))
+	for i, entry := range scriptsListResp.Entry {
+		names[i] = entry.Name
 	}
 
 	h.renderTemplate(w, []string{"_layout", "home"}, struct {
@@ -160,7 +165,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	}{
 		username,
 		accountResp,
-		scriptsListResp.Name,
+		names,
 
 		nosurf.Token(r),
 	})

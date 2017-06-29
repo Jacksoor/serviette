@@ -37,13 +37,19 @@ message CreateResponse {
 
 message ListRequest {
     string owner_name = 1;
-    uint32 offset = 2;
-    uint32 limit = 3;
-    bool show_unpublished = 4;
+    string query = 2;
+    string viewer_name = 3;
+    uint32 offset = 4;
+    uint32 limit = 5;
 }
 
 message ListResponse {
-    repeated string name = 1;
+    message Entry {
+        string owner_name = 1;
+        string name = 2;
+        Meta meta = 3;
+    }
+    repeated Entry entry = 1;
 }
 
 message DeleteRequest {

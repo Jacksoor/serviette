@@ -145,16 +145,17 @@ func (s *Store) PublishedScripts(ctx context.Context) ([]*Script, error) {
 	return scripts, nil
 }
 
-func (s *Store) AccountScripts(ctx context.Context, ownerName string, offset, limit uint32, showUnpublished bool) ([]*Script, error) {
+func (s *Store) Scripts(ctx context.Context, ownerName string, query string, viewerName string, offset, limit uint32) ([]*Script, error) {
 	scripts := make([]*Script, 0)
 
 	rows, err := s.db.QueryContext(ctx, `
 		select owner_name, script_name
-		from scripts
-		where owner_name = $1 and
-		      (published or $4)
-		offset $2 limit $3
-	`, ownerName, offset, limit, showUnpublished)
+		from scripts, to_tsquery('english', $2) tsq
+		where ($1 = '' or owner_name = $1) and
+		      ($2 = '' or (to_tsvector('english', script_name || ' ' || description) @@ tsq)) and
+		      (owner_name = $3 or published)
+		offset $4 limit $5
+	`, ownerName, query, viewerName, offset, limit)
 	if err != nil {
 		return nil, err
 	}

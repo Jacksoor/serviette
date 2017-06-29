@@ -122,7 +122,7 @@ func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.Create
 }
 
 func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
-	accountScripts, err := s.scripts.AccountScripts(ctx, req.OwnerName, req.Offset, req.Limit, req.ShowUnpublished)
+	foundScripts, err := s.scripts.Scripts(ctx, req.OwnerName, req.Query, req.ViewerName, req.Offset, req.Limit)
 	if err != nil {
 		if err == scripts.ErrNotFound {
 			return nil, grpc.Errorf(codes.NotFound, "account not found")
@@ -131,13 +131,23 @@ func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 		return nil, grpc.Errorf(codes.Internal, "failed to list scripts")
 	}
 
-	names := make([]string, len(accountScripts))
-	for i, script := range accountScripts {
-		names[i] = script.Name
+	entries := make([]*pb.ListResponse_Entry, len(foundScripts))
+	for i, script := range foundScripts {
+		meta, err := script.Meta(ctx)
+		if err != nil {
+			glog.Errorf("Failed to get script meta: %v", err)
+			return nil, grpc.Errorf(codes.Internal, "failed to get script meta")
+		}
+
+		entries[i] = &pb.ListResponse_Entry{
+			OwnerName: script.OwnerName,
+			Name:      script.Name,
+			Meta:      meta,
+		}
 	}
 
 	return &pb.ListResponse{
-		Name: names,
+		Entry: entries,
 	}, nil
 }
 

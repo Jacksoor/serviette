@@ -7,6 +7,7 @@ go_library(
     deps = [
         "//executor/accountsservice/v1pb:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
+        "//restbridge/auth:go_default_library",
         "//restbridge/rest:go_default_library",
         "@com_github_emicklei_go_restful//:go_default_library",
         "@com_github_golang_glog//:go_default_library",

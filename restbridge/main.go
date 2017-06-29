@@ -17,6 +17,7 @@ import (
 
 	"github.com/emicklei/go-restful"
 
+	"github.com/porpoises/kobun4/restbridge/auth"
 	"github.com/porpoises/kobun4/restbridge/rest"
 
 	accountspb "github.com/porpoises/kobun4/executor/accountsservice/v1pb"
@@ -70,10 +71,14 @@ func main() {
 
 	secret := []byte(*tokenSecret)
 
-	accountsResource := rest.NewAccountsResource(secret, accountsClient, scriptsClient)
+	authenticator := auth.NewAuthenticator(secret)
+
+	accountsResource := rest.NewAccountsResource(authenticator, accountsClient)
+	scriptsResource := rest.NewScriptsResource(authenticator, scriptsClient)
 	loginResource := rest.NewLoginResource(secret, *tokenDuration, accountsClient)
 
 	wsContainer.Add(accountsResource.WebService())
+	wsContainer.Add(scriptsResource.WebService())
 	wsContainer.Add(loginResource.WebService())
 
 	httpServer := &http.Server{
