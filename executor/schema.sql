@@ -19,4 +19,4 @@ create table scripts (
 );
 
 create index scripts_owner_name_idx on scripts (owner_name);
-create index scripts_ft_idx on scripts using gin (to_tsvector('english', 'script_name' || ' ' || 'description'));
+create index scripts_ft_idx on scripts using gin (to_tsvector('english', script_name || ' ' || description));
