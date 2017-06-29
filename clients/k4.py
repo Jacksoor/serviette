@@ -38,7 +38,7 @@ class _Stub(object):
         self._name = name
 
     def __getattr__(self, name):
-        return functools.partial(self._client.call, "{}.{}".format(
+        return functools.partial(self._client.call, '{}.{}'.format(
             self._name, name))
 
 
@@ -71,7 +71,7 @@ class Client(object):
                 return b''.join(buf)
 
     def _send_fds(self, fds):
-        return self._socket.sendmsg([b'\1'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", fds))])
+        return self._socket.sendmsg([b'\1'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', fds))])
 
     def spawn(self, owner_name, name, stdin, stdout, stderr):
         if hasattr(stdin, 'fileno'):
@@ -83,10 +83,10 @@ class Client(object):
         if hasattr(stderr, 'fileno'):
             stderr = stderr.fileno()
 
-        handle = self.Supervisor.Spawn(after_send=lambda: self._send_fds([stdin, stdout, stderr]), owner_name=owner_name, name=name).handle
+        handle = self.Supervisor.Spawn(_after_send=lambda: self._send_fds([stdin, stdout, stderr]), ownerName=owner_name, name=name).handle
         return Child(self, handle)
 
-    def call(self, method, after_send=None, **kwargs):
+    def call(self, method, _after_send=None, **kwargs):
         req_id = self._id
 
         self._socket.send(json.dumps({
@@ -95,8 +95,8 @@ class Client(object):
             'params': [kwargs],
         }).encode('utf-8') + b'\n')
 
-        if after_send is not None:
-            after_send()
+        if _after_send is not None:
+            _after_send()
 
         self._id += 1
 

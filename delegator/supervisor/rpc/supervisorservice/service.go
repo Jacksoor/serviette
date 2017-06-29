@@ -59,7 +59,7 @@ func New(ctx context.Context, currentCgroup string, currentOwnerName string, scr
 }
 
 func (s *Service) Spawn(req *struct {
-	OwnerName string `json:"owner_name"`
+	OwnerName string `json:"ownerName"`
 	Name      string `json:"name"`
 
 	UnixRights []*os.File `json:"-"`
@@ -190,9 +190,9 @@ func (s *Service) Wait(req *struct {
 	}
 
 	resp.Body = struct {
-		WaitStatus        uint32 `json:"wait_status"`
-		TimeLimitExceeded bool   `json:"time_limit_exceeded"`
-		OutputFormat      string `json:"output_format"`
+		WaitStatus        uint32 `json:"waitStatus"`
+		TimeLimitExceeded bool   `json:"timeLimitExceeded"`
+		OutputFormat      string `json:"outputFormat"`
 		Private           bool   `json:"private"`
 	}{
 		result.WaitStatus,
