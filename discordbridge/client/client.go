@@ -511,7 +511,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 
 	waitStatus := syscall.WaitStatus(resp.Result.WaitStatus)
 
-	if waitStatus.ExitStatus() == 0 || waitStatus.ExitStatus() == 2 {
+	if waitStatus.ExitStatus() == 0 || (waitStatus.ExitStatus() == 2 && len(resp.Stdout) > 0) {
 		outputFormatter, ok := OutputFormatters[resp.Result.OutputParams.Format]
 		if !ok {
 			return &commandError{
