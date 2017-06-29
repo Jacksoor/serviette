@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/dgrijalva/jwt-go"
@@ -56,6 +57,8 @@ func NewAccountsResource(tokenSecret []byte, accountsClient accountspb.AccountsC
 	}
 }
 
+const maxLimit uint32 = 50
+
 func (a AccountsResource) WebService() *restful.WebService {
 	ws := new(restful.WebService)
 
@@ -100,7 +103,38 @@ func (a AccountsResource) WebService() *restful.WebService {
 }
 
 func (a AccountsResource) list(req *restful.Request, resp *restful.Response) {
-	listResp, err := a.accountsClient.List(req.Request.Context(), &accountspb.ListRequest{})
+	var offset uint32
+	limit := maxLimit
+
+	if rawOffset := req.QueryParameter("offset"); rawOffset != "" {
+		v, err := strconv.ParseUint(rawOffset, 10, 32)
+		if err != nil {
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusBadRequest, "bad request: bad offset")
+		}
+
+		offset = uint32(v)
+	}
+
+	if rawLimit := req.QueryParameter("limit"); rawLimit != "" {
+		v, err := strconv.ParseUint(rawLimit, 10, 32)
+		if err != nil {
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusBadRequest, "bad request: bad limit")
+		}
+
+		limit = uint32(v)
+
+		if limit > maxLimit {
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusBadRequest, "bad request: limit too high")
+		}
+	}
+
+	listResp, err := a.accountsClient.List(req.Request.Context(), &accountspb.ListRequest{
+		Offset: offset,
+		Limit:  limit,
+	})
 
 	if err != nil {
 		glog.Errorf("Failed to list accounts: %v", err)
@@ -150,8 +184,39 @@ func (a AccountsResource) read(req *restful.Request, resp *restful.Response) {
 		}
 	}
 
+	var offset uint32
+	limit := maxLimit
+
+	if rawOffset := req.QueryParameter("offset"); rawOffset != "" {
+		v, err := strconv.ParseUint(rawOffset, 10, 32)
+		if err != nil {
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusBadRequest, "bad request: bad offset")
+		}
+
+		offset = uint32(v)
+	}
+
+	if rawLimit := req.QueryParameter("limit"); rawLimit != "" {
+		v, err := strconv.ParseUint(rawLimit, 10, 32)
+		if err != nil {
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusBadRequest, "bad request: bad limit")
+		}
+
+		limit = uint32(v)
+
+		if limit > maxLimit {
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusBadRequest, "bad request: limit too high")
+		}
+	}
+
 	listResp, err := a.scriptsClient.List(req.Request.Context(), &scriptspb.ListRequest{
-		OwnerName: accountName,
+		OwnerName:       accountName,
+		Offset:          offset,
+		Limit:           limit,
+		ShowUnpublished: username == accountName,
 	})
 
 	if err != nil {
@@ -161,45 +226,9 @@ func (a AccountsResource) read(req *restful.Request, resp *restful.Response) {
 		return
 	}
 
-	var g errgroup.Group
-	scriptNamesAcc := make([]*string, len(listResp.Name))
-	for i, scriptName := range listResp.Name {
-		i, scriptName := i, scriptName
-		g.Go(func() error {
-			metaResp, err := a.scriptsClient.GetMeta(req.Request.Context(), &scriptspb.GetMetaRequest{
-				OwnerName: accountName,
-				Name:      scriptName,
-			})
-			if err != nil {
-				return err
-			}
-
-			if !metaResp.Meta.Published && username != accountName {
-				return nil
-			}
-
-			scriptNamesAcc[i] = &scriptName
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
-		glog.Errorf("Failed to get script: %v", err)
-		resp.AddHeader("Content-Type", "text/plain")
-		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
-		return
-	}
-
-	scriptNames := make([]string, 0)
-	for _, scriptName := range scriptNamesAcc {
-		if scriptName != nil {
-			scriptNames = append(scriptNames, *scriptName)
-		}
-	}
-
 	resp.WriteEntity(Account{
 		Name:    accountName,
-		Scripts: scriptNames,
+		Scripts: listResp.Name,
 		Info:    accountInfo,
 	})
 }

@@ -12,6 +12,8 @@ message AuthenticateRequest {
 message AuthenticateResponse { }
 
 message ListRequest {
+    uint32 offset = 1;
+    uint32 limit = 2;
 }
 
 message ListResponse {

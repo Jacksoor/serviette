@@ -122,7 +122,7 @@ func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.Create
 }
 
 func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
-	accountScripts, err := s.scripts.AccountScripts(ctx, req.OwnerName)
+	accountScripts, err := s.scripts.AccountScripts(ctx, req.OwnerName, req.Offset, req.Limit, req.ShowUnpublished)
 	if err != nil {
 		if err == scripts.ErrNotFound {
 			return nil, grpc.Errorf(codes.NotFound, "account not found")

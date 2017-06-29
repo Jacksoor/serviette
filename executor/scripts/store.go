@@ -115,14 +115,46 @@ func (s *Store) Open(ctx context.Context, ownerName string, name string) (*Scrip
 	}, nil
 }
 
-func (s *Store) AccountScripts(ctx context.Context, ownerName string) ([]*Script, error) {
+func (s *Store) PublishedScripts(ctx context.Context) ([]*Script, error) {
 	scripts := make([]*Script, 0)
 
 	rows, err := s.db.QueryContext(ctx, `
 		select owner_name, script_name
 		from scripts
-		where owner_name = $1
-	`, ownerName)
+		where published
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		script := &Script{
+			db:       s.db,
+			rootPath: s.rootPath,
+		}
+		if err := rows.Scan(&script.OwnerName, &script.Name); err != nil {
+			return nil, err
+		}
+		scripts = append(scripts, script)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return scripts, nil
+}
+
+func (s *Store) AccountScripts(ctx context.Context, ownerName string, offset, limit uint32, showUnpublished bool) ([]*Script, error) {
+	scripts := make([]*Script, 0)
+
+	rows, err := s.db.QueryContext(ctx, `
+		select owner_name, script_name
+		from scripts
+		where owner_name = $1 and
+		      (published or $4)
+		offset $2 limit $3
+	`, ownerName, offset, limit, showUnpublished)
 	if err != nil {
 		return nil, err
 	}

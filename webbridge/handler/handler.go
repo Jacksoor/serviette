@@ -140,7 +140,10 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	}
 
 	scriptsListResp, err := h.scriptsClient.List(r.Context(), &scriptspb.ListRequest{
-		OwnerName: username,
+		OwnerName:       username,
+		Offset:          0,
+		Limit:           ^uint32(0),
+		ShowUnpublished: true,
 	})
 	if err != nil {
 		glog.Errorf("Failed to get script names: %v", err)

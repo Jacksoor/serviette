@@ -120,12 +120,13 @@ func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
 	return account, nil
 }
 
-func (s *Store) AccountNames(ctx context.Context) ([]string, error) {
+func (s *Store) AccountNames(ctx context.Context, offset, limit uint32) ([]string, error) {
 	names := make([]string, 0)
 
 	rows, err := s.db.QueryContext(ctx, `
 		select name from accounts
-	`)
+		offset $1 limit $2
+	`, offset, limit)
 	if err != nil {
 		return nil, err
 	}
