@@ -1,12 +1,13 @@
 package scripts
 
 import (
+	"database/sql"
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 
+	"github.com/lib/pq"
 	"golang.org/x/net/context"
 )
 
@@ -17,23 +18,29 @@ var (
 )
 
 type Store struct {
+	db       *sql.DB
 	rootPath string
 }
 
-func NewStore(rootPath string) (*Store, error) {
+func NewStore(db *sql.DB, rootPath string) (*Store, error) {
 	path, err := filepath.Abs(rootPath)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Store{
+		db:       db,
 		rootPath: path,
 	}, nil
 }
 
 var nameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-func (s *Store) load(ctx context.Context, ownerName string, name string) (*Script, error) {
+func (s *Store) RootPath() string {
+	return s.rootPath
+}
+
+func (s *Store) Create(ctx context.Context, ownerName string, name string) (*Script, error) {
 	if !nameRegexp.MatchString(ownerName) || !nameRegexp.MatchString(name) {
 		return nil, ErrInvalidName
 	}
@@ -45,22 +52,28 @@ func (s *Store) load(ctx context.Context, ownerName string, name string) (*Scrip
 		return nil, ErrInvalidName
 	}
 
-	return &Script{
-		OwnerName: ownerName,
-		Name:      name,
-
-		rootPath: s.rootPath,
-	}, nil
-}
-
-func (s *Store) RootPath() string {
-	return s.rootPath
-}
-
-func (s *Store) Create(ctx context.Context, ownerName string, name string) (*Script, error) {
-	script, err := s.load(ctx, ownerName, name)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `
+		insert into scripts (owner_name, script_name)
+		values ($1, $2)
+	`, ownerName, name); err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" /* unique_violation */ {
+			return nil, ErrAlreadyExists
+		}
+		return nil, err
+	}
+
+	script := &Script{
+		db:       s.db,
+		rootPath: s.rootPath,
+
+		OwnerName: ownerName,
+		Name:      name,
 	}
 
 	if _, err := os.Stat(script.Path()); err != nil {
@@ -68,11 +81,10 @@ func (s *Store) Create(ctx context.Context, ownerName string, name string) (*Scr
 			return nil, err
 		}
 	} else {
-		return nil, ErrAlreadyExists
+		return nil, errors.New("script doesn't exist in db but exists on disk")
 	}
 
-	accountRoot := filepath.Join(s.rootPath, ownerName)
-	if err := os.MkdirAll(accountRoot, 0700); err != nil {
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 
@@ -80,40 +92,54 @@ func (s *Store) Create(ctx context.Context, ownerName string, name string) (*Scr
 }
 
 func (s *Store) Open(ctx context.Context, ownerName string, name string) (*Script, error) {
-	script, err := s.load(ctx, ownerName, name)
-	if err != nil {
+	var count int
+	if err := s.db.QueryRowContext(ctx, `
+		select count(1)
+		from scripts
+		where owner_name = $1 and
+		      script_name = $2
+	`, ownerName, name).Scan(&count); err != nil {
 		return nil, err
 	}
 
-	if _, err := os.Stat(script.Path()); err != nil {
-		if os.IsNotExist(err) {
-			return nil, ErrNotFound
-		}
-		return nil, err
+	if count == 0 {
+		return nil, ErrNotFound
 	}
 
-	return script, nil
+	return &Script{
+		db:       s.db,
+		rootPath: s.rootPath,
+
+		OwnerName: ownerName,
+		Name:      name,
+	}, nil
 }
 
 func (s *Store) AccountScripts(ctx context.Context, ownerName string) ([]*Script, error) {
-	accountRoot := filepath.Join(s.rootPath, ownerName)
+	scripts := make([]*Script, 0)
 
-	infos, err := ioutil.ReadDir(accountRoot)
+	rows, err := s.db.QueryContext(ctx, `
+		select owner_name, script_name
+		from scripts
+		where owner_name = $1
+	`, ownerName)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, ErrNotFound
-		}
 		return nil, err
 	}
+	defer rows.Close()
 
-	scripts := make([]*Script, len(infos))
-	for i, info := range infos {
-		scripts[i] = &Script{
-			OwnerName: ownerName,
-			Name:      info.Name(),
-
+	for rows.Next() {
+		script := &Script{
+			db:       s.db,
 			rootPath: s.rootPath,
 		}
+		if err := rows.Scan(&script.OwnerName, &script.Name); err != nil {
+			return nil, err
+		}
+		scripts = append(scripts, script)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return scripts, nil

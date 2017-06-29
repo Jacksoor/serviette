@@ -8,3 +8,15 @@ create table accounts (
     allowed_output_formats character varying[] not null default array['text']::character varying[],
     allowed_services character varying[] not null default array[]::character varying[]
 );
+
+create table scripts (
+    owner_name character varying not null,
+    script_name character varying not null,
+    description text not null default '',
+    published boolean not null default false,
+
+    primary key (owner_name, script_name)
+);
+
+create index scripts_owner_name_idx on scripts (owner_name);
+create index scripts_ft_idx on scripts using gin (to_tsvector('english', 'script_name' || ' ' || 'description'));

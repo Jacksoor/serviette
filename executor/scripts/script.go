@@ -1,43 +1,22 @@
 package scripts
 
 import (
+	"database/sql"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"syscall"
 
-	"github.com/golang/protobuf/proto"
+	"golang.org/x/net/context"
 
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
-var (
-	metaXattrName string = "user.kobun4.executor"
-)
-
-func getxattr(path, name string) ([]byte, error) {
-	size, err := syscall.Getxattr(path, name, nil)
-	if err != nil {
-		if err == syscall.ENODATA {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	buf := make([]byte, size)
-	read, err := syscall.Getxattr(path, name, buf)
-	if err != nil {
-		return nil, err
-	}
-
-	return buf[:read], nil
-}
-
 type Script struct {
+	db       *sql.DB
+	rootPath string
+
 	OwnerName string
 	Name      string
-
-	rootPath string
 }
 
 func (s *Script) QualifiedName() string {
@@ -48,41 +27,61 @@ func (s *Script) Path() string {
 	return filepath.Join(s.rootPath, s.QualifiedName())
 }
 
-func (s *Script) Content() ([]byte, error) {
+func (s *Script) Content(ctx context.Context) ([]byte, error) {
 	return ioutil.ReadFile(s.Path())
 }
 
-func (s *Script) SetContent(content []byte) error {
+func (s *Script) SetContent(ctx context.Context, content []byte) error {
 	return ioutil.WriteFile(s.Path(), content, 0755)
 }
 
-func (s *Script) Meta() (*scriptspb.Meta, error) {
-	reqs := &scriptspb.Meta{}
+func (s *Script) Meta(ctx context.Context) (*scriptspb.Meta, error) {
+	meta := &scriptspb.Meta{}
 
-	rawReqs, err := getxattr(s.Path(), metaXattrName)
-	if err != nil {
+	if err := s.db.QueryRowContext(ctx, `
+		select description, published
+		from scripts
+		where owner_name = $1 and
+		      script_name = $2
+	`, s.OwnerName, s.Name).Scan(&meta.Description, &meta.Published); err != nil {
 		return nil, err
 	}
 
-	if rawReqs == nil {
-		return reqs, nil
-	}
-
-	if err := proto.Unmarshal(rawReqs, reqs); err != nil {
-		return nil, err
-	}
-
-	return reqs, nil
+	return meta, nil
 }
 
-func (s *Script) SetMeta(reqs *scriptspb.Meta) error {
-	rawReqs, err := proto.Marshal(reqs)
+func (s *Script) SetMeta(ctx context.Context, meta *scriptspb.Meta) error {
+	if _, err := s.db.ExecContext(ctx, `
+		update scripts
+		set description = $1,
+		    published = $2
+		where owner_name = $3 and
+		      script_name = $4
+	`, meta.Description, meta.Published, s.OwnerName, s.Name); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Script) Delete(ctx context.Context) error {
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	return syscall.Setxattr(s.Path(), metaXattrName, rawReqs, 0)
-}
+	defer tx.Rollback()
 
-func (s *Script) Delete() error {
-	return os.Remove(s.Path())
+	if _, err := tx.ExecContext(ctx, `
+		delete from scripts
+		where owner_name = $1 and
+		      script_name = $2
+	`, s.OwnerName, s.Name); err != nil {
+		return err
+	}
+
+	if err := os.Remove(s.Path()); err != nil {
+		return nil
+	}
+
+	tx.Commit()
+	return nil
 }

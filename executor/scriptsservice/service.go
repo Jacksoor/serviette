@@ -106,15 +106,15 @@ func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.Create
 		return nil, grpc.Errorf(codes.Internal, "failed to create script")
 	}
 
-	if err := script.SetContent(req.Content); err != nil {
-		script.Delete()
-		glog.Errorf("Failed to write to file: %v", err)
+	if err := script.SetMeta(ctx, req.Meta); err != nil {
+		script.Delete(context.Background())
+		glog.Errorf("Failed to set script meta: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to create script")
 	}
 
-	if err := script.SetMeta(req.Meta); err != nil {
-		script.Delete()
-		glog.Errorf("Failed to set xattr on file: %v", err)
+	if err := script.SetContent(ctx, req.Content); err != nil {
+		script.Delete(context.Background())
+		glog.Errorf("Failed to write to file: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to create script")
 	}
 
@@ -155,7 +155,7 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
-	if err := script.Delete(); err != nil {
+	if err := script.Delete(ctx); err != nil {
 		glog.Errorf("Failed to delete script: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to delete script")
 	}
@@ -470,7 +470,7 @@ func (s *Service) GetContent(ctx context.Context, req *pb.GetContentRequest) (*p
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
-	content, err := script.Content()
+	content, err := script.Content(ctx)
 	if err != nil {
 		glog.Errorf("Failed to get script content: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to get script content")
@@ -495,7 +495,7 @@ func (s *Service) GetMeta(ctx context.Context, req *pb.GetMetaRequest) (*pb.GetM
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
-	reqs, err := script.Meta()
+	reqs, err := script.Meta(ctx)
 	if err != nil {
 		glog.Errorf("Failed to get meta: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to get meta")

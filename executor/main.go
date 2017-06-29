@@ -80,7 +80,7 @@ func main() {
 
 	accountStore := accounts.NewStore(db, storageRootAbsPath)
 
-	scriptsStore, err := scripts.NewStore(*scriptsRootPath)
+	scriptsStore, err := scripts.NewStore(db, *scriptsRootPath)
 	if err != nil {
 		glog.Fatalf("failed to open scripts store: %v", err)
 	}
