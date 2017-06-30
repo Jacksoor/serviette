@@ -1,5 +1,5 @@
-Storage Quotas
-==============
+Storage
+=======
 
 kobun4 recommends that quotas should be set up for user storage locations to prevent any one user from using all available disk space. Any file system with per-directory quotas can be used, but ZFS is the most straightforward.
 

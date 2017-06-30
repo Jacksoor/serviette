@@ -8,5 +8,5 @@ This section covers the running and the operation of your own instance of kobun4
 
    postgres
    networking
-   storagequotas
+   storage
    systemd
