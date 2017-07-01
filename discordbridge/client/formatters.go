@@ -11,6 +11,7 @@ import (
 	"mime/multipart"
 	"net/mail"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -40,6 +41,29 @@ var outputSigils = map[bool]string{
 	false: "❎",
 }
 
+type RichContentField struct {
+	Name   string `json:"name"`
+	Value  string `json:"value"`
+	Inline bool   `json:"inline"`
+}
+
+type RichContent struct {
+	Fallback      string              `json:"fallback"`
+	Color         int                 `json:"color"`
+	Author        string              `json:"author"`
+	AuthorLink    string              `json:"authorLink"`
+	AuthorIconURL string              `json:"authorIconURL"`
+	Title         string              `json:"title"`
+	TitleLink     string              `json:"titleLink"`
+	Text          string              `json:"text"`
+	Fields        []*RichContentField `json:"fields"`
+	ImageURL      string              `json:"imageURL"`
+	ThumbnailURL  string              `json:"thumbnailURL"`
+	Footer        string              `json:"footer"`
+	FooterIconURL string              `json:"footerIconURL"`
+	Timestamp     *int64              `json:"timestamp"`
+}
+
 var OutputFormatters map[string]OutputFormatter = map[string]OutputFormatter{
 	"raw": func(authorID string, content []byte, ok bool) (*discordgo.MessageSend, error) {
 		return &discordgo.MessageSend{Content: string(content)}, nil
@@ -65,6 +89,75 @@ var OutputFormatters map[string]OutputFormatter = map[string]OutputFormatter{
 		note := outputSigils[ok]
 		if authorID != "" {
 			note = fmt.Sprintf("<@%s>: %s", authorID, outputSigils[ok])
+		}
+
+		return &discordgo.MessageSend{
+			Content: note,
+			Embed:   embed,
+		}, nil
+	},
+
+	"rich": func(authorID string, content []byte, ok bool) (*discordgo.MessageSend, error) {
+		richContent := &RichContent{}
+
+		if err := json.Unmarshal(content, richContent); err != nil {
+			return nil, invalidOutputError{err}
+		}
+
+		note := outputSigils[ok]
+		if authorID != "" {
+			note = fmt.Sprintf("<@%s>: %s", authorID, outputSigils[ok])
+		}
+
+		fields := make([]*discordgo.MessageEmbedField, len(richContent.Fields))
+		for i, richField := range richContent.Fields {
+			fields[i] = &discordgo.MessageEmbedField{
+				Name:   richField.Name,
+				Value:  richField.Value,
+				Inline: richField.Inline,
+			}
+		}
+
+		var ts string
+		if richContent.Timestamp != nil {
+			ts = time.Unix(*richContent.Timestamp, 0).UTC().Format(time.RFC3339)
+		}
+
+		embed := &discordgo.MessageEmbed{
+			URL:         richContent.TitleLink,
+			Type:        "rich",
+			Title:       richContent.Title,
+			Description: richContent.Text,
+			Timestamp:   ts,
+			Fields:      fields,
+			Color:       richContent.Color,
+		}
+
+		if richContent.ImageURL != "" {
+			embed.Image = &discordgo.MessageEmbedImage{
+				URL: richContent.ImageURL,
+			}
+		}
+
+		if richContent.Author != "" {
+			embed.Author = &discordgo.MessageEmbedAuthor{
+				Name:    richContent.Author,
+				URL:     richContent.AuthorLink,
+				IconURL: richContent.AuthorIconURL,
+			}
+		}
+
+		if richContent.ThumbnailURL != "" {
+			embed.Thumbnail = &discordgo.MessageEmbedThumbnail{
+				URL: richContent.ThumbnailURL,
+			}
+		}
+
+		if richContent.Footer != "" {
+			embed.Footer = &discordgo.MessageEmbedFooter{
+				Text:    richContent.Footer,
+				IconURL: richContent.FooterIconURL,
+			}
 		}
 
 		return &discordgo.MessageSend{
