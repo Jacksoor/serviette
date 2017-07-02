@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/net/context"
 	"golang.org/x/sync/errgroup"
@@ -133,26 +134,32 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 
 			sort.Sort(ByFieldName(fields))
 
+			prefix := fmt.Sprintf("@%s", c.session.State.User.Username)
+
 			fields = append(fields,
 				&discordgo.MessageEmbedField{
-					Name:  fmt.Sprintf("@%s help", c.session.State.User.Username),
+					Name:  fmt.Sprintf("%s help", prefix),
 					Value: `Displays this help message.`,
 				},
 				&discordgo.MessageEmbedField{
-					Name:  fmt.Sprintf("@%s info <command name>", c.session.State.User.Username),
+					Name:  fmt.Sprintf("%s info <command name>", prefix),
 					Value: `Get information on any linked command beginning with ` + "`" + guildVars.ScriptCommandPrefix + "`",
+				},
+				&discordgo.MessageEmbedField{
+					Name:  fmt.Sprintf("%s ping", prefix),
+					Value: `Check the latency from the bot to Discord.`,
 				},
 			)
 
 			if memberIsAdmin(guildVars.AdminRoleID, member) {
 				fields = append(fields,
 					&discordgo.MessageEmbedField{
-						Name: fmt.Sprintf("@%s link <command name> <script name>", c.session.State.User.Username),
+						Name: fmt.Sprintf("%s link <command name> <script name>", prefix),
 						Value: fmt.Sprintf(`**Administrators only.**
 Link a command name to a script name. If the link already exists, it will be replaced. A list of linkable script names can be found at %s/scripts`, c.opts.HomeURL),
 					},
 					&discordgo.MessageEmbedField{
-						Name: fmt.Sprintf("@%s unlink <command name>", c.session.State.User.Username),
+						Name: fmt.Sprintf("%s unlink <command name>", prefix),
 						Value: `**Administrators only.**
 Remove a command name link.`,
 					},
@@ -164,6 +171,11 @@ Remove a command name link.`,
 				formattedAnnouncement = fmt.Sprintf("\n\n📣 **%s**", guildVars.Announcement)
 			}
 
+			numTotalMembers := 0
+			for _, guild := range c.session.State.Guilds {
+				numTotalMembers += len(guild.Members)
+			}
+
 			c.session.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 				Content: fmt.Sprintf("<@%s>: ✅", m.Author.ID),
 				Embed: &discordgo.MessageEmbed{
@@ -172,8 +184,26 @@ Remove a command name link.`,
 					Description: fmt.Sprintf(`Here's a listing of commands that are linked into this server.%s`, formattedAnnouncement),
 					Color:       0x009100,
 					Fields:      fields,
+					Footer: &discordgo.MessageEmbedFooter{
+						Text: fmt.Sprintf("Shard %d of %d, running on %d servers with %d members", c.session.ShardID+1, c.session.ShardCount, len(c.session.State.Guilds), numTotalMembers),
+					},
 				},
 			})
+			return nil
+		},
+	},
+	"ping": {
+		adminOnly: false,
+		f: func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
+			startTime := time.Now()
+			ms, err := c.session.ChannelMessageSend(m.ChannelID, "🏓 **Waiting for pong...**")
+			if err != nil {
+				return err
+			}
+			endTime := time.Now()
+
+			c.session.ChannelMessageEdit(m.ChannelID, ms.ID, fmt.Sprintf("🏓 **Pong!** %dms", endTime.Sub(startTime)/time.Millisecond))
+
 			return nil
 		},
 	},
