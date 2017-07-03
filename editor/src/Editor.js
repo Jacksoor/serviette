@@ -22,11 +22,15 @@ const KNOWN_SYNTAXES = {
 export default class Editor extends Component {
   onSubmit(e) {
     e.preventDefault();
+    this.save();
+  }
+
+  save() {
     this.props.onSave({
       ownerName: this.props.script.ownerName,
       name: this.props.script.name,
-      published: e.target.elements.published.checked,
-      description: e.target.elements.description.value,
+      published: this.refs.form.elements.published.checked,
+      description: this.refs.form.elements.description.value,
       content: this.refs.codemirror.getCodeMirror().getValue(),
     });
   }
@@ -90,7 +94,7 @@ export default class Editor extends Component {
 
   render() {
     return (
-      <form className="inner" onSubmit={this.onSubmit.bind(this)}>
+      <form ref="form" className="inner" onSubmit={this.onSubmit.bind(this)}>
         <InputGroup className="toolbar">
           <Input name="description" defaultValue={this.props.script.description} placeholder="Description" onChange={this.onDescriptionChanged.bind(this)} />
           <InputGroupAddon>
@@ -118,8 +122,12 @@ export default class Editor extends Component {
                 }
               },
 
+              'Cmd-S': () => {
+                this.save();
+              },
+
               'Ctrl-S': () => {
-                ReactDOM.findDOMNode(this.refs.saveButton).click();
+                this.save();
               }
             }
           }}/>
