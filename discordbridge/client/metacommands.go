@@ -156,7 +156,7 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 					&discordgo.MessageEmbedField{
 						Name: fmt.Sprintf("%s link <command name> <script name>", prefix),
 						Value: fmt.Sprintf(`**Administrators only.**
-Link a command name to a script name. If the link already exists, it will be replaced. A list of linkable script names can be found at %s/scripts`, c.opts.HomeURL),
+Link a command name to a script name from the [script directory](%s/scripts). If the link already exists, it will be replaced.`, c.opts.HomeURL),
 					},
 					&discordgo.MessageEmbedField{
 						Name: fmt.Sprintf("%s unlink <command name>", prefix),
@@ -179,11 +179,13 @@ Remove a command name link.`,
 			c.session.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 				Content: fmt.Sprintf("<@%s>: ✅", m.Author.ID),
 				Embed: &discordgo.MessageEmbed{
-					Title:       "ℹ Help",
-					URL:         c.opts.HomeURL,
-					Description: fmt.Sprintf(`Here's a listing of commands that are linked into this server.%s`, formattedAnnouncement),
-					Color:       0x009100,
-					Fields:      fields,
+					Title: "ℹ Help",
+					URL:   c.opts.HomeURL,
+					Description: fmt.Sprintf(`[**Kobun**](%s) is a bot that lets you run a neat collection of scripts and commands (or even make your own!) without having to host or maintain anything.%s
+
+Here's a listing of commands that are linked into this server.`, c.opts.HomeURL, formattedAnnouncement),
+					Color:  0x009100,
+					Fields: fields,
 					Footer: &discordgo.MessageEmbedFooter{
 						Text: fmt.Sprintf("Shard %d of %d, running on %d servers with %d members", c.session.ShardID+1, c.session.ShardCount, len(c.session.State.Guilds), numTotalMembers),
 					},
