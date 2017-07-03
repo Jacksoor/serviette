@@ -91,16 +91,16 @@ func init() {
 		runtime.LockOSThread()
 
 		if err := unix.Prctl(unix.PR_SET_PDEATHSIG, uintptr(unix.SIGKILL), 0, 0, 0); err != nil {
-			panic(err)
+			os.Exit(1)
 		}
 
 		factory, err := libcontainer.New("")
 		if err != nil {
-			panic(err)
+			os.Exit(1)
 		}
 
 		if err := factory.StartInitialization(); err != nil {
-			panic(err)
+			os.Exit(1)
 		}
 	}
 }
