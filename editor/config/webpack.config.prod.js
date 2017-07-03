@@ -151,7 +151,7 @@ module.exports = {
       {
         test: /\.scss$/,
         include: paths.appSrc,
-        loaders: ExtractTextPlugin.extract(
+        loader: ExtractTextPlugin.extract(
           'style',
           'css?importLoaders=1!sass!postcss',
           extractTextPluginOptions
