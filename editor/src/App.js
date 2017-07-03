@@ -8,6 +8,11 @@ import AppSidebar from './AppSidebar';
 import Editor from './Editor';
 import LoginForm from './LoginForm';
 
+const defaultScript = `#!/usr/bin/python3
+
+print("Hello world!")
+`
+
 export default class App extends Component {
   constructor(props) {
     super(props);
@@ -39,12 +44,16 @@ export default class App extends Component {
         info: info,
         scripts: scripts,
       }});
-    })
+    }, e => {
+      alert(`Failed to get user details: ${e}. Please log out and log in again.`)
+    });
   }
 
   updateScriptsList() {
     return this.state.client.getAccountScripts().then(scripts => {
       this.setState({account: {...this.state.account, scripts: scripts}});
+    }, e => {
+      alert(`Failed to update scripts list: ${e}. Please log out and log in again.`)
     })
   }
 
@@ -62,12 +71,14 @@ export default class App extends Component {
       name: name,
       published: false,
       description: '',
-      content: 'CONTENT'
+      content: defaultScript
     };
     this.state.client.createScript(script).then(() => {
       this.updateScriptsList().then(() => {
         this.onScriptSelected(script);
       });
+    }, e => {
+      alert(`Failed to create script: ${e}. Please log out and log in again.`)
     });
   }
 
@@ -81,6 +92,8 @@ export default class App extends Component {
         currentScript: {...script, content: content},
         unsaved: false,
       });
+    }, e => {
+      alert(`Failed to get script: ${e}. Please log out and log in again.`)
     });
   }
 
@@ -93,6 +106,8 @@ export default class App extends Component {
       this.updateScriptsList().then(() => {
         this.setState({unsaved: false});
       });
+    }, e => {
+      alert(`Failed to save script: ${e}. Please copy and paste your script somewhere, log out, and log in again.`)
     });
   }
 
@@ -104,6 +119,8 @@ export default class App extends Component {
           unsaved: false,
         });
       })
+    }, e => {
+      alert(`Failed to delete script: ${e}. Please log out and log in again.`)
     });
   }
 

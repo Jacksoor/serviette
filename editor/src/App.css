@@ -25,6 +25,10 @@
   width: 100%;
 }
 
+.sidebar .nav-item:last-child {
+  padding-bottom: 1rem;
+}
+
 .sidebar .nav-item .nav-link {
   padding-top: 0;
   padding-bottom: 0;
@@ -59,6 +63,7 @@
 .editor {
   flex-grow: 1;
   display: flex;
+  min-height: 0;
 }
 
 .editor .ReactCodeMirror {
@@ -72,6 +77,11 @@
   height: auto;
   cursor: text;
   font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 10pt;
+}
+
+.editor .CodeMirror-lines {
+  padding-bottom: 100%;
 }
 
 .editor .CodeMirror-gutters {

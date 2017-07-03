@@ -30,7 +30,7 @@ export default class AppNavbar extends Component {
       <div>
         <Navbar color="faded" light toggleable>
           <NavbarToggler right onClick={this.toggleNavbar} />
-          <NavbarBrand href="/">Kobun<small><sup>(β)</sup></small> Editor</NavbarBrand>
+          <NavbarBrand>Kobun<small><sup>(β)</sup></small> Editor</NavbarBrand>
           <Collapse isOpen={this.state.isOpen} navbar>
             <Nav className="ml-auto" navbar>{account !== null ?
               <NavItem>

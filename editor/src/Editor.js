@@ -107,6 +107,7 @@ export default class Editor extends Component {
             tabSize: 4,
             indentWithTabs: false,
             matchBrackets: true,
+            lineWrapping: true,
             extraKeys: {
               Tab: () => {
                 const cm = this.refs.codemirror.getCodeMirror();
