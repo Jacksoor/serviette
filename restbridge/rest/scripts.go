@@ -353,13 +353,6 @@ func (r ScriptsResource) update(req *restful.Request, resp *restful.Response) {
 	}
 
 	accountName := req.PathParameter("accountName")
-
-	if username != accountName {
-		resp.AddHeader("Content-Type", "text/plain")
-		resp.WriteErrorString(http.StatusUnauthorized, "unauthorized")
-		return
-	}
-
 	scriptName := req.PathParameter("scriptName")
 
 	script := new(Script)
@@ -370,8 +363,14 @@ func (r ScriptsResource) update(req *restful.Request, resp *restful.Response) {
 		return
 	}
 
+	if script.OwnerName != username || script.OwnerName != accountName {
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	if _, err := r.scriptsClient.Delete(req.Request.Context(), &scriptspb.DeleteRequest{
-		OwnerName: accountName,
+		OwnerName: script.OwnerName,
 		Name:      scriptName,
 	}); err != nil {
 		switch grpc.Code(err) {
@@ -390,7 +389,7 @@ func (r ScriptsResource) update(req *restful.Request, resp *restful.Response) {
 	}
 
 	if _, err := r.scriptsClient.Create(req.Request.Context(), &scriptspb.CreateRequest{
-		OwnerName: accountName,
+		OwnerName: script.OwnerName,
 		Name:      script.Name,
 		Meta: &scriptspb.Meta{
 			Description: script.Description,
