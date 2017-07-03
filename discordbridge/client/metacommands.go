@@ -156,7 +156,7 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 					&discordgo.MessageEmbedField{
 						Name: fmt.Sprintf("%s link <command name> <script name>", prefix),
 						Value: fmt.Sprintf(`**Administrators only.**
-Link a command name to a script name from the [script directory](%s/scripts). If the link already exists, it will be replaced.`, c.opts.HomeURL),
+Link a command name to a script name from the [script library](%s/scripts). If the link already exists, it will be replaced.`, c.opts.HomeURL),
 					},
 					&discordgo.MessageEmbedField{
 						Name: fmt.Sprintf("%s unlink <command name>", prefix),
