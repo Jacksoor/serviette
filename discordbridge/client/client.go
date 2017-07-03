@@ -1,8 +1,12 @@
 package client
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"regexp"
 	"strings"
 	"syscall"
@@ -31,9 +35,11 @@ type Options struct {
 type Client struct {
 	session *discordgo.Session
 
-	opts            *Options
-	knownGuildsOnly bool
-	rpcTarget       net.Addr
+	opts *Options
+
+	discordBotsToken string
+	knownGuildsOnly  bool
+	rpcTarget        net.Addr
 
 	vars     *varstore.Store
 	stats    *statsstore.Store
@@ -44,7 +50,7 @@ type Client struct {
 	metaCommandRegexp *regexp.Regexp
 }
 
-func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, vars *varstore.Store, stats *statsstore.Store, budgeter *budget.Budgeter, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
+func New(token string, opts *Options, discordBotsToken string, knownGuildsOnly bool, rpcTarget net.Addr, vars *varstore.Store, stats *statsstore.Store, budgeter *budget.Budgeter, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 	if err != nil {
 		return nil, err
@@ -53,9 +59,11 @@ func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, 
 	client := &Client{
 		session: session,
 
-		opts:            opts,
-		knownGuildsOnly: knownGuildsOnly,
-		rpcTarget:       rpcTarget,
+		opts: opts,
+
+		discordBotsToken: discordBotsToken,
+		knownGuildsOnly:  knownGuildsOnly,
+		rpcTarget:        rpcTarget,
 
 		vars:     vars,
 		stats:    stats,
@@ -107,6 +115,50 @@ func memberIsAdmin(adminRoleID string, member *discordgo.Member) bool {
 	return false
 }
 
+func (c *Client) updateDiscordBotsServerCount(ctx context.Context) error {
+	if c.discordBotsToken == "" {
+		return nil
+	}
+
+	raw, err := json.Marshal(struct {
+		ShardID     int `json:"shard_id"`
+		ShardCount  int `json:"shard_count"`
+		ServerCount int `json:"server_count"`
+	}{
+		c.session.ShardID,
+		c.session.ShardCount,
+		len(c.session.State.Guilds),
+	})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("https://bots.discord.pw/api/bots/%s/stats", c.session.State.User.ID), bytes.NewBuffer(raw))
+	if err != nil {
+		return err
+	}
+
+	req = req.WithContext(ctx)
+
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", c.discordBotsToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("failed to update bot stats: %v", string(body))
+	}
+
+	return nil
+}
+
 func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
 	ctx := context.Background()
 
@@ -137,6 +189,10 @@ func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
 	} else {
 		glog.Infof("Guild vars for %s: %+v", m.Guild.ID, guildVars)
 	}
+
+	if err := c.updateDiscordBotsServerCount(ctx); err != nil {
+		glog.Error("Failed to update server count on bots.discord.pw: %v", err)
+	}
 }
 
 func (c *Client) guildDelete(s *discordgo.Session, m *discordgo.GuildDelete) {
@@ -157,6 +213,10 @@ func (c *Client) guildDelete(s *discordgo.Session, m *discordgo.GuildDelete) {
 	tx.Commit()
 
 	glog.Infof("Cleared guild vars for %s", m.Guild.ID)
+
+	if err := c.updateDiscordBotsServerCount(ctx); err != nil {
+		glog.Error("Failed to update server count on bots.discord.pw: %v", err)
+	}
 }
 
 var privateGuildVars = &varstore.GuildVars{

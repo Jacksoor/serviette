@@ -43,6 +43,8 @@ var (
 	botToken = flag.String("bot_token", "", "Bot token.")
 	status   = flag.String("status", "", "Status to show.")
 
+	discordBotsToken = flag.String("discord_bots_token", "", "Token for posting stats to bots.discord.pw")
+
 	knownGuildsOnly = flag.Bool("known_guilds_only", false, "Only stay on known guilds")
 
 	postgresURL = flag.String("postgres_url", "postgres://", "URL to Postgres database")
@@ -103,7 +105,7 @@ func main() {
 	client, err := client.New(*botToken, &client.Options{
 		Status:  *status,
 		HomeURL: *homeURL,
-	}, *knownGuildsOnly, lis.Addr(), vars, stats, budgeter, scriptspb.NewScriptsClient(executorConn))
+	}, *discordBotsToken, *knownGuildsOnly, lis.Addr(), vars, stats, budgeter, scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}
