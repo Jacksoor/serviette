@@ -1,0 +1,120 @@
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar {
+  flex-shrink: 0;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  width: 30%;
+  max-width: 400px;
+  flex-shrink: 0;
+}
+
+.sidebar .nav {
+  overflow-y: auto;
+}
+
+.sidebar .nav-item {
+  width: 100%;
+}
+
+.sidebar .nav-item .nav-link {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.sidebar .nav-item + .nav-item {
+  margin-left: 0;
+}
+
+.sidebar .nav .nav-link {
+  border-radius: 0;
+}
+
+.toolbar {
+  flex-shrink: 0;
+  padding: 1rem;
+}
+
+.outer {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: row;
+}
+
+.inner {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: column;
+}
+
+.editor {
+  flex-grow: 1;
+  display: flex;
+}
+
+.editor .ReactCodeMirror {
+  flex-grow: 1;
+  display: flex;
+}
+
+.editor .CodeMirror {
+  flex-grow: 1;
+  width: 0;
+  height: auto;
+  cursor: text;
+  font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.editor .CodeMirror-gutters {
+  background: none;
+  border: 0;
+}
+
+.landing {
+  flex-grow: 1;
+  padding: 1rem;
+}
+
+.login {
+  flex-grow: 1;
+  padding-top: 40px;
+}
+
+.login form {
+  max-width: 400px;
+  padding: 15px;
+  margin: 0 auto;
+}
+
+.login .form-control {
+  position: relative;
+  height: auto;
+  -webkit-box-sizing: border-box;
+          box-sizing: border-box;
+  padding: 10px;
+  font-size: 16px;
+}
+.login .form-control:focus {
+  z-index: 2;
+}
+.login input.username {
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.login input.password {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.login button {
+  margin-top: 10px;
+}
