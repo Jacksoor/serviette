@@ -56,7 +56,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	(&webdav.Handler{
-		FileSystem: webdav.Dir(account.ScriptsStoragePath()),
+		FileSystem: webdav.Dir(account.PrivateStoragePath()),
 		LockSystem: webdav.NewMemLS(),
 	}).ServeHTTP(w, r)
 }
