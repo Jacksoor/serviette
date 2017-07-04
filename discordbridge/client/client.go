@@ -102,16 +102,38 @@ func (c *Client) ready(s *discordgo.Session, r *discordgo.Ready) {
 	c.metaCommandRegexp = regexp.MustCompile(fmt.Sprintf(`^<@!?%s>(.*)$`, regexp.QuoteMeta(s.State.User.ID)))
 }
 
-func memberIsAdmin(adminRoleID string, member *discordgo.Member) bool {
-	if member == nil {
+var defaultAdminRoleName = "Kobun Administrators"
+
+func (c *Client) memberIsAdmin(guildVars *varstore.GuildVars, guild *discordgo.Guild, member *discordgo.Member) bool {
+	if member == nil || guild == nil {
 		return false
 	}
 
-	for _, roleID := range member.Roles {
-		if roleID == adminRoleID {
-			return true
+	if guildVars.AdminRoleID != nil {
+		// Check if they have the admin role ID.
+		for _, roleID := range member.Roles {
+			if roleID == *guildVars.AdminRoleID {
+				return true
+			}
+		}
+	} else {
+		// Look up role by name.
+		adminRoleIDs := make([]string, 0)
+		for _, role := range guild.Roles {
+			if role.Name == defaultAdminRoleName {
+				adminRoleIDs = append(adminRoleIDs, role.ID)
+			}
+		}
+
+		for _, roleID := range member.Roles {
+			for _, adminRoleID := range adminRoleIDs {
+				if roleID == adminRoleID {
+					return true
+				}
+			}
 		}
 	}
+
 	return false
 }
 
@@ -272,6 +294,8 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 		return
 	}
 
+	var guild *discordgo.Guild
+
 	channel, err := s.Channel(m.ChannelID)
 	if err != nil {
 		glog.Errorf("Failed to get channel: %v", err)
@@ -288,6 +312,11 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 				return err
 			}
 			defer tx.Rollback()
+
+			guild, err = s.Guild(channel.GuildID)
+			if err != nil {
+				return err
+			}
 
 			guildVars, err = c.vars.GuildVars(ctx, tx, channel.GuildID)
 			if err != nil {
@@ -316,7 +345,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 		}
 	}
 
-	if err := c.handleMessage(ctx, guildVars, m.Message, channel, member, content); err != nil {
+	if err := c.handleMessage(ctx, guildVars, m.Message, guild, channel, member, content); err != nil {
 		cErr, ok := err.(*commandError)
 		if !ok {
 			glog.Errorf("Error handling message: %v", err)
@@ -358,7 +387,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 	}
 }
 
-func (c *Client) handleMessage(ctx context.Context, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, member *discordgo.Member, content string) error {
+func (c *Client) handleMessage(ctx context.Context, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, content string) error {
 	if member != nil {
 		if match := c.metaCommandRegexp.FindStringSubmatch(content); match != nil {
 			rest := strings.TrimSpace(match[1])
@@ -388,14 +417,7 @@ func (c *Client) handleMessage(ctx context.Context, guildVars *varstore.GuildVar
 				}
 			}
 
-			if cmd.adminOnly && !memberIsAdmin(guildVars.AdminRoleID, member) {
-				return &commandError{
-					status: errorStatusUnauthorized,
-					note:   "Not authorized",
-				}
-			}
-
-			return cmd.f(ctx, c, guildVars, m, channel, member, rest)
+			return cmd(ctx, c, guildVars, m, guild, channel, member, rest)
 		}
 	}
 
@@ -412,7 +434,7 @@ func (c *Client) handleMessage(ctx context.Context, guildVars *varstore.GuildVar
 			rest = strings.TrimSpace(rest[firstSpaceIndex+1:])
 		}
 
-		return c.runScriptCommand(ctx, guildVars, m, channel, member, commandName, rest)
+		return c.runScriptCommand(ctx, guildVars, m, guild, channel, member, commandName, rest)
 	}
 
 	if err := c.stats.RecordUserChannelMessage(ctx, m.Author.ID, channel.ID, int64(len(m.Content))); err != nil {
@@ -436,9 +458,9 @@ func (s ByFieldName) Less(i, j int) bool {
 	return s[i].Name < s[j].Name
 }
 
-func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel, member *discordgo.Member, commandName string, rest string) error {
+func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, commandName string, rest string) error {
 	linked := commandNameIsLinked(commandName)
-	if member != nil && !linked && !guildVars.AllowUnprivilegedUnlinkedCommands && !memberIsAdmin(guildVars.AdminRoleID, member) {
+	if member != nil && !linked && !guildVars.AllowUnprivilegedUnlinkedCommands && !c.memberIsAdmin(guildVars, guild, member) {
 		return &commandError{
 			status: errorStatusNoise,
 			note:   "Only the server's Kobun administrators can run unlinked commands",

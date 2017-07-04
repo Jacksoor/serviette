@@ -30,7 +30,7 @@ func (s *Store) BeginTx(ctx context.Context) (*sql.Tx, error) {
 type GuildVars struct {
 	ScriptCommandPrefix               string
 	Quiet                             bool
-	AdminRoleID                       string
+	AdminRoleID                       *string
 	Announcement                      string
 	DeleteErrorsAfter                 time.Duration
 	AllowUnprivilegedUnlinkedCommands bool
