@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"regexp"
@@ -171,11 +170,7 @@ func (c *Client) updateDiscordBotsServerCount(ctx context.Context) error {
 	}
 
 	if resp.StatusCode != 200 {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("failed to update bot stats: %v", string(body))
+		return fmt.Errorf("failed to update bot stats: %d %s", resp.StatusCode, resp.Status)
 	}
 
 	return nil
@@ -194,26 +189,39 @@ func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
 
 		guildVars, err = c.vars.GuildVars(ctx, tx, m.Guild.ID)
 		if err != nil {
+			if err == varstore.ErrNotFound && !c.knownGuildsOnly {
+				glog.Infof("No guild vars for %s, creating", m.Guild.ID)
+
+				if err := c.vars.CreateGuildVars(ctx, tx, m.Guild.ID); err != nil {
+					return err
+				}
+
+				guildVars, err = c.vars.GuildVars(ctx, tx, m.Guild.ID)
+				if err != nil {
+					return err
+				}
+				tx.Commit()
+
+				return nil
+			}
 			return err
 		}
 
 		return nil
 	}(); err != nil {
-		if err != varstore.ErrNotFound {
-			panic(fmt.Sprintf("Failed to get guild vars: %v", err))
-		}
-		if c.knownGuildsOnly {
+		if err == varstore.ErrNotFound && c.knownGuildsOnly {
 			glog.Warningf("No guild vars found for %s, leaving.", m.Guild.ID)
 			s.GuildLeave(m.Guild.ID)
-		} else {
-			glog.Warningf("No guild vars found for %s, staying anyway.", m.Guild.ID)
+			return
 		}
-	} else {
-		glog.Infof("Guild vars for %s: %+v", m.Guild.ID, guildVars)
+
+		panic(fmt.Sprintf("Failed to get guild vars: %v", err))
 	}
 
+	glog.Infof("Guild vars for %s: %+v", m.Guild.ID, guildVars)
+
 	if err := c.updateDiscordBotsServerCount(ctx); err != nil {
-		glog.Error("Failed to update server count on bots.discord.pw: %v", err)
+		glog.Errorf("Failed to update server count on bots.discord.pw: %v", err)
 	}
 }
 
@@ -237,18 +245,13 @@ func (c *Client) guildDelete(s *discordgo.Session, m *discordgo.GuildDelete) {
 	glog.Infof("Cleared guild vars for %s", m.Guild.ID)
 
 	if err := c.updateDiscordBotsServerCount(ctx); err != nil {
-		glog.Error("Failed to update server count on bots.discord.pw: %v", err)
+		glog.Errorf("Failed to update server count on bots.discord.pw: %v", err)
 	}
 }
 
 var privateGuildVars = &varstore.GuildVars{
 	ScriptCommandPrefix: "",
 	Quiet:               false,
-}
-
-var unknownGuildVars = &varstore.GuildVars{
-	ScriptCommandPrefix: ".",
-	Quiet:               true,
 }
 
 type errorStatus int
@@ -320,10 +323,6 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 
 			guildVars, err = c.vars.GuildVars(ctx, tx, channel.GuildID)
 			if err != nil {
-				if err == varstore.ErrNotFound {
-					guildVars = unknownGuildVars
-					return nil
-				}
 				return err
 			}
 

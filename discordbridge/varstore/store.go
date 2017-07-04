@@ -36,6 +36,17 @@ type GuildVars struct {
 	AllowUnprivilegedUnlinkedCommands bool
 }
 
+func (s *Store) CreateGuildVars(ctx context.Context, tx *sql.Tx, guildID string) error {
+	if _, err := tx.ExecContext(ctx, `
+		insert into guild_vars (guild_id)
+		values ($1)
+	`, guildID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *Store) GuildVars(ctx context.Context, tx *sql.Tx, guildID string) (*GuildVars, error) {
 	var deleteErrorsAfterSeconds int64
 
