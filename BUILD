@@ -11,8 +11,6 @@ pkg_tar(
         "//delegator/supervisor",
         "//discordbridge",
         "//discordbridge:schema.sql",
-        "//discordbridge/web",
-        "//discordbridge/web/static",
         "//executor",
         "//executor:schema.sql",
         "//restbridge",
@@ -20,7 +18,6 @@ pkg_tar(
     ],
     modes = {
         "//discordbridge": "0755",
-        "//discordbridge/web": "0755",
         "//executor": "0755",
         "//restbridge": "0755",
     },

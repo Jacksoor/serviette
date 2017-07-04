@@ -117,10 +117,10 @@ func (c *Client) memberIsAdmin(guildVars *varstore.GuildVars, guild *discordgo.G
 			}
 		}
 	} else {
-		// Look up role by name.
+		// Look up role by name, or if they have Manage Server.
 		adminRoleIDs := make([]string, 0)
 		for _, role := range guild.Roles {
-			if role.Name == defaultAdminRoleName {
+			if role.Name == defaultAdminRoleName || (role.Permissions&discordgo.PermissionManageServer != 0) {
 				adminRoleIDs = append(adminRoleIDs, role.ID)
 			}
 		}
