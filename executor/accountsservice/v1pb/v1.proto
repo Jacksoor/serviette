@@ -24,9 +24,14 @@ message GetRequest {
     string username = 1;
 }
 
-message GetResponse {
-    uint64 storage_size = 1;
+message StorageUsage {
+    uint64 total_size = 1;
     uint64 free_size = 2;
+}
+
+message GetResponse {
+    StorageUsage private_storage_usage = 1;
+    StorageUsage scripts_storage_usage = 2;
     Traits traits = 3;
 }
 

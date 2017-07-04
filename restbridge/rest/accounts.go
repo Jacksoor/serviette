@@ -19,14 +19,8 @@ type Index struct {
 }
 
 type Account struct {
-	Name string       `json:"name"`
-	Info *AccountInfo `json:"info,omitempty"`
-}
-
-type AccountInfo struct {
-	StorageSize uint64             `json:"storageSize"`
-	FreeSize    uint64             `json:"freeSize"`
-	Traits      *accountspb.Traits `json:"traits"`
+	Name string                  `json:"name"`
+	Info *accountspb.GetResponse `json:"info,omitempty"`
 }
 
 type AccountsResource struct {
@@ -120,10 +114,11 @@ func (r AccountsResource) read(req *restful.Request, resp *restful.Response) {
 
 	accountName := req.PathParameter("accountName")
 
-	var accountInfo *AccountInfo
+	var accountResp *accountspb.GetResponse
 	if accountName == username {
 		// Fetch extended information.
-		accountResp, err := r.accountsClient.Get(req.Request.Context(), &accountspb.GetRequest{
+		var err error
+		accountResp, err = r.accountsClient.Get(req.Request.Context(), &accountspb.GetRequest{
 			Username: accountName,
 		})
 		if err != nil {
@@ -137,16 +132,10 @@ func (r AccountsResource) read(req *restful.Request, resp *restful.Response) {
 			}
 			return
 		}
-
-		accountInfo = &AccountInfo{
-			StorageSize: accountResp.StorageSize,
-			FreeSize:    accountResp.FreeSize,
-			Traits:      accountResp.Traits,
-		}
 	}
 
 	resp.WriteEntity(Account{
 		Name: accountName,
-		Info: accountInfo,
+		Info: accountResp,
 	})
 }

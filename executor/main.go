@@ -44,7 +44,6 @@ var (
 	k4LibraryPath   = flag.String("k4_library_path", "clients", "Path to library root")
 	chrootPath      = flag.String("chroot_path", "chroot", "Path to chroot")
 	parentCgroup    = flag.String("parent_cgroup", "kobun4-executor", "Parent cgroup")
-	scriptsRootPath = flag.String("scripts_root_path", "scripts", "Path to script root")
 	storageRootPath = flag.String("storage_root_path", "storage", "Path to image root")
 )
 
@@ -79,11 +78,7 @@ func main() {
 	}
 
 	accountStore := accounts.NewStore(db, storageRootAbsPath)
-
-	scriptsStore, err := scripts.NewStore(db, *scriptsRootPath)
-	if err != nil {
-		glog.Fatalf("failed to open scripts store: %v", err)
-	}
+	scriptsStore := scripts.NewStore(db, storageRootAbsPath)
 
 	supervisorPrefixSplit, err := shellquote.Split(*supervisorPrefix)
 	if err != nil {

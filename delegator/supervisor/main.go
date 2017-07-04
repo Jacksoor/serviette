@@ -76,9 +76,10 @@ var serviceFactories map[string]serviceFactory = map[string]serviceFactory{
 var nameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 var (
-	scriptMountDir    string = "/mnt/scripts"
-	storageMountDir          = "/mnt/storage"
-	k4LibraryMountDir        = "/usr/lib/k4"
+	scriptMountDir        string = "/mnt/scripts"
+	privateMountDir              = "/mnt/private"
+	legacyPrivateMountDir        = "/mnt/storage"
+	k4LibraryMountDir            = "/usr/lib/k4"
 )
 
 var marshaler = jsonpb.Marshaler{
@@ -290,13 +291,19 @@ func main() {
 			},
 			{
 				Device:      "bind",
-				Source:      filepath.Join(req.Config.StoragePath, req.OwnerName),
-				Destination: storageMountDir,
+				Source:      filepath.Join(req.Config.StoragePath, "private"),
+				Destination: privateMountDir,
 				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_REC,
 			},
 			{
 				Device:      "bind",
-				Source:      filepath.Join(req.Config.ScriptsPath, req.OwnerName),
+				Source:      filepath.Join(req.Config.StoragePath, "private"),
+				Destination: legacyPrivateMountDir,
+				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_REC,
+			},
+			{
+				Device:      "bind",
+				Source:      filepath.Join(req.Config.StoragePath, "scripts"),
 				Destination: scriptMountDir,
 				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_REC | unix.MS_RDONLY,
 			},
@@ -421,7 +428,7 @@ func main() {
 		Env: []string{
 			fmt.Sprintf("K4_CONTEXT=%s", jsonK4Context),
 		},
-		Cwd:    storageMountDir,
+		Cwd:    privateMountDir,
 		Stdin:  childStdin,
 		Stdout: childStdout,
 		Stderr: childStderr,

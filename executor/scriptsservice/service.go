@@ -401,8 +401,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 			Hostname: "kobun4",
 
-			StoragePath:   s.accounts.StoragePath(),
-			ScriptsPath:   s.scripts.RootPath(),
+			StoragePath:   account.StoragePath(),
 			K4LibraryPath: s.k4LibraryPath,
 
 			Uid: defaultUid,

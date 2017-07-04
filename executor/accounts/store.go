@@ -49,19 +49,35 @@ func (a *Account) IsOutputFormatAllowed(format string) bool {
 	return false
 }
 
+func getStorageUsage(path string) (*accountspb.StorageUsage, error) {
+	var statfsBuf syscall.Statfs_t
+	if err := syscall.Statfs(path, &statfsBuf); err != nil {
+		return nil, err
+	}
+	return &accountspb.StorageUsage{
+		TotalSize: uint64(statfsBuf.Bsize) * statfsBuf.Blocks,
+		FreeSize:  uint64(statfsBuf.Bsize) * statfsBuf.Bavail,
+	}, nil
+}
+
 func (a *Account) StoragePath() string {
 	return filepath.Join(a.storageRootPath, a.Name)
 }
 
-func (a *Account) StorageInfo() (*StorageInfo, error) {
-	var statfsBuf syscall.Statfs_t
-	if err := syscall.Statfs(a.StoragePath(), &statfsBuf); err != nil {
-		return nil, err
-	}
-	return &StorageInfo{
-		StorageSize: uint64(statfsBuf.Bsize) * statfsBuf.Blocks,
-		FreeSize:    uint64(statfsBuf.Bsize) * statfsBuf.Bavail,
-	}, nil
+func (a *Account) ScriptsStoragePath() string {
+	return filepath.Join(a.StoragePath(), "scripts")
+}
+
+func (a *Account) PrivateStoragePath() string {
+	return filepath.Join(a.StoragePath(), "private")
+}
+
+func (a *Account) ScriptsStorageUsage() (*accountspb.StorageUsage, error) {
+	return getStorageUsage(a.ScriptsStoragePath())
+}
+
+func (a *Account) PrivateStorageUsage() (*accountspb.StorageUsage, error) {
+	return getStorageUsage(a.PrivateStoragePath())
 }
 
 func (a *Account) Authenticate(ctx context.Context, password string) error {
@@ -72,15 +88,6 @@ func (a *Account) Authenticate(ctx context.Context, password string) error {
 	}
 
 	return nil
-}
-
-type StorageInfo struct {
-	StorageSize uint64
-	FreeSize    uint64
-}
-
-func (s *Store) StoragePath() string {
-	return s.storageRootPath
 }
 
 func (s *Store) Account(ctx context.Context, name string) (*Account, error) {

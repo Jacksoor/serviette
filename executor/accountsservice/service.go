@@ -64,15 +64,21 @@ func (s *Service) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse,
 		return nil, grpc.Errorf(codes.Internal, "failed to load account")
 	}
 
-	storageInfo, err := account.StorageInfo()
+	scriptsStorageUsage, err := account.ScriptsStorageUsage()
 	if err != nil {
-		glog.Errorf("Failed to get account storage info: %v", err)
+		glog.Errorf("Failed to get scripts storage usage: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load account")
+	}
+
+	privateStorageUsage, err := account.PrivateStorageUsage()
+	if err != nil {
+		glog.Errorf("Failed to get private storage usage: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to load account")
 	}
 
 	return &pb.GetResponse{
-		StorageSize: storageInfo.StorageSize,
-		FreeSize:    storageInfo.FreeSize,
-		Traits:      account.Traits,
+		ScriptsStorageUsage: scriptsStorageUsage,
+		PrivateStorageUsage: privateStorageUsage,
+		Traits:              account.Traits,
 	}, nil
 }

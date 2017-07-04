@@ -88,7 +88,6 @@ message WorkerExecutionRequest {
         string hostname = 10;
 
         string storage_path = 21;
-        string scripts_path = 22;
         string k4_library_path = 23;
 
         uint32 uid = 31;

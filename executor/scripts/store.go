@@ -18,26 +18,21 @@ var (
 )
 
 type Store struct {
-	db       *sql.DB
-	rootPath string
+	db              *sql.DB
+	storageRootPath string
 }
 
-func NewStore(db *sql.DB, rootPath string) (*Store, error) {
-	path, err := filepath.Abs(rootPath)
-	if err != nil {
-		return nil, err
-	}
-
+func NewStore(db *sql.DB, storageRootPath string) *Store {
 	return &Store{
-		db:       db,
-		rootPath: path,
-	}, nil
+		db:              db,
+		storageRootPath: storageRootPath,
+	}
 }
 
 var nameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 func (s *Store) RootPath() string {
-	return s.rootPath
+	return s.storageRootPath
 }
 
 func (s *Store) Create(ctx context.Context, ownerName string, name string) (*Script, error) {
@@ -45,10 +40,10 @@ func (s *Store) Create(ctx context.Context, ownerName string, name string) (*Scr
 		return nil, ErrInvalidName
 	}
 
-	accountRoot := filepath.Join(s.rootPath, ownerName)
-	path := filepath.Join(accountRoot, name)
+	scriptRoot := filepath.Join(s.storageRootPath, ownerName, "scripts")
+	path := filepath.Join(scriptRoot, name)
 
-	if filepath.Dir(path) != accountRoot {
+	if filepath.Dir(path) != scriptRoot {
 		return nil, ErrInvalidName
 	}
 
@@ -69,8 +64,8 @@ func (s *Store) Create(ctx context.Context, ownerName string, name string) (*Scr
 	}
 
 	script := &Script{
-		db:       s.db,
-		rootPath: s.rootPath,
+		db:              s.db,
+		storageRootPath: s.storageRootPath,
 
 		OwnerName: ownerName,
 		Name:      name,
@@ -107,8 +102,8 @@ func (s *Store) Open(ctx context.Context, ownerName string, name string) (*Scrip
 	}
 
 	return &Script{
-		db:       s.db,
-		rootPath: s.rootPath,
+		db:              s.db,
+		storageRootPath: s.storageRootPath,
 
 		OwnerName: ownerName,
 		Name:      name,
@@ -130,8 +125,8 @@ func (s *Store) PublishedScripts(ctx context.Context) ([]*Script, error) {
 
 	for rows.Next() {
 		script := &Script{
-			db:       s.db,
-			rootPath: s.rootPath,
+			db:              s.db,
+			storageRootPath: s.storageRootPath,
 		}
 		if err := rows.Scan(&script.OwnerName, &script.Name); err != nil {
 			return nil, err
@@ -164,8 +159,8 @@ func (s *Store) Scripts(ctx context.Context, ownerName string, query string, vie
 
 	for rows.Next() {
 		script := &Script{
-			db:       s.db,
-			rootPath: s.rootPath,
+			db:              s.db,
+			storageRootPath: s.storageRootPath,
 		}
 		if err := rows.Scan(&script.OwnerName, &script.Name); err != nil {
 			return nil, err

@@ -12,8 +12,8 @@ import (
 )
 
 type Script struct {
-	db       *sql.DB
-	rootPath string
+	db              *sql.DB
+	storageRootPath string
 
 	OwnerName string
 	Name      string
@@ -24,7 +24,7 @@ func (s *Script) QualifiedName() string {
 }
 
 func (s *Script) Path() string {
-	return filepath.Join(s.rootPath, s.QualifiedName())
+	return filepath.Join(s.storageRootPath, s.OwnerName, "scripts", s.Name)
 }
 
 func (s *Script) Content(ctx context.Context) ([]byte, error) {
