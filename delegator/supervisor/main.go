@@ -291,19 +291,19 @@ func main() {
 			},
 			{
 				Device:      "bind",
-				Source:      filepath.Join(req.Config.StoragePath, "private"),
+				Source:      filepath.Join(req.Config.StorageRootPath, req.OwnerName, "private"),
 				Destination: privateMountDir,
 				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_REC,
 			},
 			{
 				Device:      "bind",
-				Source:      filepath.Join(req.Config.StoragePath, "private"),
+				Source:      filepath.Join(req.Config.StorageRootPath, req.OwnerName, "private"),
 				Destination: legacyPrivateMountDir,
 				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_REC,
 			},
 			{
 				Device:      "bind",
-				Source:      filepath.Join(req.Config.StoragePath, "scripts"),
+				Source:      filepath.Join(req.Config.StorageRootPath, req.OwnerName, "scripts"),
 				Destination: scriptMountDir,
 				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_REC | unix.MS_RDONLY,
 			},

@@ -23,6 +23,10 @@ type Store struct {
 	storageRootPath string
 }
 
+func (s *Store) StorageRootPath() string {
+	return s.storageRootPath
+}
+
 func NewStore(db *sql.DB, storageRootPath string) *Store {
 	return &Store{
 		db:              db,
