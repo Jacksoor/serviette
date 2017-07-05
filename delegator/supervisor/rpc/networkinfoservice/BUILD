@@ -7,6 +7,7 @@ go_library(
     deps = [
         "//delegator/supervisor/rpc:go_default_library",
         "//executor/networkinfoservice/v1pb:go_default_library",
+        "//executor/scriptsservice/v1pb:go_default_library",
         "@org_golang_x_net//context:go_default_library",
     ],
 )

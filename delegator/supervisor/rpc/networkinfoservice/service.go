@@ -6,16 +6,19 @@ import (
 	srpc "github.com/porpoises/kobun4/delegator/supervisor/rpc"
 
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
+	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
 type Service struct {
 	ctx               context.Context
+	context           *scriptspb.Context
 	networkInfoClient networkinfopb.NetworkInfoClient
 }
 
-func New(ctx context.Context, networkInfoClient networkinfopb.NetworkInfoClient) *Service {
+func New(ctx context.Context, context *scriptspb.Context, networkInfoClient networkinfopb.NetworkInfoClient) *Service {
 	return &Service{
 		ctx:               ctx,
+		context:           context,
 		networkInfoClient: networkInfoClient,
 	}
 }
@@ -24,7 +27,8 @@ func (s *Service) GetUserInfo(req *struct {
 	ID string `json:"id"`
 }, resp *srpc.Response) error {
 	grpcResp, err := s.networkInfoClient.GetUserInfo(s.ctx, &networkinfopb.GetUserInfoRequest{
-		UserId: req.ID,
+		Context: s.context,
+		UserId:  req.ID,
 	})
 	if err != nil {
 		return err
@@ -44,6 +48,7 @@ func (s *Service) GetChannelInfo(req *struct {
 	ID string `json:"id"`
 }, resp *srpc.Response) error {
 	grpcResp, err := s.networkInfoClient.GetChannelInfo(s.ctx, &networkinfopb.GetChannelInfoRequest{
+		Context:   s.context,
 		ChannelId: req.ID,
 	})
 	if err != nil {
@@ -62,11 +67,9 @@ func (s *Service) GetChannelInfo(req *struct {
 	return nil
 }
 
-func (s *Service) GetGroupInfo(req *struct {
-	ID string `json:"id"`
-}, resp *srpc.Response) error {
+func (s *Service) GetGroupInfo(req *struct{}, resp *srpc.Response) error {
 	grpcResp, err := s.networkInfoClient.GetGroupInfo(s.ctx, &networkinfopb.GetGroupInfoRequest{
-		GroupId: req.ID,
+		Context: s.context,
 	})
 	if err != nil {
 		return err
@@ -87,6 +90,7 @@ func (s *Service) GetChannelMemberInfo(req *struct {
 	UserID    string `json:"userId"`
 }, resp *srpc.Response) error {
 	grpcResp, err := s.networkInfoClient.GetChannelMemberInfo(s.ctx, &networkinfopb.GetChannelMemberInfoRequest{
+		Context:   s.context,
 		ChannelId: req.ChannelID,
 		UserId:    req.UserID,
 	})
@@ -111,7 +115,7 @@ func (s *Service) GetGroupMemberInfo(req *struct {
 	UserID  string `json:"userId"`
 }, resp *srpc.Response) error {
 	grpcResp, err := s.networkInfoClient.GetGroupMemberInfo(s.ctx, &networkinfopb.GetGroupMemberInfoRequest{
-		GroupId: req.GroupID,
+		Context: s.context,
 		UserId:  req.UserID,
 	})
 	if err != nil {

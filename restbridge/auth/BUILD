@@ -5,7 +5,6 @@ go_library(
     srcs = ["authenticator.go"],
     visibility = ["//visibility:public"],
     deps = [
-        "//executor/accountsservice/v1pb:go_default_library",
         "@com_github_dgrijalva_jwt_go//:go_default_library",
         "@com_github_emicklei_go_restful//:go_default_library",
     ],

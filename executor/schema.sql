@@ -5,8 +5,8 @@ create table accounts (
     memory_limit integer not null default 20971520,
     tmpfs_size integer not null default 20971520,
     allow_network_access boolean not null default false,
-    allowed_output_formats character varying[] not null default array['text', 'rich']::character varying[],
-    allowed_services character varying[] not null default array[]::character varying[]
+    allowed_output_formats character varying[] not null default array['text', 'rich'],
+    allowed_services character varying[] not null default array['NetworkInfo']
 );
 
 create table scripts (

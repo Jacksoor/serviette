@@ -5,6 +5,9 @@ go_proto_library(
     srcs = [
         "v1.proto",
     ],
+    deps = [
+        "//executor/scriptsservice/v1pb:go_default_library",
+    ],
     has_services = 1,
     visibility = ["//visibility:public"],
 )

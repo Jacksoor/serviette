@@ -61,7 +61,7 @@ var serviceFactories map[string]serviceFactory = map[string]serviceFactory{
 	},
 
 	"NetworkInfo": func(ctx context.Context, account *accountspb.Traits, params serviceParams) (interface{}, error) {
-		return networkinfoservice.New(ctx, networkinfopb.NewNetworkInfoClient(params.bridgeConn)), nil
+		return networkinfoservice.New(ctx, params.req.Context, networkinfopb.NewNetworkInfoClient(params.bridgeConn)), nil
 	},
 
 	"Stats": func(ctx context.Context, account *accountspb.Traits, params serviceParams) (interface{}, error) {

@@ -1,11 +1,15 @@
 syntax = "proto3";
 
+import "executor/scriptsservice/v1pb/v1.proto";
+
 package kobun4.executor.networkinfo.v1;
 
 option go_package = "v1pb";
 
 message GetUserInfoRequest {
-    string user_id = 1;
+    kobun4.executor.scripts.v1.Context context = 1;
+
+    string user_id = 2;
 }
 
 message GetUserInfoResponse {
@@ -15,7 +19,9 @@ message GetUserInfoResponse {
 }
 
 message GetChannelInfoRequest {
-    string channel_id = 1;
+    kobun4.executor.scripts.v1.Context context = 1;
+
+    string channel_id = 2;
 }
 
 message GetChannelInfoResponse {
@@ -26,7 +32,7 @@ message GetChannelInfoResponse {
 }
 
 message GetGroupInfoRequest {
-    string group_id = 1;
+    kobun4.executor.scripts.v1.Context context = 1;
 }
 
 message GetGroupInfoResponse {
@@ -36,8 +42,10 @@ message GetGroupInfoResponse {
 }
 
 message GetChannelMemberInfoRequest {
-    string channel_id = 1;
-    string user_id = 2;
+    kobun4.executor.scripts.v1.Context context = 1;
+
+    string channel_id = 2;
+    string user_id = 3;
 }
 
 message GetChannelMemberInfoResponse {
@@ -48,7 +56,8 @@ message GetChannelMemberInfoResponse {
 }
 
 message GetGroupMemberInfoRequest {
-    string group_id = 1;
+    kobun4.executor.scripts.v1.Context context = 1;
+
     string user_id = 2;
 }
 

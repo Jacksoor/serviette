@@ -1,6 +1,7 @@
 package networkinfoservice
 
 import (
+	"errors"
 	"fmt"
 
 	"golang.org/x/net/context"
@@ -36,19 +37,44 @@ func (s *Service) GetUserInfo(ctx context.Context, req *pb.GetUserInfoRequest) (
 }
 
 func (s *Service) GetChannelInfo(ctx context.Context, req *pb.GetChannelInfoRequest) (*pb.GetChannelInfoResponse, error) {
+	// Short-circuit this if we're getting the current channel info.
+	if req.ChannelId != req.Context.ChannelId {
+		guild, err := s.session.Guild(req.Context.GroupId)
+		if err != nil {
+			return nil, err
+		}
+
+		found := false
+		for _, channel := range guild.Channels {
+			if channel.ID == req.ChannelId {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return nil, errors.New("channel not found in guild")
+		}
+	}
+
 	channel, err := s.session.Channel(req.ChannelId)
 	if err != nil {
 		return nil, err
 	}
 
+	var name string
+	if channel.Name != "" {
+		name = fmt.Sprintf("#%s", channel.Name)
+	}
+
 	return &pb.GetChannelInfoResponse{
-		Name:       fmt.Sprintf("#%s", channel.Name),
+		Name:       name,
 		IsOneOnOne: channel.IsPrivate,
 	}, nil
 }
 
 func (s *Service) GetGroupInfo(ctx context.Context, req *pb.GetGroupInfoRequest) (*pb.GetGroupInfoResponse, error) {
-	guild, err := s.session.Guild(req.GroupId)
+	guild, err := s.session.Guild(req.Context.GroupId)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +92,7 @@ func (s *Service) GetGroupMemberInfo(ctx context.Context, req *pb.GetGroupMember
 
 	name := user.Username
 
-	member, err := s.session.GuildMember(req.GroupId, req.UserId)
+	member, err := s.session.GuildMember(req.Context.GroupId, req.UserId)
 	if err != nil {
 		return nil, err
 	}
@@ -82,17 +108,37 @@ func (s *Service) GetGroupMemberInfo(ctx context.Context, req *pb.GetGroupMember
 }
 
 func (s *Service) GetChannelMemberInfo(ctx context.Context, req *pb.GetChannelMemberInfoRequest) (*pb.GetChannelMemberInfoResponse, error) {
+	// Short-circuit this if we're getting the current channel info.
+	if req.ChannelId != req.Context.ChannelId {
+		guild, err := s.session.Guild(req.Context.GroupId)
+		if err != nil {
+			return nil, err
+		}
+
+		found := false
+		for _, channel := range guild.Channels {
+			if channel.ID == req.ChannelId {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return nil, errors.New("channel not found in guild")
+		}
+	}
+
+	channel, err := s.session.Channel(req.ChannelId)
+	if err != nil {
+		return nil, err
+	}
+
 	user, err := s.session.User(req.UserId)
 	if err != nil {
 		return nil, err
 	}
 
 	name := user.Username
-
-	channel, err := s.session.Channel(req.ChannelId)
-	if err != nil {
-		return nil, err
-	}
 
 	var roles []string
 	if channel.GuildID != "" {
