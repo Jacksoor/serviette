@@ -112,7 +112,7 @@ func (c *serverCodec) ReadRequestBody(x interface{}) error {
 	if unixRightsField.IsValid() && unixRightsField.Type().AssignableTo(reflect.TypeOf(([]*os.File)(nil))) {
 		// Read the oob FDs.
 		dummy := make([]byte, 1)
-		oob := make([]byte, 64)
+		oob := make([]byte, 4096)
 
 		n, oobn, _, _, err := unix.Recvmsg(int(c.file.Fd()), dummy, oob, 0)
 		if err != nil {
