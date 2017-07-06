@@ -57,7 +57,7 @@ func (s *Service) GetChannelInfo(req *struct {
 
 	resp.Body = &struct {
 		Name       string            `json:"name"`
-		IsOneOnOne bool              `json:"is_one_on_one"`
+		IsOneOnOne bool              `json:"isOneOnOne"`
 		Extra      map[string]string `json:"extra"`
 	}{
 		grpcResp.Name,

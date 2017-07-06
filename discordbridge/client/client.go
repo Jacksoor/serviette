@@ -218,7 +218,7 @@ func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
 		panic(fmt.Sprintf("Failed to get guild vars: %v", err))
 	}
 
-	glog.Infof("Guild vars for %s: %+v", m.Guild.ID, guildVars)
+	glog.Infof("Guild vars for %s (%s): %+v", m.Guild.ID, m.Guild.Name, guildVars)
 
 	if err := c.updateDiscordBotsServerCount(ctx); err != nil {
 		glog.Errorf("Failed to update server count on bots.discord.pw: %v", err)
