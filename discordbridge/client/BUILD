@@ -7,6 +7,7 @@ go_library(
         "formatters.go",
         "metacommands.go",
         "resolve.go",
+        "statsreporters.go",
     ],
     visibility = ["//visibility:public"],
     deps = [

@@ -1,13 +1,11 @@
 package client
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -27,8 +25,10 @@ import (
 )
 
 type Options struct {
-	Status  string
-	HomeURL string
+	Status                 string
+	HomeURL                string
+	StatsReportingInterval time.Duration
+	StatsReporterTargets   map[string]string
 }
 
 type Client struct {
@@ -36,9 +36,8 @@ type Client struct {
 
 	opts *Options
 
-	discordBotsToken string
-	knownGuildsOnly  bool
-	rpcTarget        net.Addr
+	knownGuildsOnly bool
+	rpcTarget       net.Addr
 
 	vars     *varstore.Store
 	stats    *statsstore.Store
@@ -49,7 +48,7 @@ type Client struct {
 	metaCommandRegexp *regexp.Regexp
 }
 
-func New(token string, opts *Options, discordBotsToken string, knownGuildsOnly bool, rpcTarget net.Addr, vars *varstore.Store, stats *statsstore.Store, budgeter *budget.Budgeter, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
+func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, vars *varstore.Store, stats *statsstore.Store, budgeter *budget.Budgeter, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 	if err != nil {
 		return nil, err
@@ -60,9 +59,8 @@ func New(token string, opts *Options, discordBotsToken string, knownGuildsOnly b
 
 		opts: opts,
 
-		discordBotsToken: discordBotsToken,
-		knownGuildsOnly:  knownGuildsOnly,
-		rpcTarget:        rpcTarget,
+		knownGuildsOnly: knownGuildsOnly,
+		rpcTarget:       rpcTarget,
 
 		vars:     vars,
 		stats:    stats,
@@ -99,6 +97,16 @@ func (c *Client) ready(s *discordgo.Session, r *discordgo.Ready) {
 	glog.Infof("Discord ready; connected guilds: %+v", guildIDs)
 	s.UpdateStatus(0, c.opts.Status)
 	c.metaCommandRegexp = regexp.MustCompile(fmt.Sprintf(`^<@!?%s>(.*)$`, regexp.QuoteMeta(s.State.User.ID)))
+
+	go func() {
+		ctx := context.Background()
+		ticker := time.NewTicker(c.opts.StatsReportingInterval)
+
+		for {
+			<-ticker.C
+			c.reportStats(ctx)
+		}
+	}()
 }
 
 var defaultAdminRoleName = "Kobun Administrators"
@@ -136,44 +144,32 @@ func (c *Client) memberIsAdmin(guildVars *varstore.GuildVars, guild *discordgo.G
 	return false
 }
 
-func (c *Client) updateDiscordBotsServerCount(ctx context.Context) error {
-	if c.discordBotsToken == "" {
-		return nil
+func (c *Client) reportStats(ctx context.Context) {
+	var g sync.WaitGroup
+
+	for provider, token := range c.opts.StatsReporterTargets {
+		statsReporter, ok := statsReporters[provider]
+		if !ok {
+			glog.Errorf("No stats reporter for provider: %s", provider)
+			continue
+		}
+
+		g.Add(1)
+		go func() {
+			defer g.Done()
+
+			ctx := context.WithValue(ctx, statsAuthTokenContextKey(provider), token)
+
+			serverCount := len(c.session.State.Guilds)
+			glog.Infof("Reporting stats to %s: shard ID = %d, shard count = %d, server count = %d", provider, c.session.ShardID, c.session.ShardCount, serverCount)
+
+			if err := statsReporter(ctx, c.session.State.User.ID, c.session.ShardID, c.session.ShardCount, serverCount); err != nil {
+				glog.Errorf("Failed to report stats: %v", err)
+			}
+		}()
 	}
 
-	raw, err := json.Marshal(struct {
-		ShardID     int `json:"shard_id"`
-		ShardCount  int `json:"shard_count"`
-		ServerCount int `json:"server_count"`
-	}{
-		c.session.ShardID,
-		c.session.ShardCount,
-		len(c.session.State.Guilds),
-	})
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("POST", fmt.Sprintf("https://bots.discord.pw/api/bots/%s/stats", c.session.State.User.ID), bytes.NewBuffer(raw))
-	if err != nil {
-		return err
-	}
-
-	req = req.WithContext(ctx)
-
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Authorization", c.discordBotsToken)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("failed to update bot stats: %d %s", resp.StatusCode, resp.Status)
-	}
-
-	return nil
+	g.Wait()
 }
 
 func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
@@ -219,10 +215,6 @@ func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
 	}
 
 	glog.Infof("Guild vars for %s (%s): %+v", m.Guild.ID, m.Guild.Name, guildVars)
-
-	if err := c.updateDiscordBotsServerCount(ctx); err != nil {
-		glog.Errorf("Failed to update server count on bots.discord.pw: %v", err)
-	}
 }
 
 func (c *Client) guildDelete(s *discordgo.Session, m *discordgo.GuildDelete) {
@@ -243,10 +235,6 @@ func (c *Client) guildDelete(s *discordgo.Session, m *discordgo.GuildDelete) {
 	tx.Commit()
 
 	glog.Infof("Cleared guild vars for %s", m.Guild.ID)
-
-	if err := c.updateDiscordBotsServerCount(ctx); err != nil {
-		glog.Errorf("Failed to update server count on bots.discord.pw: %v", err)
-	}
 }
 
 var privateGuildVars = &varstore.GuildVars{

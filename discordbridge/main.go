@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"net"
 	"os"
@@ -43,7 +44,8 @@ var (
 	botToken = flag.String("bot_token", "", "Bot token.")
 	status   = flag.String("status", "", "Status to show.")
 
-	discordBotsToken = flag.String("discord_bots_token", "", "Token for posting stats to bots.discord.pw")
+	statsReportingInterval = flag.Duration("stats_reporting_interval", 10*time.Minute, "How often to report stats")
+	statsReporterTargets   = flag.String("stats_reporter_targets", "", "JSON-encoded stats reporter targets, in name:token pairs")
 
 	knownGuildsOnly = flag.Bool("known_guilds_only", false, "Only stay on known guilds")
 
@@ -102,10 +104,17 @@ func main() {
 
 	budgeter := budget.New(db, *maxBudgetPerUser, *payoutPeriodPerUser)
 
-	client, err := client.New(*botToken, &client.Options{
-		Status:  *status,
-		HomeURL: *homeURL,
-	}, *discordBotsToken, *knownGuildsOnly, lis.Addr(), vars, stats, budgeter, scriptspb.NewScriptsClient(executorConn))
+	options := &client.Options{
+		Status:                 *status,
+		HomeURL:                *homeURL,
+		StatsReportingInterval: *statsReportingInterval,
+	}
+
+	if err := json.Unmarshal([]byte(*statsReporterTargets), &options.StatsReporterTargets); err != nil {
+		glog.Fatalf("failed to unmarshal stats reporter targets: %v", err)
+	}
+
+	client, err := client.New(*botToken, options, *knownGuildsOnly, lis.Addr(), vars, stats, budgeter, scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}
