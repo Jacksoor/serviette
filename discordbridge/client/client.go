@@ -117,14 +117,18 @@ func (c *Client) memberIsAdmin(guildVars *varstore.GuildVars, guild *discordgo.G
 	}
 
 	if guildVars.AdminRoleID != nil {
-		// Check if they have the admin role ID.
+		// Check if they have the admin role ID (legacy).
 		for _, roleID := range member.Roles {
 			if roleID == *guildVars.AdminRoleID {
 				return true
 			}
 		}
 	} else {
-		// Look up role by name, or if they have Administrator.
+		// Check if they are the owner, look up role by name, or if they have Administrator.
+		if member.User.ID == guild.OwnerID {
+			return true
+		}
+
 		adminRoleIDs := make([]string, 0)
 		for _, role := range guild.Roles {
 			if role.Name == defaultAdminRoleName || (role.Permissions&discordgo.PermissionAdministrator != 0) {
