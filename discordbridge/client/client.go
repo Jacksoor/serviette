@@ -155,7 +155,7 @@ func (c *Client) reportStats(ctx context.Context) {
 		}
 
 		g.Add(1)
-		go func() {
+		go func(provider string, token string) {
 			defer g.Done()
 
 			ctx := context.WithValue(ctx, statsAuthTokenContextKey(provider), token)
@@ -164,9 +164,11 @@ func (c *Client) reportStats(ctx context.Context) {
 			glog.Infof("Reporting stats to %s: shard ID = %d, shard count = %d, server count = %d", provider, c.session.ShardID, c.session.ShardCount, serverCount)
 
 			if err := statsReporter(ctx, c.session.State.User.ID, c.session.ShardID, c.session.ShardCount, serverCount); err != nil {
-				glog.Errorf("Failed to report stats: %v", err)
+				glog.Errorf("Failed to report stats to %s: %v", provider, err)
+			} else {
+				glog.Infof("Successfully reported stats to %s", provider)
 			}
-		}()
+		}(provider, token)
 	}
 
 	g.Wait()
