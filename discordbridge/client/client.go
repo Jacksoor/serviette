@@ -621,7 +621,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			go func() {
 				<-time.After(guildVars.DeleteErrorsAfter)
 				if err := c.session.ChannelMessageDelete(channel.ID, msg.ID); err != nil {
-					glog.Error("Failed to delete error message: %v", err)
+					glog.Errorf("Failed to delete error message: %v", err)
 				}
 			}()
 		}
