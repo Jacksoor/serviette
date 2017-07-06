@@ -5,11 +5,13 @@ import (
 	"errors"
 	"time"
 
+	"github.com/lib/pq"
 	"golang.org/x/net/context"
 )
 
 var (
 	ErrNotFound     error = errors.New("not found")
+	ErrInvalid            = errors.New("invalid")
 	ErrNotPermitted       = errors.New("not permitted")
 )
 
@@ -181,6 +183,9 @@ func (s *Store) SetGuildLink(ctx context.Context, tx *sql.Tx, guildID string, li
 	}
 
 	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "22001" /* string_data_right_truncation */ {
+			return ErrInvalid
+		}
 		return err
 	}
 

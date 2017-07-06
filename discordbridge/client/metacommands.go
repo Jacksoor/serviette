@@ -349,6 +349,12 @@ Here's a listing of commands that are linked into this server.`, c.opts.HomeURL,
 			OwnerName:  ownerName,
 			ScriptName: scriptName,
 		}); err != nil {
+			if err == varstore.ErrInvalid {
+				return &commandError{
+					status: errorStatusScript,
+					note:   "Invalid name for command link",
+				}
+			}
 			return err
 		}
 
