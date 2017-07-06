@@ -1,5 +1,5 @@
 create table accounts (
-    name character varying primary key not null,
+    name character varying(20) primary key not null,
     password_hash character varying not null,
     time_limit_seconds integer not null default 5,
     memory_limit integer not null default 20971520,
@@ -10,9 +10,9 @@ create table accounts (
 );
 
 create table scripts (
-    owner_name character varying not null,
-    script_name character varying not null,
-    description text not null default '',
+    owner_name character varying(20) not null,
+    script_name character varying(20) not null,
+    description text(200) not null default '',
     published boolean not null default false,
 
     primary key (owner_name, script_name)
@@ -20,3 +20,11 @@ create table scripts (
 
 create index scripts_owner_name_idx on scripts (owner_name);
 create index scripts_ft_idx on scripts using gin (to_tsvector('english', script_name || ' ' || description));
+
+create or replace function extract_hashtags(text) returns text[]
+    as 'select array(select lower(m[1]) from regexp_matches($1, ''#(\S+)'', ''g'') m);'
+    language sql
+    immutable
+    returns null on null input;
+
+create index scripts_tags_idx on scripts using gin (extract_hashtags(description));

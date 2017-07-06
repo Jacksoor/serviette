@@ -29,7 +29,7 @@ export default class LoginForm extends Component {
           <fieldset disabled={this.state.disabled}>
             <h2 className="text-muted">Please log in</h2>
             {this.state.lastError ? <Alert color="danger">{this.state.lastError}</Alert> : null}
-            <Input name="username" className="username" type="text" placeholder="Username" />
+            <Input name="username" className="username" type="text" placeholder="Username" maxLength="20" />
             <Input name="password" className="password" type="password" placeholder="Password" />
             <Button block color="primary" size="lg">Log In</Button>
           </fieldset>

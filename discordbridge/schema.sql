@@ -10,9 +10,9 @@ create table guild_vars (
 
 create table guild_links (
     guild_id character varying not null,
-    link_name character varying not null,
-    owner_name character varying not null,
-    script_name character varying not null,
+    link_name character varying(20) not null,
+    owner_name character varying(20) not null,
+    script_name character varying(20) not null,
 
     primary key (guild_id, link_name)
 );
@@ -38,7 +38,7 @@ create table execution_budgets (
 
 create table account_users (
     user_id character varying not null,
-    account_name character varying not null,
+    account_name character varying(20) not null,
 
     primary key (user_id, account_name)
 );

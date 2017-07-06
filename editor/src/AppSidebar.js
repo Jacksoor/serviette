@@ -13,7 +13,7 @@ export default class AppSidebar extends Component {
       <div className="bg-faded sidebar">
         <Form className="p-3" onSubmit={this.onCreate.bind(this)}>
           <InputGroup>
-            <Input type="text" placeholder="Script name" name="name" />
+            <Input type="text" placeholder="Script name" name="name" maxLength="20" />
             <InputGroupButton>
               <Button type="submit" color="primary">Create</Button>
             </InputGroupButton>

@@ -73,7 +73,7 @@ export default class App extends Component {
       description: '',
       content: defaultScript
     };
-    this.state.client.createScript(script).then(() => {
+    this.state.client.createScript(script).then(script => {
       this.updateScriptsList().then(() => {
         this.onScriptSelected(script);
       });

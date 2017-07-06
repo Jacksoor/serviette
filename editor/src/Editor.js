@@ -96,7 +96,7 @@ export default class Editor extends Component {
     return (
       <form ref="form" className="inner" onSubmit={this.onSubmit.bind(this)}>
         <InputGroup className="toolbar">
-          <Input name="description" defaultValue={this.props.script.description} placeholder="Description" onChange={this.onDescriptionChanged.bind(this)} />
+          <Input name="description" defaultValue={this.props.script.description} placeholder="Description" onChange={this.onDescriptionChanged.bind(this)} maxLength="100" />
           <InputGroupAddon>
             <Label check><Input name="published" addon type="checkbox" className="form-check-input" defaultChecked={this.props.script.published} onChange={this.onPublishedChanged.bind(this)} /> Published?</Label>
           </InputGroupAddon>
