@@ -27,6 +27,7 @@ import (
 type Options struct {
 	Status                 string
 	HomeURL                string
+	ChangelogChannelID     string
 	StatsReportingInterval time.Duration
 	StatsReporterTargets   map[string]string
 }
@@ -204,6 +205,8 @@ func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
 				}
 				tx.Commit()
 
+				c.sendToChangelog(fmt.Sprintf("Added to guild **%s** (%s).", m.Guild.Name, m.Guild.ID))
+
 				return nil
 			}
 			return err
@@ -240,7 +243,17 @@ func (c *Client) guildDelete(s *discordgo.Session, m *discordgo.GuildDelete) {
 
 	tx.Commit()
 
+	c.sendToChangelog(fmt.Sprintf("Removed from guild **%s** (%s).", m.Guild.Name, m.Guild.ID))
+
 	glog.Infof("Cleared guild vars for %s", m.Guild.ID)
+}
+
+func (c *Client) sendToChangelog(msg string) {
+	if c.opts.ChangelogChannelID == "" {
+		return
+	}
+
+	c.session.ChannelMessageSend(c.opts.ChangelogChannelID, msg)
 }
 
 var privateGuildVars = &varstore.GuildVars{

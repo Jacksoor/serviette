@@ -61,9 +61,9 @@ type Service struct {
 	scripts  *scripts.Store
 	accounts *accounts.Store
 
-	supervisorPrefix []string
-	supervisorPath   string
-	k4LibraryPath    string
+	nsenternetPath string
+	supervisorPath string
+	k4LibraryPath  string
 
 	chroot       string
 	parentCgroup string
@@ -71,7 +71,7 @@ type Service struct {
 	executionID int64
 }
 
-func New(lis net.Listener, scripts *scripts.Store, accounts *accounts.Store, supervisorPrefix []string, supervisorPath string, k4LibraryPath string, chroot string, parentCgroup string) *Service {
+func New(lis net.Listener, scripts *scripts.Store, accounts *accounts.Store, nsenternetPath string, supervisorPath string, k4LibraryPath string, chroot string, parentCgroup string) *Service {
 	prometheus.MustRegister(scriptRealExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptCPUExecutionDurationsHistogram)
 	prometheus.MustRegister(scriptUsesByServer)
@@ -82,9 +82,9 @@ func New(lis net.Listener, scripts *scripts.Store, accounts *accounts.Store, sup
 		scripts:  scripts,
 		accounts: accounts,
 
-		supervisorPrefix: supervisorPrefix,
-		supervisorPath:   supervisorPath,
-		k4LibraryPath:    k4LibraryPath,
+		nsenternetPath: nsenternetPath,
+		supervisorPath: supervisorPath,
+		k4LibraryPath:  k4LibraryPath,
 
 		chroot:       chroot,
 		parentCgroup: parentCgroup,
@@ -339,8 +339,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	defer reqWriter.Close()
 	defer reqReader.Close()
 
-	args := append(s.supervisorPrefix, s.supervisorPath, "-logtostderr",
-		"-parent_cgroup", cgroup)
+	args := append([]string{s.nsenternetPath, s.supervisorPath}, "-logtostderr", "-parent_cgroup", cgroup)
 
 	timeout := time.Duration(account.Traits.TimeLimitSeconds) * 2 * time.Second
 	glog.Infof("Starting supervisor with timeout: %s", timeout)

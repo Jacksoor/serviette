@@ -14,7 +14,6 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/golang/glog"
-	"github.com/kballard/go-shellquote"
 	_ "github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
@@ -38,8 +37,8 @@ var (
 
 	postgresURL = flag.String("postgres_url", "postgres://", "URL to Postgres database")
 
-	supervisorPrefix = flag.String("supervisor_prefix", "", "Command to prefix supervisor with")
-	supervisorPath   = flag.String("supervisor_path", "delegator/supervisor/supervisor", "Path to supervisor")
+	nsenternetPath = flag.String("nsenternet_path", "executor/tools/nsenternet/nsenternet", "Path to nsenternet")
+	supervisorPath = flag.String("supervisor_path", "delegator/supervisor/supervisor", "Path to supervisor")
 
 	k4LibraryPath   = flag.String("k4_library_path", "clients", "Path to library root")
 	chrootPath      = flag.String("chroot_path", "chroot", "Path to chroot")
@@ -80,11 +79,6 @@ func main() {
 	accountStore := accounts.NewStore(db, storageRootAbsPath)
 	scriptsStore := scripts.NewStore(db, storageRootAbsPath)
 
-	supervisorPrefixSplit, err := shellquote.Split(*supervisorPrefix)
-	if err != nil {
-		glog.Fatalf("failed to split supervisor prefix: %v", err)
-	}
-
 	os.Remove(*bindSocket)
 	lis, err := net.Listen("unix", *bindSocket)
 	if err != nil {
@@ -95,7 +89,7 @@ func main() {
 	glog.Infof("Listening on: %s", lis.Addr())
 
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(lis, scriptsStore, accountStore, supervisorPrefixSplit, *supervisorPath, *k4LibraryPath, *chrootPath, *parentCgroup))
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(lis, scriptsStore, accountStore, *nsenternetPath, *supervisorPath, *k4LibraryPath, *chrootPath, *parentCgroup))
 	accountspb.RegisterAccountsServer(s, accountsservice.New(accountStore))
 	reflection.Register(s)
 

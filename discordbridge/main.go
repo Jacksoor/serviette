@@ -47,6 +47,8 @@ var (
 	statsReportingInterval = flag.Duration("stats_reporting_interval", 10*time.Minute, "How often to report stats")
 	statsReporterTargets   = flag.String("stats_reporter_targets", "", "JSON-encoded stats reporter targets, in name:token pairs")
 
+	changelogChannelID = flag.String("changelog_channel_id", "", "Channel to send changes to")
+
 	knownGuildsOnly = flag.Bool("known_guilds_only", false, "Only stay on known guilds")
 
 	postgresURL = flag.String("postgres_url", "postgres://", "URL to Postgres database")
@@ -107,6 +109,7 @@ func main() {
 	options := &client.Options{
 		Status:                 *status,
 		HomeURL:                *homeURL,
+		ChangelogChannelID:     *changelogChannelID,
 		StatsReportingInterval: *statsReportingInterval,
 	}
 
