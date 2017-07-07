@@ -103,6 +103,13 @@ func (a *Account) Authenticate(ctx context.Context, password string) error {
 	return nil
 }
 
+func (s *Store) destroyStorage(username string) error {
+	cmd := exec.Command(s.makestoragePath, "-name="+username, "-destroy")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 func (s *Store) makeStorage(username string) error {
 	cmd := exec.Command(s.makestoragePath, "-name="+username)
 	cmd.Stdout = os.Stdout
@@ -134,6 +141,13 @@ func (s *Store) Create(ctx context.Context, username string, password string) er
 			return ErrAlreadyExists
 		}
 		return err
+	}
+
+	// Make sure storage is clear.
+	if _, err := os.Stat(filepath.Join(s.storageRootPath, username)); err == nil {
+		if err := s.destroyStorage(username); err != nil {
+			return err
+		}
 	}
 
 	if err := s.makeStorage(username); err != nil {

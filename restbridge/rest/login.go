@@ -13,7 +13,7 @@ import (
 	accountspb "github.com/porpoises/kobun4/executor/accountsservice/v1pb"
 )
 
-type Credentials struct {
+type UserpassCredentials struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
@@ -46,16 +46,16 @@ func (l LoginResource) WebService() *restful.WebService {
 		Consumes(restful.MIME_JSON).
 		Produces(restful.MIME_JSON)
 
-	ws.Route(ws.POST("").To(l.login).
-		Doc("Log in.").
-		Reads(Credentials{}).
+	ws.Route(ws.POST("userpass").To(l.userpass).
+		Doc("Log in via username/password.").
+		Reads(UserpassCredentials{}).
 		Writes(Token{}))
 
 	return ws
 }
 
-func (l LoginResource) login(req *restful.Request, resp *restful.Response) {
-	creds := new(Credentials)
+func (l LoginResource) userpass(req *restful.Request, resp *restful.Response) {
+	creds := new(UserpassCredentials)
 	if err := req.ReadEntity(creds); err != nil {
 		glog.Errorf("Failed to read entity: %v", err)
 		resp.AddHeader("Content-Type", "text/plain")

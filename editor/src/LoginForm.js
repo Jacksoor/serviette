@@ -15,7 +15,7 @@ export default class LoginForm extends Component {
     var username = e.target.elements.username.value;
     var password = e.target.elements.password.value;
     this.setState({lastError: null, disabled: true});
-    this.props.client.login(username, password).then((token) => {
+    this.props.client.userpassLogin(username, password).then((token) => {
       this.props.onLoggedIn(username);
     }, (error) => {
       this.setState({lastError: 'Login failed: ' + error, disabled: false});

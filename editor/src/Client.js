@@ -26,8 +26,8 @@ export default class Client {
     });
   }
 
-  login(username, password) {
-    return this._request('POST', 'login', {
+  userpassLogin(username, password) {
+    return this._request('POST', 'login/userpass', {
       username: username,
       password: password,
     }).then(r => {
