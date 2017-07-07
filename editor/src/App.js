@@ -135,7 +135,8 @@ export default class App extends Component {
             {this.state.currentScript !== null ?
               <Editor script={this.state.currentScript} onChange={this.onChange.bind(this)} onSave={this.onSave.bind(this)} onDelete={this.onDelete.bind(this)} key={this.state.currentScript.name} /> :
               <div className="landing">
-                <p>Please select a script to begin editing.</p>
+                <p>Please select or create a script to begin editing.</p>
+                <p>Not sure how it all works? Check out the <a target="_blank" href="https://docs.kobun.life/en/latest/scripting/index.html">scripting documentation</a>.</p>
               </div>}
           </div> :
           <LoginForm client={this.state.client} onLoggedIn={this.onLoggedIn.bind(this)} />
