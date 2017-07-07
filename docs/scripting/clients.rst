@@ -69,3 +69,5 @@ All members of the :ref:`context <context>` are exposed via ``client.context``.
    client.call('Bridge.GetUserInfo', {id: 'example'}, function (err, resp) {
       var user_name = resp.name;
    });
+
+.. warning:: You must call ``client.close()`` when you are done with the client, or Node.js will hang indefinitely.
