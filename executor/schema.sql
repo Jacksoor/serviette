@@ -36,6 +36,8 @@ create table account_identifiers (
     primary key (identifier, account_name),
 
     foreign key (account_name) references accounts (name)
+        on update cascade
+        on delete cascade
 );
 
 create index account_identifiers_identifier_idx on account_identifiers (identifier);

@@ -22,7 +22,7 @@ func New(accounts *accounts.Store) *Service {
 }
 
 func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.CreateResponse, error) {
-	if err := s.accounts.Create(ctx, req.Username, req.Password); err != nil {
+	if err := s.accounts.Create(ctx, req.Username, req.Password, req.Identifier); err != nil {
 		switch err {
 		case accounts.ErrInvalidName:
 			return nil, grpc.Errorf(codes.InvalidArgument, "invalid account name")
@@ -70,6 +70,23 @@ func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 	}
 
 	return &pb.ListResponse{
+		Name: names,
+	}, nil
+}
+
+func (s *Service) ListByIdentifier(ctx context.Context, req *pb.ListByIdentifierRequest) (*pb.ListByIdentifierResponse, error) {
+	accounts, err := s.accounts.AccountsByIdentifier(ctx, req.Identifier)
+	if err != nil {
+		glog.Errorf("Failed to list accounts: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to list accounts")
+	}
+
+	names := make([]string, len(accounts))
+	for i, account := range accounts {
+		names[i] = account.Name
+	}
+
+	return &pb.ListByIdentifierResponse{
 		Name: names,
 	}, nil
 }

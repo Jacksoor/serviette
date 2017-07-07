@@ -7,6 +7,7 @@ option go_package = "v1pb";
 message CreateRequest {
     string username = 1;
     string password = 2;
+    repeated string identifier = 3;
 }
 
 message CreateResponse { }
@@ -24,6 +25,14 @@ message ListRequest {
 }
 
 message ListResponse {
+    repeated string name = 1;
+}
+
+message ListByIdentifierRequest {
+    string identifier = 1;
+}
+
+message ListByIdentifierResponse {
     repeated string name = 1;
 }
 
@@ -63,6 +72,7 @@ service Accounts {
     rpc Create(CreateRequest) returns (CreateResponse) { }
     rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse) { }
     rpc List(ListRequest) returns (ListResponse) { }
+    rpc ListByIdentifier(ListByIdentifierRequest) returns (ListByIdentifierResponse) { }
     rpc Get(GetRequest) returns (GetResponse) { }
 
     rpc CheckAccountIdentifier(CheckAccountIdentifierRequest) returns (CheckAccountIdentifierResponse) { }

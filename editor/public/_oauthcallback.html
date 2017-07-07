@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+    <title>Kobun Editor</title>
+</head>
+<body>
+    <script>
+    var parts = window.location.hash.substring(1).split(/&/);
+    var params = {};
+    for (var i = 0; i < parts.length; ++i) {
+        var part = parts[i].split(/=/);
+        params[part[0]] = part[1];
+    }
+
+    window.opener.onDiscordToken(params.access_token);
+    window.close();
+    </script>
+    This window will automatically close.
+</body>
+</html>

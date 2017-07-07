@@ -29,7 +29,7 @@ func NewStore(db *sql.DB, storageRootPath string) *Store {
 	}
 }
 
-var nameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,20}$`)
+var nameRegexp = regexp.MustCompile(`^[a-z0-9_-]{1,20}$`)
 
 func (s *Store) RootPath() string {
 	return s.storageRootPath

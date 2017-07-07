@@ -32,7 +32,7 @@ func (a *Authenticator) Authenticate(req *restful.Request, resp *restful.Respons
 		return a.tokenSecret, nil
 	})
 
-	if !token.Valid {
+	if token == nil || !token.Valid {
 		return "", nil
 	}
 

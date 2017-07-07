@@ -1,9 +1,11 @@
 package rest
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/emicklei/go-restful"
 	"github.com/golang/glog"
@@ -18,8 +20,14 @@ type UserpassCredentials struct {
 	Password string `json:"password"`
 }
 
+type DiscordCredentials struct {
+	Token             string `json:"token"`
+	PreferredUsername string `json:"preferredUsername,omitempty"`
+}
+
 type Token struct {
-	Token string `json:"token"`
+	Username string `json:"username"`
+	Token    string `json:"token"`
 }
 
 type LoginResource struct {
@@ -49,9 +57,28 @@ func (l LoginResource) WebService() *restful.WebService {
 	ws.Route(ws.POST("userpass").To(l.userpass).
 		Doc("Log in via username/password.").
 		Reads(UserpassCredentials{}).
-		Writes(Token{}))
+		Writes([]*Token{}))
+
+	ws.Route(ws.POST("discord").To(l.discord).
+		Doc("Log in via Discord credentials.").
+		Reads(DiscordCredentials{}).
+		Writes([]*Token{}))
 
 	return ws
+}
+
+func (l LoginResource) createToken(username string) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
+		Subject:   username,
+		ExpiresAt: time.Now().Add(l.tokenDuration).Unix(),
+	})
+
+	tokenString, err := token.SignedString(l.tokenSecret)
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
 }
 
 func (l LoginResource) userpass(req *restful.Request, resp *restful.Response) {
@@ -79,20 +106,107 @@ func (l LoginResource) userpass(req *restful.Request, resp *restful.Response) {
 		return
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
-		Subject:   creds.Username,
-		ExpiresAt: time.Now().Add(l.tokenDuration).Unix(),
-	})
-
-	tokenString, err := token.SignedString(l.tokenSecret)
+	tokenString, err := l.createToken(creds.Username)
 	if err != nil {
-		glog.Errorf("Failed to sign token: %v", err)
+		glog.Errorf("Failed to create token: %v", err)
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+	}
+
+	resp.WriteEntity([]*Token{
+		&Token{
+			Username: creds.Username,
+			Token:    tokenString,
+		},
+	})
+}
+
+func (l LoginResource) discord(req *restful.Request, resp *restful.Response) {
+	creds := new(DiscordCredentials)
+	if err := req.ReadEntity(creds); err != nil {
+		glog.Errorf("Failed to read entity: %v", err)
 		resp.AddHeader("Content-Type", "text/plain")
 		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	resp.WriteEntity(Token{
-		Token: tokenString,
+	session, err := discordgo.New("Bearer " + creds.Token)
+	if err != nil {
+		glog.Errorf("Failed to authenticate with Discord: %v", err)
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		return
+	}
+	session.StateEnabled = false
+	user, err := session.User("@me")
+	if err != nil {
+		glog.Errorf("Failed to get Discord info: %v", err)
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		return
+	}
+	session.Close()
+
+	listResp, err := l.accountsClient.ListByIdentifier(req.Request.Context(), &accountspb.ListByIdentifierRequest{
+		Identifier: fmt.Sprintf("discord/%s", user.ID),
 	})
+
+	if err != nil {
+		glog.Errorf("Failed to get accounts from executor: %v", err)
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	if len(listResp.Name) == 0 {
+		if creds.PreferredUsername == "" {
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusNotFound, "account not found")
+			return
+		}
+
+		// We can create an account!
+		if _, err := l.accountsClient.Create(req.Request.Context(), &accountspb.CreateRequest{
+			Username:   creds.PreferredUsername,
+			Identifier: []string{fmt.Sprintf("discord/%s", user.ID)},
+		}); err != nil {
+			glog.Errorf("Failed to create account: %v", err)
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+			return
+		}
+
+		tokenString, err := l.createToken(creds.PreferredUsername)
+		if err != nil {
+			glog.Errorf("Failed to create token: %v", err)
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		}
+
+		resp.WriteEntity([]*Token{
+			&Token{
+				Username: creds.PreferredUsername,
+				Token:    tokenString,
+			},
+		})
+		return
+	}
+
+	tokens := make([]*Token, 0)
+
+	for _, username := range listResp.Name {
+		tokenString, err := l.createToken(username)
+		if err != nil {
+			glog.Errorf("Failed to create token: %v", err)
+			resp.AddHeader("Content-Type", "text/plain")
+			resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		}
+
+		tokens = append(tokens, &Token{
+			Username: username,
+			Token:    tokenString,
+		})
+	}
+
+	resp.WriteEntity(tokens)
 }

@@ -1,3 +1,11 @@
+export class RequestError extends Error {
+  constructor(code, text) {
+    super(`${code}: ${text}`);
+    this.code = code;
+    this.text = text;
+  }
+}
+
 export default class Client {
   constructor() {
     this.logout();
@@ -10,7 +18,7 @@ export default class Client {
         if (xhr.status === 200 || xhr.status === 202) {
           resolve(xhr.responseText === '' ? undefined : JSON.parse(xhr.responseText));
         } else {
-          reject(xhr.responseText);
+          reject(new RequestError(xhr.status, xhr.responseText));
         }
       };
       xhr.onerror = function (e) {
@@ -31,9 +39,19 @@ export default class Client {
       username: username,
       password: password,
     }).then(r => {
-      this.username = username;
-      this.token = r.token;
-      return r.token;
+      this.username = r[0].username;
+      this.token = r[0].token;
+    });
+  }
+
+  discordLogin(token, preferredUsername=null) {
+    return this._request('POST', 'login/discord', {
+      token: token,
+      preferredUsername: preferredUsername,
+    }).then(r => {
+      this.username = r[0].username;
+      this.token = r[0].token;
+      return this.username;
     });
   }
 

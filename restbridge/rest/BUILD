@@ -12,6 +12,7 @@ go_library(
         "//executor/accountsservice/v1pb:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "//restbridge/auth:go_default_library",
+        "@com_github_bwmarrin_discordgo//:go_default_library",
         "@com_github_dgrijalva_jwt_go//:go_default_library",
         "@com_github_emicklei_go_restful//:go_default_library",
         "@com_github_golang_glog//:go_default_library",

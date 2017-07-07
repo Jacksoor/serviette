@@ -16,7 +16,7 @@ import (
 	accountspb "github.com/porpoises/kobun4/executor/accountsservice/v1pb"
 )
 
-var nameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,20}$`)
+var nameRegexp = regexp.MustCompile(`^[a-z0-9_-]{1,20}$`)
 
 var (
 	ErrNotFound        error = errors.New("accounts: not found")
@@ -139,7 +139,7 @@ func (s *Store) makeStorage(username string) error {
 	return cmd.Run()
 }
 
-func (s *Store) Create(ctx context.Context, username string, password string) error {
+func (s *Store) Create(ctx context.Context, username string, password string, identifiers []string) error {
 	if !nameRegexp.MatchString(username) {
 		return ErrInvalidName
 	}
@@ -150,19 +150,34 @@ func (s *Store) Create(ctx context.Context, username string, password string) er
 	}
 	defer tx.Rollback()
 
-	pwhash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return err
+	pwhash := []byte{}
+	if password != "" {
+		pwhash, err = bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
 	}
 
-	if _, err := s.db.ExecContext(ctx, `
-		insert into accounts (name, pwhash)
+	if _, err := tx.ExecContext(ctx, `
+		insert into accounts (name, password_hash)
 		values ($1, $2)
 	`, username, string(pwhash)); err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" /* unique_violation */ {
 			return ErrAlreadyExists
 		}
 		return err
+	}
+
+	for _, identifier := range identifiers {
+		if _, err := tx.ExecContext(ctx, `
+			insert into account_identifiers (account_name, identifier)
+			values ($1, $2)
+		`, username, identifier); err != nil {
+			if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" /* unique_violation */ {
+				return ErrAlreadyExists
+			}
+			return err
+		}
 	}
 
 	// Make sure storage is clear.

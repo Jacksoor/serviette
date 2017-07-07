@@ -1,5 +1,4 @@
 import React, { Component } from 'react';
-import ReactDOM from 'react-dom';
 import { Button, Input, InputGroup, InputGroupAddon, InputGroupButton, Label } from 'reactstrap';
 import CodeMirror from '@skidding/react-codemirror';
 import 'codemirror/lib/codemirror.css';
