@@ -221,3 +221,19 @@ func (s *Store) AccountNames(ctx context.Context, offset, limit uint32) ([]strin
 
 	return names, nil
 }
+
+func (s *Store) CheckAccountIdentifier(ctx context.Context, username string, identifier string) error {
+	var count int
+	if err := s.db.QueryRowContext(ctx, `
+		select count(1) from account_identifiers
+		where account_name = $1 and identifier = $2
+	`, username, identifier).Scan(&count); err != nil {
+		return err
+	}
+
+	if count == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}

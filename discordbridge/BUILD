@@ -14,6 +14,7 @@ go_library(
         "//discordbridge/statsservice:go_default_library",
         "//discordbridge/statsstore:go_default_library",
         "//discordbridge/varstore:go_default_library",
+        "//executor/accountsservice/v1pb:go_default_library",
         "//executor/messagingservice/v1pb:go_default_library",
         "//executor/networkinfoservice/v1pb:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",

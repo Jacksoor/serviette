@@ -21,6 +21,7 @@ import (
 	"github.com/porpoises/kobun4/discordbridge/statsstore"
 	"github.com/porpoises/kobun4/discordbridge/varstore"
 
+	accountspb "github.com/porpoises/kobun4/executor/accountsservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
@@ -44,12 +45,13 @@ type Client struct {
 	stats    *statsstore.Store
 	budgeter *budget.Budgeter
 
-	scriptsClient scriptspb.ScriptsClient
+	accountsClient accountspb.AccountsClient
+	scriptsClient  scriptspb.ScriptsClient
 
 	metaCommandRegexp *regexp.Regexp
 }
 
-func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, vars *varstore.Store, stats *statsstore.Store, budgeter *budget.Budgeter, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
+func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, vars *varstore.Store, stats *statsstore.Store, budgeter *budget.Budgeter, accountsClient accountspb.AccountsClient, scriptsClient scriptspb.ScriptsClient) (*Client, error) {
 	session, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 	if err != nil {
 		return nil, err
@@ -67,7 +69,8 @@ func New(token string, opts *Options, knownGuildsOnly bool, rpcTarget net.Addr, 
 		stats:    stats,
 		budgeter: budgeter,
 
-		scriptsClient: scriptsClient,
+		accountsClient: accountsClient,
+		scriptsClient:  scriptsClient,
 	}
 
 	session.AddHandler(client.ready)
@@ -502,7 +505,6 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 				status: errorStatusNoise,
 				note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
 			}
-
 		case codes.Unavailable:
 			return &commandError{
 				status: errorStatusRecoverable,
@@ -513,20 +515,29 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		}
 	}
 	if !metaResp.Meta.Published {
-		if err := c.vars.CanRunUnpublishedScript(ctx, m.Author.ID, ownerName); err != nil {
-			if err != varstore.ErrNotPermitted {
-				return err
-			}
-
-			if linked {
-				return &commandError{
-					status: errorStatusScript,
-					note:   "Command link references non-existent script",
+		if _, err := c.accountsClient.CheckAccountIdentifier(ctx, &accountspb.CheckAccountIdentifierRequest{
+			Username:   ownerName,
+			Identifier: fmt.Sprintf("discord/%s", m.Author.ID),
+		}); err != nil {
+			switch grpc.Code(err) {
+			case codes.NotFound:
+				if linked {
+					return &commandError{
+						status: errorStatusScript,
+						note:   "Command link references non-existent script",
+					}
 				}
-			}
-			return &commandError{
-				status: errorStatusNoise,
-				note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
+				return &commandError{
+					status: errorStatusNoise,
+					note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
+				}
+			case codes.Unavailable:
+				return &commandError{
+					status: errorStatusRecoverable,
+					note:   "Currently unavailable, please try again later",
+				}
+			default:
+				return err
 			}
 		}
 	}

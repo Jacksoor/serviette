@@ -14,6 +14,7 @@ go_library(
         "//discordbridge/budget:go_default_library",
         "//discordbridge/statsstore:go_default_library",
         "//discordbridge/varstore:go_default_library",
+        "//executor/accountsservice/v1pb:go_default_library",
         "//executor/scriptsservice/v1pb:go_default_library",
         "@com_github_bwmarrin_discordgo//:go_default_library",
         "@com_github_golang_glog//:go_default_library",

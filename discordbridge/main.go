@@ -34,6 +34,7 @@ import (
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
 	statspb "github.com/porpoises/kobun4/executor/statsservice/v1pb"
 
+	accountspb "github.com/porpoises/kobun4/executor/accountsservice/v1pb"
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
@@ -117,7 +118,7 @@ func main() {
 		glog.Fatalf("failed to unmarshal stats reporter targets: %v", err)
 	}
 
-	client, err := client.New(*botToken, options, *knownGuildsOnly, lis.Addr(), vars, stats, budgeter, scriptspb.NewScriptsClient(executorConn))
+	client, err := client.New(*botToken, options, *knownGuildsOnly, lis.Addr(), vars, stats, budgeter, accountspb.NewAccountsClient(executorConn), scriptspb.NewScriptsClient(executorConn))
 	if err != nil {
 		glog.Fatalf("failed to connect to discord: %v", err)
 	}

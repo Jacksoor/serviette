@@ -200,22 +200,3 @@ func (s *Store) SetGuildLink(ctx context.Context, tx *sql.Tx, guildID string, li
 
 	return nil
 }
-
-func (s *Store) CanRunUnpublishedScript(ctx context.Context, userID string, ownerName string) error {
-	var i int
-
-	if err := s.db.QueryRowContext(ctx, `
-		select count(1)
-		from account_users
-		where user_id = $1 and
-		      account_name = $2
-	`, userID, ownerName).Scan(&i); err != nil {
-		return err
-	}
-
-	if i == 0 {
-		return ErrNotPermitted
-	}
-
-	return nil
-}

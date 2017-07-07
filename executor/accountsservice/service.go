@@ -97,3 +97,15 @@ func (s *Service) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse,
 		Traits:              account.Traits,
 	}, nil
 }
+
+func (s *Service) CheckAccountIdentifier(ctx context.Context, req *pb.CheckAccountIdentifierRequest) (*pb.CheckAccountIdentifierResponse, error) {
+	if err := s.accounts.CheckAccountIdentifier(ctx, req.Username, req.Identifier); err != nil {
+		if err == accounts.ErrNotFound {
+			return nil, grpc.Errorf(codes.NotFound, "account not found")
+		}
+		glog.Errorf("Failed to check account: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to check account")
+	}
+
+	return &pb.CheckAccountIdentifierResponse{}, nil
+}

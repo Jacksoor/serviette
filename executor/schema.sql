@@ -28,3 +28,15 @@ create or replace function extract_hashtags(text) returns text[]
     returns null on null input;
 
 create index scripts_tags_idx on scripts using gin (extract_hashtags(description));
+
+create table account_identifiers (
+    account_name character varying(20) not null,
+    identifier character varying not null,
+
+    primary key (identifier, account_name),
+
+    foreign key (account_name) references accounts (name)
+);
+
+create index account_identifiers_identifier_idx on account_identifiers (identifier);
+create index account_identifiers_account_name_idx on account_identifiers (account_name);

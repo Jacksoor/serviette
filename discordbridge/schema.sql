@@ -35,13 +35,3 @@ create table execution_budgets (
     remaining_budget bigint not null,
     last_update_time timestamp with time zone not null
 );
-
-create table account_users (
-    user_id character varying not null,
-    account_name character varying(20) not null,
-
-    primary key (user_id, account_name)
-);
-
-create index account_users_user_id_idx on account_users (user_id);
-create index account_users_account_name_idx on account_users (account_name);
