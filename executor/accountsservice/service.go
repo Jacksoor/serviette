@@ -58,10 +58,15 @@ func (s *Service) Authenticate(ctx context.Context, req *pb.AuthenticateRequest)
 }
 
 func (s *Service) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
-	names, err := s.accounts.AccountNames(ctx, req.Offset, req.Limit)
+	accounts, err := s.accounts.Accounts(ctx, req.Offset, req.Limit)
 	if err != nil {
 		glog.Errorf("Failed to list accounts: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to list accounts")
+	}
+
+	names := make([]string, len(accounts))
+	for i, account := range accounts {
+		names[i] = account.Name
 	}
 
 	return &pb.ListResponse{

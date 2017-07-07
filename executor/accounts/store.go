@@ -204,8 +204,8 @@ func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
 	return account, nil
 }
 
-func (s *Store) AccountNames(ctx context.Context, offset, limit uint32) ([]string, error) {
-	names := make([]string, 0)
+func (s *Store) Accounts(ctx context.Context, offset, limit uint32) ([]*Account, error) {
+	accounts := make([]*Account, 0)
 
 	rows, err := s.db.QueryContext(ctx, `
 		select name from accounts
@@ -222,17 +222,21 @@ func (s *Store) AccountNames(ctx context.Context, offset, limit uint32) ([]strin
 			return nil, err
 		}
 
-		names = append(names, name)
+		accounts = append(accounts, &Account{
+			db:              s.db,
+			storageRootPath: s.storageRootPath,
+			Name:            name,
+		})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return names, nil
+	return accounts, nil
 }
 
-func (s *Store) AccountNamesByIdentifier(ctx context.Context, identifier string) ([]string, error) {
-	identifiers := make([]string, 0)
+func (s *Store) AccountsByIdentifier(ctx context.Context, identifier string) ([]*Account, error) {
+	accounts := make([]*Account, 0)
 
 	rows, err := s.db.QueryContext(ctx, `
 		select account_name from account_identifiers
@@ -244,18 +248,22 @@ func (s *Store) AccountNamesByIdentifier(ctx context.Context, identifier string)
 	defer rows.Close()
 
 	for rows.Next() {
-		var identifier string
-		if err := rows.Scan(&identifier); err != nil {
+		var name string
+		if err := rows.Scan(&name); err != nil {
 			return nil, err
 		}
 
-		identifiers = append(identifiers, identifier)
+		accounts = append(accounts, &Account{
+			db:              s.db,
+			storageRootPath: s.storageRootPath,
+			Name:            name,
+		})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return identifiers, nil
+	return accounts, nil
 }
 
 func (s *Store) CheckAccountIdentifier(ctx context.Context, username string, identifier string) error {
