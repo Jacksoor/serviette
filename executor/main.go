@@ -37,7 +37,7 @@ var (
 
 	postgresURL = flag.String("postgres_url", "postgres://", "URL to Postgres database")
 
-	nsenternetPath = flag.String("nsenternet_path", "executor/tools/nsenternet/nsenternet", "Path to nsenternet")
+	toolsPath      = flag.String("tools_path", "executor/tools", "Path to makestorage")
 	supervisorPath = flag.String("supervisor_path", "delegator/supervisor/supervisor", "Path to supervisor")
 
 	k4LibraryPath   = flag.String("k4_library_path", "clients", "Path to library root")
@@ -76,7 +76,7 @@ func main() {
 		glog.Fatalf("failed to get storage root path: %v", err)
 	}
 
-	accountStore := accounts.NewStore(db, storageRootAbsPath)
+	accountStore := accounts.NewStore(db, storageRootAbsPath, filepath.Join(*toolsPath, "makestorage", "makestorage"))
 	scriptsStore := scripts.NewStore(db, storageRootAbsPath)
 
 	os.Remove(*bindSocket)
@@ -89,7 +89,7 @@ func main() {
 	glog.Infof("Listening on: %s", lis.Addr())
 
 	s := grpc.NewServer()
-	scriptspb.RegisterScriptsServer(s, scriptsservice.New(lis, scriptsStore, accountStore, *nsenternetPath, *supervisorPath, *k4LibraryPath, *chrootPath, *parentCgroup))
+	scriptspb.RegisterScriptsServer(s, scriptsservice.New(lis, scriptsStore, accountStore, filepath.Join(*toolsPath, "nsenternet", "nsenternet"), *supervisorPath, *k4LibraryPath, *chrootPath, *parentCgroup))
 	accountspb.RegisterAccountsServer(s, accountsservice.New(accountStore))
 	reflection.Register(s)
 

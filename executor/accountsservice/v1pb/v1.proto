@@ -4,6 +4,13 @@ package kobun4.executor.accounts.v1;
 
 option go_package = "v1pb";
 
+message CreateRequest {
+    string username = 1;
+    string password = 2;
+}
+
+message CreateResponse { }
+
 message AuthenticateRequest {
     string username = 1;
     string password = 2;
@@ -46,6 +53,7 @@ message Traits {
 }
 
 service Accounts {
+    rpc Create(CreateRequest) returns (CreateResponse) { }
     rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse) { }
     rpc List(ListRequest) returns (ListResponse) { }
     rpc Get(GetRequest) returns (GetResponse) { }

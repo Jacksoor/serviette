@@ -3,7 +3,10 @@ package accounts
 import (
 	"database/sql"
 	"errors"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"syscall"
 
 	"github.com/lib/pq"
@@ -13,24 +16,30 @@ import (
 	accountspb "github.com/porpoises/kobun4/executor/accountsservice/v1pb"
 )
 
+var nameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,20}$`)
+
 var (
 	ErrNotFound        error = errors.New("accounts: not found")
+	ErrInvalidName           = errors.New("accounts: invalid name")
+	ErrAlreadyExists         = errors.New("accounts: already exists")
 	ErrUnauthenticated       = errors.New("accounts: unauthenticated")
 )
 
 type Store struct {
 	db              *sql.DB
 	storageRootPath string
+	makestoragePath string
 }
 
 func (s *Store) StorageRootPath() string {
 	return s.storageRootPath
 }
 
-func NewStore(db *sql.DB, storageRootPath string) *Store {
+func NewStore(db *sql.DB, storageRootPath string, makestoragePath string) *Store {
 	return &Store{
 		db:              db,
 		storageRootPath: storageRootPath,
+		makestoragePath: makestoragePath,
 	}
 }
 
@@ -91,6 +100,47 @@ func (a *Account) Authenticate(ctx context.Context, password string) error {
 		}
 	}
 
+	return nil
+}
+
+func (s *Store) makeStorage(username string) error {
+	cmd := exec.Command(s.makestoragePath, "-name="+username)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func (s *Store) Create(ctx context.Context, username string, password string) error {
+	if !nameRegexp.MatchString(username) {
+		return ErrInvalidName
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	pwhash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	if _, err := s.db.ExecContext(ctx, `
+		insert into accounts (name, pwhash)
+		values ($1, $2)
+	`, username, string(pwhash)); err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" /* unique_violation */ {
+			return ErrAlreadyExists
+		}
+		return err
+	}
+
+	if err := s.makeStorage(username); err != nil {
+		return err
+	}
+
+	tx.Commit()
 	return nil
 }
 

@@ -21,6 +21,21 @@ func New(accounts *accounts.Store) *Service {
 	}
 }
 
+func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.CreateResponse, error) {
+	if err := s.accounts.Create(ctx, req.Username, req.Password); err != nil {
+		switch err {
+		case accounts.ErrInvalidName:
+			return nil, grpc.Errorf(codes.InvalidArgument, "invalid account name")
+		case accounts.ErrAlreadyExists:
+			return nil, grpc.Errorf(codes.AlreadyExists, "already exists")
+		}
+		glog.Errorf("Failed to create account: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to create account")
+	}
+
+	return &pb.CreateResponse{}, nil
+}
+
 func (s *Service) Authenticate(ctx context.Context, req *pb.AuthenticateRequest) (*pb.AuthenticateResponse, error) {
 	account, err := s.accounts.Account(ctx, req.Username)
 	if err != nil {
