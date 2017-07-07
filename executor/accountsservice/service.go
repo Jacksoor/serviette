@@ -91,10 +91,16 @@ func (s *Service) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse,
 		return nil, grpc.Errorf(codes.Internal, "failed to load account")
 	}
 
+	traits, err := account.Traits(ctx)
+	if err != nil {
+		glog.Errorf("Failed to get traits: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load account")
+	}
+
 	return &pb.GetResponse{
 		ScriptsStorageUsage: scriptsStorageUsage,
 		PrivateStorageUsage: privateStorageUsage,
-		Traits:              account.Traits,
+		Traits:              traits,
 	}, nil
 }
 

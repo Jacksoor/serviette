@@ -44,22 +44,9 @@ func NewStore(db *sql.DB, storageRootPath string, makestoragePath string) *Store
 }
 
 type Account struct {
+	db              *sql.DB
 	storageRootPath string
-
-	Name string
-
-	PasswordHash []byte
-
-	Traits *accountspb.Traits
-}
-
-func (a *Account) IsOutputFormatAllowed(format string) bool {
-	for _, allowedFormat := range a.Traits.AllowedOutputFormat {
-		if allowedFormat == format {
-			return true
-		}
-	}
-	return false
+	Name            string
 }
 
 func getStorageUsage(path string) (*accountspb.StorageUsage, error) {
@@ -71,6 +58,32 @@ func getStorageUsage(path string) (*accountspb.StorageUsage, error) {
 		TotalSize: uint64(statfsBuf.Bsize) * statfsBuf.Blocks,
 		FreeSize:  uint64(statfsBuf.Bsize) * statfsBuf.Bavail,
 	}, nil
+}
+
+func (a *Account) Traits(ctx context.Context) (*accountspb.Traits, error) {
+	traits := &accountspb.Traits{}
+
+	if err := a.db.QueryRowContext(ctx, `
+		select time_limit_seconds,
+		       memory_limit,
+		       tmpfs_size,
+		       allow_network_access,
+		       allowed_services,
+		       allowed_output_formats
+		from accounts
+		where name = $1
+	`, a.Name).Scan(
+		&traits.TimeLimitSeconds,
+		&traits.MemoryLimit,
+		&traits.TmpfsSize,
+		&traits.AllowNetworkAccess,
+		pq.Array(&traits.AllowedService),
+		pq.Array(&traits.AllowedOutputFormat),
+	); err != nil {
+		return nil, err
+	}
+
+	return traits, nil
 }
 
 func (a *Account) StoragePath() string {
@@ -94,7 +107,16 @@ func (a *Account) PrivateStorageUsage() (*accountspb.StorageUsage, error) {
 }
 
 func (a *Account) Authenticate(ctx context.Context, password string) error {
-	if err := bcrypt.CompareHashAndPassword(a.PasswordHash, []byte(password)); err != nil {
+	var pwhash string
+	if err := a.db.QueryRowContext(ctx, `
+		select password_hash
+		from accounts
+		where name = $1
+	`, a.Name).Scan(&pwhash); err != nil {
+		return err
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(pwhash), []byte(password)); err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
 			return ErrUnauthenticated
 		}
@@ -160,36 +182,23 @@ func (s *Store) Create(ctx context.Context, username string, password string) er
 
 func (s *Store) Account(ctx context.Context, name string) (*Account, error) {
 	account := &Account{
+		db:              s.db,
 		storageRootPath: s.storageRootPath,
-
-		Traits: &accountspb.Traits{},
+		Name:            name,
 	}
 
+	var count int
+
 	if err := s.db.QueryRowContext(ctx, `
-		select name,
-		       password_hash,
-		       time_limit_seconds,
-		       memory_limit,
-		       tmpfs_size,
-		       allow_network_access,
-		       allowed_services,
-		       allowed_output_formats
+		select count(1)
 		from accounts
 		where name = $1
-	`, name).Scan(
-		&account.Name,
-		&account.PasswordHash,
-		&account.Traits.TimeLimitSeconds,
-		&account.Traits.MemoryLimit,
-		&account.Traits.TmpfsSize,
-		&account.Traits.AllowNetworkAccess,
-		pq.Array(&account.Traits.AllowedService),
-		pq.Array(&account.Traits.AllowedOutputFormat),
-	); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrNotFound
-		}
+	`, name).Scan(&count); err != nil {
 		return nil, err
+	}
+
+	if count == 0 {
+		return nil, ErrNotFound
 	}
 
 	return account, nil
@@ -220,6 +229,33 @@ func (s *Store) AccountNames(ctx context.Context, offset, limit uint32) ([]strin
 	}
 
 	return names, nil
+}
+
+func (s *Store) AccountNamesByIdentifier(ctx context.Context, identifier string) ([]string, error) {
+	identifiers := make([]string, 0)
+
+	rows, err := s.db.QueryContext(ctx, `
+		select account_name from account_identifiers
+		where identifier = $1
+	`, identifier)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var identifier string
+		if err := rows.Scan(&identifier); err != nil {
+			return nil, err
+		}
+
+		identifiers = append(identifiers, identifier)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return identifiers, nil
 }
 
 func (s *Store) CheckAccountIdentifier(ctx context.Context, username string, identifier string) error {

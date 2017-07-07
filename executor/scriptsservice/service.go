@@ -247,6 +247,12 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
+	traits, err := account.Traits(ctx)
+	if err != nil {
+		glog.Errorf("Failed to get account traits: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load script")
+	}
+
 	script, err := s.scripts.Open(ctx, req.OwnerName, req.Name)
 
 	if err != nil {
@@ -341,7 +347,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 	args := append([]string{s.nsenternetPath, s.supervisorPath}, "-logtostderr", "-parent_cgroup", cgroup)
 
-	timeout := time.Duration(account.Traits.TimeLimitSeconds) * 2 * time.Second
+	timeout := time.Duration(traits.TimeLimitSeconds) * 2 * time.Second
 	glog.Infof("Starting supervisor with timeout: %s", timeout)
 
 	commandCtx, commandCancel := context.WithTimeout(ctx, timeout)
