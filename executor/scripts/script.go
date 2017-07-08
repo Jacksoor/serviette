@@ -2,6 +2,7 @@ package scripts
 
 import (
 	"database/sql"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -9,6 +10,10 @@ import (
 	"golang.org/x/net/context"
 
 	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
+)
+
+var (
+	ErrInvalid error = errors.New("invalid")
 )
 
 type Script struct {
@@ -39,11 +44,11 @@ func (s *Script) Meta(ctx context.Context) (*scriptspb.Meta, error) {
 	meta := &scriptspb.Meta{}
 
 	if err := s.db.QueryRowContext(ctx, `
-		select description, published
+		select description, visibility
 		from scripts
 		where owner_name = $1 and
 		      script_name = $2
-	`, s.OwnerName, s.Name).Scan(&meta.Description, &meta.Published); err != nil {
+	`, s.OwnerName, s.Name).Scan(&meta.Description, &meta.Visibility); err != nil {
 		return nil, err
 	}
 
@@ -51,13 +56,17 @@ func (s *Script) Meta(ctx context.Context) (*scriptspb.Meta, error) {
 }
 
 func (s *Script) SetMeta(ctx context.Context, meta *scriptspb.Meta) error {
+	if meta.Visibility > scriptspb.Visibility_PUBLISHED {
+		return ErrInvalid
+	}
+
 	if _, err := s.db.ExecContext(ctx, `
 		update scripts
 		set description = $1,
-		    published = $2
+		    visibility = $2
 		where owner_name = $3 and
 		      script_name = $4
-	`, meta.Description, meta.Published, s.OwnerName, s.Name); err != nil {
+	`, meta.Description, meta.Visibility, s.OwnerName, s.Name); err != nil {
 		return err
 	}
 	return nil

@@ -4,9 +4,15 @@ package kobun4.executor.scripts.v1;
 
 option go_package = "v1pb";
 
+enum Visibility {
+    UNPUBLISHED = 0;
+    UNLISTED = 1;
+    PUBLISHED = 2;
+}
+
 message Meta {
     string description = 1;
-    bool published = 2;
+    Visibility visibility = 2;
 }
 
 message Context {

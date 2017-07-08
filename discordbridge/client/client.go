@@ -514,7 +514,7 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			return err
 		}
 	}
-	if !metaResp.Meta.Published {
+	if metaResp.Meta.Visibility == scriptspb.Visibility_UNPUBLISHED {
 		if _, err := c.accountsClient.CheckAccountIdentifier(ctx, &accountspb.CheckAccountIdentifierRequest{
 			Username:   ownerName,
 			Identifier: fmt.Sprintf("discord/%s", m.Author.ID),

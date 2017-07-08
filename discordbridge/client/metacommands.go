@@ -101,7 +101,7 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 					}
 					return err
 				}
-				if !getMeta.Meta.Published {
+				if getMeta.Meta.Visibility == scriptspb.Visibility_UNPUBLISHED {
 					return nil
 				}
 
@@ -250,7 +250,7 @@ Here's a listing of commands that are linked into this server.`, c.opts.HomeURL,
 				return err
 			}
 		}
-		if !getMeta.Meta.Published {
+		if getMeta.Meta.Visibility == scriptspb.Visibility_UNPUBLISHED {
 			return &commandError{
 				status: errorStatusScript,
 				note:   "Link references invalid script name",
@@ -332,7 +332,7 @@ Here's a listing of commands that are linked into this server.`, c.opts.HomeURL,
 			}
 			return err
 		}
-		if !getMeta.Meta.Published {
+		if getMeta.Meta.Visibility == scriptspb.Visibility_UNPUBLISHED {
 			return &commandError{
 				status: errorStatusScript,
 				note:   "Script not found",

@@ -81,7 +81,7 @@ func (s *Service) Spawn(req *struct {
 		}
 	}
 
-	if !metaResp.Meta.Published {
+	if metaResp.Meta.Visibility == scriptspb.Visibility_UNPUBLISHED {
 		return errors.New("script not found")
 	}
 

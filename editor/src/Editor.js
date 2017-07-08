@@ -28,7 +28,7 @@ export default class Editor extends Component {
     this.props.onSave({
       ownerName: this.props.script.ownerName,
       name: this.props.script.name,
-      published: this.refs.form.elements.published.checked,
+      visibility: parseInt(this.refs.form.elements.visibility.value, 10),
       description: this.refs.form.elements.description.value,
       content: this.refs.codemirror.getCodeMirror().getValue(),
     });
@@ -97,7 +97,11 @@ export default class Editor extends Component {
         <InputGroup className="toolbar">
           <Input name="description" defaultValue={this.props.script.description} placeholder="Description" onChange={this.onDescriptionChanged.bind(this)} maxLength="100" />
           <InputGroupAddon>
-            <Label check><Input name="published" addon type="checkbox" className="form-check-input" defaultChecked={this.props.script.published} onChange={this.onPublishedChanged.bind(this)} /> Published?</Label>
+            <select name="visibility" defaultValue={this.props.script.visibility}>
+              <option value="0">Unpublished</option>
+              <option value="1">Unlisted</option>
+              <option value="2">Published</option>
+            </select>
           </InputGroupAddon>
           <InputGroupButton><Button ref="saveButton" type="submit" color="primary">Save</Button></InputGroupButton>
           <InputGroupButton><Button type="button" color="danger" onClick={this.onDelete.bind(this)}>Delete</Button></InputGroupButton>

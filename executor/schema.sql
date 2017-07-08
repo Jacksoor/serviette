@@ -31,7 +31,7 @@ create index scripts_tags_idx on scripts using gin (extract_hashtags(description
 
 create table account_identifiers (
     account_name character varying(20) not null,
-    identifier character varying not null,
+    visibility smallint not null,
 
     primary key (identifier, account_name),
 

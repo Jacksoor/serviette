@@ -22,7 +22,7 @@ export default class AppSidebar extends Component {
         <Nav vertical pills>
           {this.props.account.scripts.map((script) => {
             const current = this.props.currentScript !== null && this.props.currentScript.name === script.name;
-            return <NavItem key={script.name}><NavLink href="javascript:;" className={script.published ? null : "text-muted"} active={current} onClick={this.props.onScriptSelected.bind(this, script)}><samp>{script.name}</samp>{this.props.unsaved && current ? <sup>*</sup> : ''}</NavLink></NavItem>;
+            return <NavItem key={script.name}><NavLink href="javascript:;" className={script.visibility === 2 ? null : "text-muted"} active={current} onClick={this.props.onScriptSelected.bind(this, script)}>{script.visibility === 0 ? '□' : '▣'} <samp>{script.name}</samp>{this.props.unsaved && current ? <sup>*</sup> : ''}</NavLink></NavItem>;
           })}
         </Nav>
       </div>

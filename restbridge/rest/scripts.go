@@ -21,7 +21,7 @@ type Script struct {
 	OwnerName   string `json:"ownerName"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	Published   bool   `json:"published"`
+	Visibility  int    `json:"visibility"`
 	Content     string `json:"content,omitempty"`
 }
 
@@ -137,7 +137,7 @@ func (r ScriptsResource) list(req *restful.Request, resp *restful.Response) {
 			OwnerName:   entry.OwnerName,
 			Name:        entry.Name,
 			Description: entry.Meta.Description,
-			Published:   entry.Meta.Published,
+			Visibility:  int(entry.Meta.Visibility),
 		}
 	}
 
@@ -204,7 +204,7 @@ func (r ScriptsResource) listAccount(req *restful.Request, resp *restful.Respons
 			OwnerName:   entry.OwnerName,
 			Name:        entry.Name,
 			Description: entry.Meta.Description,
-			Published:   entry.Meta.Published,
+			Visibility:  int(entry.Meta.Visibility),
 		}
 	}
 
@@ -240,7 +240,7 @@ func (r ScriptsResource) read(req *restful.Request, resp *restful.Response) {
 		}
 
 		meta = metaResp.Meta
-		if !meta.Published && username != accountName {
+		if meta.Visibility == scriptspb.Visibility_UNPUBLISHED && username != accountName {
 			return errNotPublished
 		}
 		return nil
@@ -288,7 +288,7 @@ func (r ScriptsResource) read(req *restful.Request, resp *restful.Response) {
 		OwnerName:   accountName,
 		Name:        scriptName,
 		Description: meta.Description,
-		Published:   meta.Published,
+		Visibility:  int(meta.Visibility),
 		Content:     content,
 	})
 }
@@ -321,7 +321,7 @@ func (r ScriptsResource) create(req *restful.Request, resp *restful.Response) {
 		Name:      script.Name,
 		Meta: &scriptspb.Meta{
 			Description: script.Description,
-			Published:   script.Published,
+			Visibility:  scriptspb.Visibility(script.Visibility),
 		},
 		Content: []byte(strings.Replace(script.Content, "\r", "", -1)),
 	}); err != nil {
@@ -393,7 +393,7 @@ func (r ScriptsResource) update(req *restful.Request, resp *restful.Response) {
 		Name:      script.Name,
 		Meta: &scriptspb.Meta{
 			Description: script.Description,
-			Published:   script.Published,
+			Visibility:  scriptspb.Visibility(script.Visibility),
 		},
 		Content: []byte(strings.Replace(script.Content, "\r", "", -1)),
 	}); err != nil {
