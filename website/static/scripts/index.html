@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Scripts</title>
+		<style>
+		body {
+			font-family: "Comic Sans MS", sans-serif;
+		}
+
+		#scripts {
+			columns: 4;
+		}
+
+		#scripts article {
+			break-inside: avoid;
+			page-break-inside: avoid;
+			margin: 10px 0;
+			padding: 0 10px;
+			border: 1px solid black;
+		}
+		</style>
+	</head>
+	<body>
+		<p>Apologies for the page, it'll look nice soon!</p>
+		<p>If you're looking for the editor, it's available at <a href="https://kobun.life/editor">https://kobun.life/editor</a>.</p>
+		<section id="scripts">
+		</section>
+		<noscript>
+			<p>Sorry, this page needs JavaScript (for now).</p>
+		</noscript>
+		<script>
+		var scriptsEl = document.getElementById("scripts");
+
+		function get(path, cb) {
+			var xhr = new XMLHttpRequest();
+			xhr.onload = function () {
+				cb(JSON.parse(xhr.responseText));
+			};
+			xhr.open('GET', '/api/v1/' + path);
+			xhr.send(null);
+		}
+
+		function load(i, limit) {
+			get('scripts?offset=' + i + '&limit=' + limit, function (resp) {
+				if (resp.length === 0) {
+					return;
+				}
+
+				resp.forEach(function (entry) {
+					var articleEl = document.createElement('article');
+
+					var titleEl = document.createElement('h1');
+					var titleLinkEl = document.createElement('a');
+					titleEl.appendChild(titleLinkEl);
+					articleEl.appendChild(titleEl);
+					titleLinkEl.textContent = entry.ownerName + '/' + entry.name;
+					titleLinkEl.href = 'javascript:;';
+					titleLinkEl.onclick = function (e) {
+						e.preventDefault();
+						prompt('Paste the following into a channel with Kobun on your server to enable the command:', '@Kobun#0898 link ' + entry.name + ' ' + entry.ownerName + '/' + entry.name);
+					};
+
+					var viewSourceEl = document.createElement('a');
+					viewSourceEl.href = 'view.html?' + titleLinkEl.textContent;
+					viewSourceEl.textContent = '(view source)';
+
+					var smallEl = document.createElement('small');
+					smallEl.appendChild(viewSourceEl);
+					titleEl.appendChild(document.createTextNode(' '));
+					titleEl.appendChild(smallEl);
+
+					var descriptionEl = document.createElement('p');
+					articleEl.appendChild(descriptionEl);
+					descriptionEl.textContent = entry.description;
+
+					scriptsEl.appendChild(articleEl);
+				});
+
+				load(i + limit, limit);
+			});
+		}
+		load(0, 50);
+		</script>
+	</body>
+</html>

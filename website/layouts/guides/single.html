@@ -1,0 +1,7 @@
+{{ define "title" }}{{ .Title }} | Guides | {{ end }}
+
+{{ define "main" }}
+<h4 class="text-muted">{{ .Title }}</h4>
+<p><em>{{ .Description }}</em></p>
+{{.Content}}
+{{ end }}
