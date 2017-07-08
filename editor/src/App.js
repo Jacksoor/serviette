@@ -8,10 +8,14 @@ import AppSidebar from './AppSidebar';
 import Editor from './Editor';
 import LoginForm from './LoginForm';
 
-const defaultScript = `#!/usr/bin/python3
+function makeDefaultScript(ownerName, name) {
+  return `#!/usr/bin/python3
+
+# To run this command, run \`.${ownerName}/${name}\` in a server with Kobun that you are the administrator of.
 
 print("Hello world!")
-`
+`;
+}
 
 export default class App extends Component {
   constructor(props) {
@@ -71,7 +75,7 @@ export default class App extends Component {
       name: name,
       published: false,
       description: '',
-      content: defaultScript
+      content: makeDefaultScript(this.state.account.name, name)
     };
     this.state.client.createScript(script).then(script => {
       this.updateScriptsList().then(() => {
