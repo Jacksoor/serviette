@@ -1,4 +1,5 @@
 +++
+weight = 1
 title = "Server Admin Guide"
 description = "Just set up Kobun for your server? Learn how to get started!"
 +++
