@@ -189,7 +189,7 @@ Remove a command name link.`,
 			Embed: &discordgo.MessageEmbed{
 				Title: "ℹ Help",
 				URL:   c.opts.HomeURL,
-				Description: fmt.Sprintf(`[**Kobun**](%s) is a multipurpose extensible utility bot that [you can program!](%s/editor).%s
+				Description: fmt.Sprintf(`[**Kobun**](%s) is a multipurpose extensible utility bot that [you can program](%s/editor)!%s
 
 Here's a listing of commands that are linked into this server.`, c.opts.HomeURL, c.opts.HomeURL, formattedAnnouncement),
 				Color:  0x009100,
