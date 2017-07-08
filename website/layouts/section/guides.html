@@ -1,7 +1,7 @@
 {{ define "title" }}{{.Title}} | {{ end }}
 
 {{ define "main" }}
-<h4 class="text-muted">{{ .Title }}</h4>
+<h1>{{ .Title }}</h4>
 <ul>
   {{ range .Data.Pages }}
     <li><a href="{{ .RelPermalink }}">{{ .Title }}</a><br>{{ .Description }}</li>

@@ -1,7 +1,8 @@
 {{ define "title" }}{{ .Title }} | Guides | {{ end }}
 
 {{ define "main" }}
-<h4 class="text-muted">{{ .Title }}</h4>
-<p><em>{{ .Description }}</em></p>
+<h1>{{ .Title }}</h1>
+<p class="lead">{{ .Description }}</p>
+<div class="alert alert-warning">Please <a href="https://discord.gg/MNqc3f8">join our support server</a> to receive important service notifications. <strong>We do not offer any other method of support, so we strongly encourage you to join.</strong></div>
 {{.Content}}
 {{ end }}

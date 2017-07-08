@@ -4,10 +4,26 @@ title = "Server Admin Guide"
 description = "Just set up Kobun for your server? Learn how to get started!"
 +++
 
-Please join our support server to receive important service notifications. **We do not offer any other method of support, so we strongly encourage you to join.**
+So Kobun's just joined your server. What's next?
 
-[![Discord](https://discordapp.com/api/guilds/323659543622057984/embed.png?style=banner3)](https://discord.gg/MNqc3f8)
+## Getting help
 
-**This guide is currently incomplete.**
+Check out `@Kobun help` for some quick information about what's available. Kobun will be a little bit empty to start with – don't worry; you'll be able to get some commands linked in no time!
 
-  * On your server, you can issue `@Kobun help` for help.
+## Linking commands
+
+The [script library](/scripts) is Kobun's repository of commands. Any script can be _linked_ into Kobun via `@Kobun link`. Only linked scripts can be publicly used on your server.
+
+For instance, you can run `@Kobun link g porpoises/google` to link `.g` to the Google search script `porpoises/google`.
+
+If you don't want a command to be available anymore, you can use `@Kobun unlink` to remove it, e.g. `@Kobun unlink g`.
+
+<div class="alert alert-info">Any server administrator will be able to run unlinked commands. For example, if you want to run <code>porpoises/google</code> without making it available for everyone, you can use <code>.porpoises/google</code> directly.</div>
+
+## Managing permissions
+
+By default, the server founder and anyone with administrator permissions will be able to manage command linking. If you want to grant command management permissions to someone without granting such a broad range of permissions, create and grant a role named `Kobun Administrators` (it must be named **exactly** that).
+
+## Writing commands
+
+Check out the [scripting guide](/guides/scripting) for information.
