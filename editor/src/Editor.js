@@ -15,6 +15,7 @@ const KNOWN_SYNTAXES = {
   '/bin/sh': 'shell',
   '/usr/bin/python3': 'python',
   '/usr/bin/lua': 'lua',
+  '/usr/bin/lua5.1': 'lua',
   '/usr/bin/node': 'javascript',
 };
 
