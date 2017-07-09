@@ -31,6 +31,7 @@ type Options struct {
 	ChangelogChannelID     string
 	StatsReportingInterval time.Duration
 	StatsReporterTargets   map[string]string
+	MinCostPerUser         time.Duration
 }
 
 type Client struct {
@@ -554,6 +555,10 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		}
 	}
 
+	if err := c.budgeter.Charge(ctx, m.Author.ID, c.opts.MinCostPerUser); err != nil {
+		return err
+	}
+
 	c.session.ChannelTyping(m.ChannelID)
 	resp, err := c.scriptsClient.Execute(ctx, &scriptspb.ExecuteRequest{
 		OwnerName: ownerName,
@@ -595,8 +600,13 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		}
 	}
 
-	if err := c.budgeter.Charge(ctx, m.Author.ID, time.Duration(resp.Result.Timings.RealNanos)*time.Nanosecond); err != nil {
-		return err
+	totalCost := time.Duration(resp.Result.Timings.RealNanos) * time.Nanosecond
+	remainingCost := totalCost - c.opts.MinCostPerUser
+
+	if remainingCost > 0 {
+		if err := c.budgeter.Charge(ctx, m.Author.ID, remainingCost); err != nil {
+			return err
+		}
 	}
 
 	channelID := m.ChannelID
