@@ -31,7 +31,6 @@ type Options struct {
 	ChangelogChannelID     string
 	StatsReportingInterval time.Duration
 	StatsReporterTargets   map[string]string
-	MinCostPerUser         time.Duration
 }
 
 type Client struct {
@@ -543,14 +542,16 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		}
 	}
 
-	if _, err := c.budgeter.CheckedCharge(ctx, m.Author.ID, c.opts.MinCostPerUser); err != nil {
-		if err == budget.ErrBudgetExceeded {
-			return &commandError{
-				status: errorStatusRateLimited,
-				note:   "Too many commands, please slow down",
-			}
-		}
+	remainingBudget, err := c.budgeter.Remaining(ctx, m.Author.ID)
+	if err != nil {
 		return err
+	}
+
+	if remainingBudget <= 0 {
+		return &commandError{
+			status: errorStatusRateLimited,
+			note:   "Too many commands, please slow down",
+		}
 	}
 
 	c.session.ChannelTyping(m.ChannelID)
@@ -594,13 +595,8 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 		}
 	}
 
-	totalCost := time.Duration(resp.Result.Timings.RealNanos) * time.Nanosecond
-	remainingCost := totalCost - c.opts.MinCostPerUser
-
-	if remainingCost > 0 {
-		if _, err := c.budgeter.Charge(ctx, m.Author.ID, remainingCost); err != nil {
-			return err
-		}
+	if err := c.budgeter.Charge(ctx, m.Author.ID, time.Duration(resp.Result.Timings.RealNanos)*time.Nanosecond); err != nil {
+		return err
 	}
 
 	channelID := m.ChannelID
