@@ -26,7 +26,7 @@ By default, the server founder and anyone with administrator permissions will be
 
 ## Command prefixes
 
-The default command prefix for Kobun is `.`, and can be changed using `@Kobun prefix`. For instance, you can use `@kobun prefix k.` to change the command prefix in your server to `k.`.
+The default command prefix for Kobun is `.`, and can be changed using `@Kobun prefix`. For instance, you can use `@Kobun prefix k.` to change the command prefix in your server to `k.`.
 
 ## Writing commands
 
