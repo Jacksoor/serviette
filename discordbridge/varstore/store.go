@@ -82,13 +82,13 @@ func (s *Store) SetGuildVars(ctx context.Context, tx *sql.Tx, guildID string, gu
 	} else {
 		r, err = tx.ExecContext(ctx, `
 			insert into guild_vars (guild_id, script_command_prefix, quiet, admin_role_id, announcement, delete_errors_after_seconds, allow_unprivileged_unlinked_commands)
-			values ($1, $2, $3, $4, $5, $6)
+			values ($1, $2, $3, $4, $5, $6, $7)
 			on conflict (guild_id) do update
 			set script_command_prefix = excluded.script_command_prefix,
 			    quiet = excluded.quiet,
 			    admin_role_id = excluded.admin_role_id,
-			    announcement = excluded.announcement
-			    delete_errors_after_seconds = excluded.delete_errors_after_seconds
+			    announcement = excluded.announcement,
+			    delete_errors_after_seconds = excluded.delete_errors_after_seconds,
 			    allow_unprivileged_unlinked_commands = excluded.allow_unprivileged_unlinked_commands
 		`, guildID, guildVars.ScriptCommandPrefix, guildVars.Quiet, guildVars.AdminRoleID, guildVars.Announcement, int64(guildVars.DeleteErrorsAfter/time.Second), guildVars.AllowUnprivilegedUnlinkedCommands)
 	}

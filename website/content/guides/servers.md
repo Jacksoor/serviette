@@ -24,6 +24,10 @@ If you don't want a command to be available anymore, you can use `@Kobun unlink`
 
 By default, the server founder and anyone with administrator permissions will be able to manage command linking. If you want to grant command management permissions to someone without granting such a broad range of permissions, create and grant a role named `Kobun Administrators` (it must be named **exactly** that).
 
+## Command prefixes
+
+The default command prefix for Kobun is `.`, and can be changed using `@Kobun prefix`. For instance, you can use `@kobun prefix k.` to change the command prefix in your server to `k.`.
+
 ## Writing commands
 
 Check out the [scripting guide](/guides/scripting) for information.

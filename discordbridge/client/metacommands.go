@@ -171,6 +171,11 @@ Link a command name to a script name from the [script library](%s/scripts). If t
 					Value: `**Administrators only.**
 Remove a command name link.`,
 				},
+				&discordgo.MessageEmbedField{
+					Name: fmt.Sprintf("%s prefix <prefix>", prefix),
+					Value: `**Administrators only.**
+Set the script command prefix for the server.`,
+				},
 			)
 		}
 
@@ -408,6 +413,42 @@ Here's a listing of commands that are linked into this server.`, c.opts.HomeURL,
 				Title:       fmt.Sprintf("`%s`", commandName),
 				Color:       0x009100,
 				Description: "Link removed.",
+			},
+		})
+
+		return nil
+	}),
+	"prefix": adminOnly(func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
+		prefix := rest
+
+		if prefix == "" {
+			return &commandError{
+				status: errorStatusUser,
+				note:   "Value required",
+			}
+		}
+
+		tx, err := c.vars.BeginTx(ctx)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+
+		newGuildVars := *guildVars
+		newGuildVars.ScriptCommandPrefix = prefix
+
+		if err := c.vars.SetGuildVars(ctx, tx, channel.GuildID, &newGuildVars); err != nil {
+			return err
+		}
+
+		tx.Commit()
+
+		c.session.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+			Content: fmt.Sprintf("<@%s>: ✅", m.Author.ID),
+			Embed: &discordgo.MessageEmbed{
+				Title:       "Prefix",
+				Color:       0x009100,
+				Description: fmt.Sprintf("`%s`", newGuildVars.ScriptCommandPrefix),
 			},
 		})
 
