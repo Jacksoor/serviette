@@ -114,7 +114,7 @@ func (c *Client) ready(s *discordgo.Session, r *discordgo.Ready) {
 	}()
 }
 
-var defaultAdminRoleName = "Kobun Administrators"
+var defaultAdminRoleNames = []string{"Kobun Administrators", "Kobun Administrator"}
 
 func (c *Client) memberIsAdmin(guildVars *varstore.GuildVars, guild *discordgo.Guild, member *discordgo.Member) bool {
 	if member == nil || guild == nil {
@@ -136,8 +136,15 @@ func (c *Client) memberIsAdmin(guildVars *varstore.GuildVars, guild *discordgo.G
 
 		adminRoleIDs := make([]string, 0)
 		for _, role := range guild.Roles {
-			if role.Name == defaultAdminRoleName || (role.Permissions&discordgo.PermissionAdministrator != 0) {
+			if role.Permissions&discordgo.PermissionAdministrator != 0 {
 				adminRoleIDs = append(adminRoleIDs, role.ID)
+				continue
+			}
+
+			for _, defaultAdminRoleName := range defaultAdminRoleNames {
+				if strings.EqualFold(role.Name, defaultAdminRoleName) {
+					adminRoleIDs = append(adminRoleIDs, role.ID)
+				}
 			}
 		}
 
