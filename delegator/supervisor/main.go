@@ -287,7 +287,7 @@ func main() {
 				Device:      "tmpfs",
 				Source:      "tmpfs",
 				Destination: "/dev",
-				Flags:       unix.MS_NOSUID | unix.MS_NOEXEC | unix.MS_STRICTATIME,
+				Flags:       unix.MS_NOSUID | unix.MS_NOEXEC | unix.MS_STRICTATIME | unix.MS_RDONLY,
 			},
 			{
 				Device:      "bind",
