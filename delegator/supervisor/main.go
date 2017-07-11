@@ -111,7 +111,7 @@ func applyRlimits(traits *accountspb.Traits) {
 	syscall.Setrlimit(unix.RLIMIT_CORE, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)})
 	syscall.Setrlimit(unix.RLIMIT_CPU, &syscall.Rlimit{Cur: uint64(traits.TimeLimitSeconds), Max: uint64(traits.TimeLimitSeconds)})
 	syscall.Setrlimit(unix.RLIMIT_DATA, &syscall.Rlimit{Cur: ^uint64(0), Max: ^uint64(0)})
-	syscall.Setrlimit(unix.RLIMIT_FSIZE, &syscall.Rlimit{Cur: uint64(1 * 1024 * 1024), Max: uint64(1 * 1024 * 1024)})
+	syscall.Setrlimit(unix.RLIMIT_FSIZE, &syscall.Rlimit{Cur: uint64(10 * 1024 * 1024), Max: uint64(10 * 1024 * 1024)})
 	syscall.Setrlimit(unix.RLIMIT_MEMLOCK, &syscall.Rlimit{Cur: uint64(64 * 1024), Max: uint64(64 * 1024)})
 	syscall.Setrlimit(unix.RLIMIT_MSGQUEUE, &syscall.Rlimit{Cur: uint64(800 * 1024), Max: uint64(800 * 1024)})
 	syscall.Setrlimit(unix.RLIMIT_NICE, &syscall.Rlimit{Cur: uint64(0), Max: uint64(0)})
@@ -346,7 +346,7 @@ func main() {
 			Device:      "tmpfs",
 			Source:      "tmpfs",
 			Destination: "/tmp",
-			Flags:       unix.MS_NOSUID | unix.MS_NOEXEC | unix.MS_NODEV,
+			Flags:       unix.MS_NOSUID | unix.MS_NODEV,
 			Data:        fmt.Sprintf("size=%d", traits.TmpfsSize),
 		})
 	}
