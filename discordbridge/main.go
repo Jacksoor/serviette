@@ -58,9 +58,9 @@ var (
 
 	homeURL = flag.String("home_url", "http://kobun", "URL to web UI")
 
-	maxBudgetPerUser    = flag.Duration("max_budget_per_user", 2*time.Second, "Max execution budget per user")
+	maxBudgetPerUser    = flag.Duration("max_budget_per_user", 5*time.Second, "Max execution budget per user")
 	minCostPerUser      = flag.Duration("min_cost_per_user", 1*time.Second, "Minimum cost per user")
-	payoutPeriodPerUser = flag.Duration("payout_period_per_user", 10, "How much time to wait before paying 1 unit of time back")
+	payoutPeriodPerUser = flag.Duration("payout_period_per_user", 5, "How much time to wait before paying 1 unit of time back")
 )
 
 func main() {
