@@ -1,7 +1,7 @@
 git_repository(
     name = "io_bazel_rules_go",
     remote = "https://github.com/bazelbuild/rules_go.git",
-    commit = "1493c3659a3b7993f29c885ca625c2ef68f56abc",
+    commit = "936af5753ebcd7a1f05127678435389cc2e3db5d",
 )
 
 git_repository(
@@ -269,7 +269,7 @@ go_repository(
 new_git_repository(
     name = "com_github_seccomp_libseccomp_golang",
     remote = "https://github.com/seccomp/libseccomp-golang",
-    commit = "f6ec81daf48e41bf48b475afc7fe06a26bfb72d1",
+    commit = "e3496e3a417d1dc9ecdceca5af2513271fed37a0",
     build_file_content = """
 package(default_visibility = ["//visibility:public"])
 
