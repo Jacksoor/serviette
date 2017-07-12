@@ -11,6 +11,7 @@ go_library(
         "//delegator/supervisor/rpc/outputservice:go_default_library",
         "//delegator/supervisor/rpc/statsservice:go_default_library",
         "//delegator/supervisor/rpc/supervisorservice:go_default_library",
+        "//delegator/supervisor/seccomp:go_default_library",
         "//executor/accountsservice/v1pb:go_default_library",
         "//executor/messagingservice/v1pb:go_default_library",
         "//executor/networkinfoservice/v1pb:go_default_library",

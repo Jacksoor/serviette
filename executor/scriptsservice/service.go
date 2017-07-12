@@ -173,11 +173,6 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 	return &pb.DeleteResponse{}, nil
 }
 
-const (
-	defaultUid uint32 = 0
-	defaultGid        = 0
-)
-
 type singleListener struct {
 	conn net.Conn
 	once sync.Once
@@ -408,9 +403,6 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 			StorageRootPath: s.accounts.StorageRootPath(),
 			K4LibraryPath:   s.k4LibraryPath,
-
-			Uid: defaultUid,
-			Gid: defaultGid,
 
 			BridgeTarget:   req.BridgeTarget,
 			ExecutorTarget: s.lis.Addr().String(),

@@ -26,6 +26,8 @@ import (
 	"github.com/opencontainers/runc/libcontainer/configs"
 	_ "github.com/opencontainers/runc/libcontainer/nsenter"
 
+	"github.com/porpoises/kobun4/delegator/supervisor/seccomp"
+
 	messagingpb "github.com/porpoises/kobun4/executor/messagingservice/v1pb"
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
 	statspb "github.com/porpoises/kobun4/executor/statsservice/v1pb"
@@ -316,18 +318,19 @@ func main() {
 		},
 		UidMappings: []configs.IDMap{
 			{
-				ContainerID: int(req.Config.Uid),
-				HostID:      os.Geteuid(),
+				ContainerID: 0,
+				HostID:      os.Getuid(),
 				Size:        1,
 			},
 		},
 		GidMappings: []configs.IDMap{
 			{
-				ContainerID: int(req.Config.Gid),
-				HostID:      os.Getegid(),
+				ContainerID: 0,
+				HostID:      os.Getgid(),
 				Size:        1,
 			},
 		},
+		Seccomp: seccomp.Config,
 	}
 
 	if !traits.AllowNetworkAccess {

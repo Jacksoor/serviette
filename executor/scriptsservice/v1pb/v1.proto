@@ -96,9 +96,6 @@ message WorkerExecutionRequest {
         string storage_root_path = 21;
         string k4_library_path = 23;
 
-        uint32 uid = 31;
-        uint32 gid = 32;
-
         string bridge_target = 41;
         string executor_target = 42;
     }
