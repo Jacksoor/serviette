@@ -17,6 +17,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
+	"github.com/kballard/go-shellquote"
 	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
@@ -426,7 +427,7 @@ func main() {
 
 	process := &libcontainer.Process{
 		Args: []string{
-			filepath.Join(scriptMountDir, req.Name),
+			"/bin/sh", "-c", shellquote.Join("exec", filepath.Join(scriptMountDir, req.Name)),
 		},
 		Env: []string{
 			fmt.Sprintf("K4_CONTEXT=%s", jsonK4Context),

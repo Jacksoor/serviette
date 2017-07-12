@@ -266,6 +266,12 @@ go_repository(
     importpath = "github.com/pkg/errors",
 )
 
+go_repository(
+    name = "com_github_kballard_go_shellquote",
+    commit = "cd60e84ee657ff3dc51de0b4f55dd299a3e136f2",
+    importpath = "github.com/kballard/go-shellquote",
+)
+
 new_git_repository(
     name = "com_github_seccomp_libseccomp_golang",
     remote = "https://github.com/seccomp/libseccomp-golang",

@@ -20,6 +20,7 @@ go_library(
         "@com_github_golang_glog//:go_default_library",
         "@com_github_golang_protobuf//jsonpb:go_default_library",
         "@com_github_golang_protobuf//proto:go_default_library",
+        "@com_github_kballard_go_shellquote//:go_default_library",
         "@com_github_opencontainers_runc//libcontainer:go_default_library",
         "@com_github_opencontainers_runc//libcontainer/cgroups:go_default_library",
         "@com_github_opencontainers_runc//libcontainer/configs:go_default_library",
