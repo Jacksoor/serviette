@@ -136,7 +136,7 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 
 			fields[i] = &discordgo.MessageEmbedField{
 				Name:  strings.Join(formattedNames, ", "),
-				Value: fmt.Sprintf("[\\[`%s`\\]](%s/scripts/view.html?%s) %s", qualifiedName, c.opts.HomeURL, qualifiedName, description),
+				Value: fmt.Sprintf("[`[%s]`](%s/scripts/view.html?%s) %s", qualifiedName, c.opts.HomeURL, qualifiedName, description),
 			}
 		}
 
