@@ -340,15 +340,13 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	defer reqWriter.Close()
 	defer reqReader.Close()
 
-	args := append([]string{s.nsenternetPath, s.supervisorPath}, "-logtostderr", "-parent_cgroup", cgroup)
-
 	timeout := time.Duration(traits.TimeLimitSeconds) * 2 * time.Second
 	glog.Infof("Starting supervisor with timeout: %s", timeout)
 
 	commandCtx, commandCancel := context.WithTimeout(ctx, timeout)
 	defer commandCancel()
 
-	cmd := exec.CommandContext(commandCtx, args[0], args[1:]...)
+	cmd := exec.CommandContext(commandCtx, s.supervisorPath, "-logtostderr", "-parent_cgroup", cgroup)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -403,6 +401,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 
 			StorageRootPath: s.accounts.StorageRootPath(),
 			K4LibraryPath:   s.k4LibraryPath,
+			NsenternetPath:  s.nsenternetPath,
 
 			BridgeTarget:   req.BridgeTarget,
 			ExecutorTarget: s.lis.Addr().String(),

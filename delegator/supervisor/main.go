@@ -238,7 +238,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	factory, err := libcontainer.New(req.Config.ContainersPath, libcontainer.RootlessCgroups, libcontainer.InitArgs(os.Args[0], "init"))
+	factory, err := libcontainer.New(req.Config.ContainersPath, libcontainer.RootlessCgroups, libcontainer.InitArgs(req.Config.NsenternetPath, os.Args[0], "init"))
 	if err != nil {
 		glog.Error(err)
 		os.Exit(1)

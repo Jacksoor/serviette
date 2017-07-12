@@ -95,6 +95,7 @@ message WorkerExecutionRequest {
 
         string storage_root_path = 21;
         string k4_library_path = 23;
+        string nsenternet_path = 24;
 
         string bridge_target = 41;
         string executor_target = 42;
