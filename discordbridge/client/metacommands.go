@@ -136,7 +136,7 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 
 			fields[i] = &discordgo.MessageEmbedField{
 				Name:  strings.Join(formattedNames, ", "),
-				Value: description,
+				Value: fmt.Sprintf("[\\[`%s`\\]](%s/scripts/view.html?%s) %s", qualifiedName, c.opts.HomeURL, qualifiedName, description),
 			}
 		}
 
@@ -144,37 +144,11 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 
 		prefix := fmt.Sprintf("@%s", c.session.State.User.Username)
 
-		fields = append(fields,
-			&discordgo.MessageEmbedField{
-				Name:  fmt.Sprintf("%s help", prefix),
-				Value: `Displays this help message.`,
-			},
-			&discordgo.MessageEmbedField{
-				Name:  fmt.Sprintf("%s info <command name>", prefix),
-				Value: `Get information on any linked command beginning with ` + "`" + guildVars.ScriptCommandPrefix + "`",
-			},
-			&discordgo.MessageEmbedField{
-				Name:  fmt.Sprintf("%s ping", prefix),
-				Value: `Check the latency from the bot to Discord.`,
-			},
-		)
-
 		if c.memberIsAdmin(guildVars, guild, member) {
 			fields = append(fields,
 				&discordgo.MessageEmbedField{
-					Name: fmt.Sprintf("%s link <command name> <script name>", prefix),
-					Value: fmt.Sprintf(`**Administrators only.**
-Link a command name to a script name from the [script library](%s/scripts). If the link already exists, it will be replaced.`, c.opts.HomeURL),
-				},
-				&discordgo.MessageEmbedField{
-					Name: fmt.Sprintf("%s unlink <command name>", prefix),
-					Value: `**Administrators only.**
-Remove a command name link.`,
-				},
-				&discordgo.MessageEmbedField{
-					Name: fmt.Sprintf("%s prefix <prefix>", prefix),
-					Value: `**Administrators only.**
-Set the script command prefix for the server.`,
+					Name:  fmt.Sprintf("%s adminhelp", prefix),
+					Value: `Help for administrative commands. **You have administrative permissions for Kobun on this server.**`,
 				},
 			)
 		}
@@ -206,6 +180,34 @@ Here's a listing of commands that are linked into this server.`, c.opts.HomeURL,
 		})
 		return nil
 	},
+	"adminhelp": adminOnly(func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
+		prefix := fmt.Sprintf("@%s", c.session.State.User.Username)
+
+		c.session.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+			Content: fmt.Sprintf("<@%s>: ✅", m.Author.ID),
+			Embed: &discordgo.MessageEmbed{
+				Title:       "🛂 Administrative Help",
+				URL:         c.opts.HomeURL,
+				Description: fmt.Sprintf(`**You have administrative permissions for Kobun on this server.** Here is a list of administrative commands you can use.`),
+				Color:       0x009100,
+				Fields: []*discordgo.MessageEmbedField{
+					&discordgo.MessageEmbedField{
+						Name:  fmt.Sprintf("%s link <command name> <script name>", prefix),
+						Value: fmt.Sprintf(`Link a command name to a script name from the [script library](%s/scripts). If the link already exists, it will be replaced.`, c.opts.HomeURL),
+					},
+					&discordgo.MessageEmbedField{
+						Name:  fmt.Sprintf("%s unlink <command name>", prefix),
+						Value: `Remove a command name link.`,
+					},
+					&discordgo.MessageEmbedField{
+						Name:  fmt.Sprintf("%s prefix <prefix>", prefix),
+						Value: `Set the script command prefix for the server.`,
+					},
+				},
+			},
+		})
+		return nil
+	}),
 	"ping": func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
 		startTime := time.Now()
 		ms, err := c.session.ChannelMessageSend(m.ChannelID, "🏓 **Waiting for pong...**")
@@ -215,77 +217,6 @@ Here's a listing of commands that are linked into this server.`, c.opts.HomeURL,
 		endTime := time.Now()
 
 		c.session.ChannelMessageEdit(m.ChannelID, ms.ID, fmt.Sprintf("🏓 **Pong!** %dms", endTime.Sub(startTime)/time.Millisecond))
-
-		return nil
-	},
-	"info": func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
-		commandName := rest
-
-		linked := commandNameIsLinked(commandName)
-		if !linked {
-			return &commandError{
-				status: errorStatusUser,
-				note:   fmt.Sprintf("Link `%s` not found", commandName),
-			}
-		}
-
-		ownerName, scriptName, err := resolveScriptName(ctx, c, channel.GuildID, commandName)
-		if err != nil {
-			if err == errNotFound {
-				return &commandError{
-					status: errorStatusUser,
-					note:   fmt.Sprintf("Link `%s` not found", commandName),
-				}
-			}
-			return err
-		}
-
-		getMeta, err := c.scriptsClient.GetMeta(ctx, &scriptspb.GetMetaRequest{
-			OwnerName: ownerName,
-			Name:      scriptName,
-		})
-		if err != nil {
-			switch grpc.Code(err) {
-			case codes.NotFound, codes.InvalidArgument:
-				return &commandError{
-					status: errorStatusScript,
-					note:   "Link references invalid script name",
-				}
-			default:
-				return err
-			}
-		}
-		if getMeta.Meta.Visibility == scriptspb.Visibility_UNPUBLISHED {
-			return &commandError{
-				status: errorStatusScript,
-				note:   "Link references invalid script name",
-			}
-		}
-
-		description := getMeta.Meta.Description
-		if description == "" {
-			description = "_No description available._"
-		}
-
-		c.session.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@%s>: ✅", m.Author.ID),
-			Embed: &discordgo.MessageEmbed{
-				Title:       fmt.Sprintf("`%s`", commandName),
-				Description: description,
-				URL:         fmt.Sprintf("%s/scripts/%s/%s", c.opts.HomeURL, ownerName, scriptName),
-				Color:       0x009100,
-				Author: &discordgo.MessageEmbedAuthor{
-					Name: ownerName,
-					URL:  fmt.Sprintf("%s/scripts/%s", c.opts.HomeURL, ownerName),
-				},
-				Fields: []*discordgo.MessageEmbedField{
-					{
-						Name:  "Script Name",
-						Value: fmt.Sprintf("`%s/%s`", ownerName, scriptName),
-					},
-				},
-			},
-		})
 
 		return nil
 	},
@@ -375,7 +306,7 @@ Here's a listing of commands that are linked into this server.`, c.opts.HomeURL,
 			Embed: &discordgo.MessageEmbed{
 				Title:       fmt.Sprintf("`%s`", commandName),
 				Description: description,
-				URL:         fmt.Sprintf("%s/scripts/%s/%s", c.opts.HomeURL, ownerName, scriptName),
+				URL:         fmt.Sprintf("%s/scripts/view.html?%s/%s", c.opts.HomeURL, ownerName, scriptName),
 				Color:       0x009100,
 				Author: &discordgo.MessageEmbedAuthor{
 					Name: ownerName,
