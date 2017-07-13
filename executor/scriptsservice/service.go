@@ -200,21 +200,28 @@ func (s *singleListener) Addr() net.Addr {
 	return s.conn.LocalAddr()
 }
 
-func makeCgroup(subsystem string, name string) (string, error) {
-	mountpoint, err := cgroups.FindCgroupMountpoint(subsystem)
-	if err != nil {
-		return "", err
+var defaultCgroupSubsystems = []string{"memory", "cpu", "blkio"}
+
+func makeCgroups(subsystems []string, name string) ([]string, error) {
+	paths := make([]string, len(subsystems))
+	for i, subsystem := range subsystems {
+		mountpoint, err := cgroups.FindCgroupMountpoint(subsystem)
+		if err != nil {
+			return nil, err
+		}
+
+		cgroupPath := filepath.Join(mountpoint, name)
+		if err := os.MkdirAll(cgroupPath, 0755); err != nil {
+			return nil, err
+		}
+
+		paths[i] = cgroupPath
 	}
 
-	cgroupPath := filepath.Join(mountpoint, name)
-	if err := os.MkdirAll(cgroupPath, 0755); err != nil {
-		return "", err
-	}
-
-	return cgroupPath, nil
+	return paths, nil
 }
 
-func removeCgroups(path string) error {
+func removeCgroup(path string) error {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		return err
@@ -222,7 +229,7 @@ func removeCgroups(path string) error {
 
 	for _, f := range files {
 		if f.IsDir() {
-			if err := removeCgroups(filepath.Join(path, f.Name())); err != nil {
+			if err := removeCgroup(filepath.Join(path, f.Name())); err != nil {
 				return err
 			}
 		}
@@ -261,16 +268,18 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
 
-	cgroup := fmt.Sprintf("%s/execution-%d-%d", s.parentCgroup, time.Now().Unix(), s.executionID)
+	cgroupName := fmt.Sprintf("%s/execution-%d-%d", s.parentCgroup, time.Now().Unix(), s.executionID)
 	s.executionID++
-	memoryCgroupPath, err := makeCgroup("memory", cgroup)
+	cgroupPaths, err := makeCgroups(defaultCgroupSubsystems, cgroupName)
 	if err != nil {
 		glog.Errorf("Failed to open parent file conn: %v", err)
 		return nil, grpc.Errorf(codes.Internal, "failed to run script")
 	}
 	defer func() {
-		if err := removeCgroups(memoryCgroupPath); err != nil {
-			glog.Errorf("Failed to remove all cgroups: %v", err)
+		for _, path := range cgroupPaths {
+			if err := removeCgroup(path); err != nil {
+				glog.Errorf("Failed to remove all cgroups: %v", err)
+			}
 		}
 	}()
 
@@ -346,7 +355,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	commandCtx, commandCancel := context.WithTimeout(ctx, timeout)
 	defer commandCancel()
 
-	cmd := exec.CommandContext(commandCtx, s.supervisorPath, "-logtostderr", "-parent_cgroup", cgroup)
+	cmd := exec.CommandContext(commandCtx, s.supervisorPath, "-logtostderr", "-parent_cgroup", cgroupName)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{

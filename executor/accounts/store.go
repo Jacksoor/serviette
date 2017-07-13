@@ -68,6 +68,8 @@ func (a *Account) Traits(ctx context.Context) (*accountspb.Traits, error) {
 		       memory_limit,
 		       tmpfs_size,
 		       allow_network_access,
+		       blkio_weight,
+		       cpu_shares,
 		       allowed_services,
 		       allowed_output_formats
 		from accounts
@@ -77,6 +79,8 @@ func (a *Account) Traits(ctx context.Context) (*accountspb.Traits, error) {
 		&traits.MemoryLimit,
 		&traits.TmpfsSize,
 		&traits.AllowNetworkAccess,
+		&traits.BlkioWeight,
+		&traits.CpuShares,
 		pq.Array(&traits.AllowedService),
 		pq.Array(&traits.AllowedOutputFormat),
 	); err != nil {

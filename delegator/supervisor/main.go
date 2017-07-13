@@ -140,21 +140,66 @@ func makeCgroup(subsystem string, name string) (string, error) {
 	return cgroupPath, nil
 }
 
-const cgroupMemoryLimit = "memory.limit_in_bytes"
+func setCgroupValue(cgroupPath string, k string, v string) error {
+	glog.Infof("Setting %s/%s = %s", cgroupPath, k, v)
+	return ioutil.WriteFile(filepath.Join(cgroupPath, k), []byte(v), 0644)
+}
+
+func applyMemoryCgroup(cgroupPaths map[string]string, traits *accountspb.Traits, currentCgroup string) error {
+	cgroupPath, err := makeCgroup("memory", currentCgroup)
+	if err != nil {
+		return err
+	}
+
+	if err := setCgroupValue(cgroupPath, "memory.limit_in_bytes", strconv.FormatInt(traits.MemoryLimit, 10)); err != nil {
+		return err
+	}
+
+	cgroupPaths["memory"] = cgroupPath
+	return nil
+}
+
+func applyCpuCgroup(cgroupPaths map[string]string, traits *accountspb.Traits, currentCgroup string) error {
+	cgroupPath, err := makeCgroup("cpu", currentCgroup)
+	if err != nil {
+		return err
+	}
+
+	if err := setCgroupValue(cgroupPath, "cpu.shares", strconv.FormatInt(traits.CpuShares, 10)); err != nil {
+		return err
+	}
+
+	cgroupPaths["cpu"] = cgroupPath
+	return nil
+}
+
+func applyBlkioCgroup(cgroupPaths map[string]string, traits *accountspb.Traits, currentCgroup string) error {
+	cgroupPath, err := makeCgroup("blkio", currentCgroup)
+	if err != nil {
+		return err
+	}
+
+	if err := setCgroupValue(cgroupPath, "blkio.weight", strconv.FormatInt(traits.BlkioWeight, 10)); err != nil {
+		return err
+	}
+
+	cgroupPaths["blkio"] = cgroupPath
+	return nil
+}
 
 func applyCgroups(traits *accountspb.Traits, currentCgroup string) error {
 	cgroupPaths := make(map[string]string, 0)
-	if traits.MemoryLimit >= 0 {
-		memoryCgroupPath, err := makeCgroup("memory", currentCgroup)
-		if err != nil {
-			return err
-		}
 
-		if err := ioutil.WriteFile(filepath.Join(memoryCgroupPath, cgroupMemoryLimit), []byte(strconv.FormatInt(traits.MemoryLimit, 10)), 0700); err != nil {
-			return err
-		}
+	if err := applyMemoryCgroup(cgroupPaths, traits, currentCgroup); err != nil {
+		return err
+	}
 
-		cgroupPaths["memory"] = memoryCgroupPath
+	if err := applyCpuCgroup(cgroupPaths, traits, currentCgroup); err != nil {
+		return err
+	}
+
+	if err := applyBlkioCgroup(cgroupPaths, traits, currentCgroup); err != nil {
+		return err
 	}
 
 	if err := cgroups.EnterPid(cgroupPaths, os.Getpid()); err != nil {

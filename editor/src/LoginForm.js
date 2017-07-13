@@ -72,6 +72,7 @@ export default class LoginForm extends Component {
             <fieldset disabled={this.state.disabled}>
               <h2 className="text-muted">Please select a username</h2>
               <p>This username cannot be changed, <strong>ever</strong>, so choose carefully!</p>
+              <p>Only numbers and lowercase alphabetical characters are allowed.</p>
               {this.state.lastError ? <Alert color="danger">{this.state.lastError.toString()}</Alert> : null}
               <Input name="username" className="username" type="text" placeholder="Username" maxLength="20" />
               <Button block color="primary" size="lg">Register</Button>
