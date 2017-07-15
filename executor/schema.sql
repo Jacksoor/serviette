@@ -16,8 +16,13 @@ create table scripts (
     script_name character varying(20) not null,
     description text(200) not null default '',
     published boolean not null default false,
+    votes integer not null default 0,
 
-    primary key (owner_name, script_name)
+    primary key (owner_name, script_name),
+
+    foreign key (owner_name) references accounts (name)
+        on update restrict
+        on delete restrict
 );
 
 create index scripts_owner_name_idx on scripts (owner_name);
