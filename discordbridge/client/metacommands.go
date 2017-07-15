@@ -304,6 +304,21 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 			return err
 		}
 
+		refcount, err := c.vars.Refcount(ctx, tx, channel.GuildID, ownerName, scriptName)
+		if err != nil {
+			return nil
+		}
+
+		if refcount == 1 {
+			if _, err := c.scriptsClient.Vote(ctx, &scriptspb.VoteRequest{
+				OwnerName: ownerName,
+				Name:      scriptName,
+				Delta:     1,
+			}); err != nil {
+				return err
+			}
+		}
+
 		tx.Commit()
 
 		description := getMeta.Meta.Description
@@ -342,8 +357,34 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 		}
 		defer tx.Rollback()
 
+		link, err := c.vars.GuildLink(ctx, tx, channel.GuildID, commandName)
+		if err != nil {
+			if err == varstore.ErrNotFound {
+				return &commandError{
+					status: errorStatusUser,
+					note:   "Link not found",
+				}
+			}
+			return err
+		}
+
 		if err := c.vars.SetGuildLink(ctx, tx, channel.GuildID, commandName, nil); err != nil {
 			return err
+		}
+
+		refcount, err := c.vars.Refcount(ctx, tx, channel.GuildID, link.OwnerName, link.ScriptName)
+		if err != nil {
+			return nil
+		}
+
+		if refcount == 0 {
+			if _, err := c.scriptsClient.Vote(ctx, &scriptspb.VoteRequest{
+				OwnerName: link.OwnerName,
+				Name:      link.ScriptName,
+				Delta:     -1,
+			}); err != nil {
+				return err
+			}
 		}
 
 		tx.Commit()

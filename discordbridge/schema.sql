@@ -18,6 +18,7 @@ create table guild_links (
 );
 
 create index guild_links_guild_id_idx on guild_links (guild_id);
+create index guild_links_guild_id_script_idx on guild_links (guild_id, owner_name, script_name);
 
 create table user_channel_stats (
     user_id character varying not null,

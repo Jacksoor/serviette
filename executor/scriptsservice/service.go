@@ -173,31 +173,26 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 	return &pb.DeleteResponse{}, nil
 }
 
-type singleListener struct {
-	conn net.Conn
-	once sync.Once
-}
+func (s *Service) Vote(ctx context.Context, req *pb.VoteRequest) (*pb.VoteResponse, error) {
+	script, err := s.scripts.Open(ctx, req.OwnerName, req.Name)
 
-func (s *singleListener) Accept() (net.Conn, error) {
-	var c net.Conn
-	s.once.Do(func() {
-		c = s.conn
-	})
-	if c != nil {
-		return c, nil
+	if err != nil {
+		switch err {
+		case scripts.ErrInvalidName:
+			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
+		case scripts.ErrNotFound:
+			return nil, grpc.Errorf(codes.NotFound, "script not found")
+		}
+		glog.Errorf("Failed to get load script: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load script")
 	}
-	return nil, io.EOF
-}
 
-func (s *singleListener) Close() error {
-	s.once.Do(func() {
-		s.conn.Close()
-	})
-	return nil
-}
+	if err := script.Vote(ctx, int(req.Delta)); err != nil {
+		glog.Errorf("Failed to vote on script: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to vote on script")
+	}
 
-func (s *singleListener) Addr() net.Addr {
-	return s.conn.LocalAddr()
+	return &pb.VoteResponse{}, nil
 }
 
 var defaultCgroupSubsystems = []string{"memory", "cpu", "blkio"}

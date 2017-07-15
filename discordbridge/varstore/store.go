@@ -200,3 +200,16 @@ func (s *Store) SetGuildLink(ctx context.Context, tx *sql.Tx, guildID string, li
 
 	return nil
 }
+
+func (s *Store) Refcount(ctx context.Context, tx *sql.Tx, guildID string, ownerName string, scriptName string) (int, error) {
+	var count int
+	if err := tx.QueryRowContext(ctx, `
+		select count(1) from guild_links
+		where guild_id = $1 and
+		      owner_name = $2 and
+		      script_name = $3
+	`, guildID, ownerName, scriptName).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}

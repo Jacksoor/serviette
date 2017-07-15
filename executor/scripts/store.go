@@ -149,7 +149,7 @@ func (s *Store) Scripts(ctx context.Context, ownerName string, query string, vie
 		where ($1 = '' or owner_name = $1) and
 		      ($2 = '' or (to_tsvector('english', script_name || ' ' || description) @@ tsq)) and
 		      (owner_name = $3 or visibility = 2)
-		order by ts_rank_cd(to_tsvector('english', script_name || ' ' || description), tsq) desc, owner_name asc, script_name asc
+		order by ts_rank_cd(to_tsvector('english', script_name || ' ' || description), tsq) desc, votes desc, owner_name asc, script_name asc
 		offset $4 limit $5
 	`, ownerName, query, viewerName, offset, limit)
 	if err != nil {

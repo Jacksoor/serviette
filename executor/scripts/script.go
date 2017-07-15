@@ -72,6 +72,18 @@ func (s *Script) SetMeta(ctx context.Context, meta *scriptspb.Meta) error {
 	return nil
 }
 
+func (s *Script) Vote(ctx context.Context, delta int) error {
+	if _, err := s.db.ExecContext(ctx, `
+		update scripts
+		set votes = votes + $1
+		where owner_name = $2 and
+		      script_name = $3
+	`, delta, s.OwnerName, s.Name); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *Script) Delete(ctx context.Context) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
