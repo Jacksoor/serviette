@@ -59,6 +59,16 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 			return nil
 		}
 
+		isAdmin := c.memberIsAdmin(guildVars, guild, member)
+
+		prelude := "Here's a listing of commands that are linked into this server."
+		if len(links) == 0 {
+			prelude = "There aren't any commands linked into this server yet."
+			if isAdmin {
+				prelude += fmt.Sprintf(" Check out the [script library](%s/scripts) to link some!", c.opts.HomeURL)
+			}
+		}
+
 		// Find all distinct commands to request.
 		linkNames := make([]string, 0, len(links))
 		for linkName := range links {
@@ -144,7 +154,7 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 
 		prefix := fmt.Sprintf("@%s", c.session.State.User.Username)
 
-		if c.memberIsAdmin(guildVars, guild, member) {
+		if isAdmin {
 			fields = append(fields,
 				&discordgo.MessageEmbedField{
 					Name:  fmt.Sprintf("%s adminhelp", prefix),
@@ -170,7 +180,7 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 				URL:   c.opts.HomeURL,
 				Description: fmt.Sprintf(`[**Kobun**](%s) is a multipurpose extensible utility bot that [you can program](%s/guides/scripting)!%s
 
-Here's a listing of commands that are linked into this server.`, c.opts.HomeURL, c.opts.HomeURL, formattedAnnouncement),
+%s`, c.opts.HomeURL, c.opts.HomeURL, formattedAnnouncement, prelude),
 				Color:  0x009100,
 				Fields: fields,
 				Footer: &discordgo.MessageEmbedFooter{
