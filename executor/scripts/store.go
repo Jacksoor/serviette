@@ -3,12 +3,15 @@ package scripts
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 
 	"github.com/lib/pq"
 	"golang.org/x/net/context"
+
+	scriptspb "github.com/porpoises/kobun4/executor/scriptsservice/v1pb"
 )
 
 var (
@@ -27,6 +30,11 @@ func NewStore(db *sql.DB, storageRootPath string) *Store {
 		db:              db,
 		storageRootPath: storageRootPath,
 	}
+}
+
+var sortOrderClauses map[scriptspb.ListRequest_SortOrder]string = map[scriptspb.ListRequest_SortOrder]string{
+	scriptspb.ListRequest_DEFAULT: "",
+	scriptspb.ListRequest_VOTES:   "votes desc",
 }
 
 var nameRegexp = regexp.MustCompile(`^[a-z0-9_-]{1,20}$`)
@@ -140,18 +148,23 @@ func (s *Store) PublishedScripts(ctx context.Context) ([]*Script, error) {
 	return scripts, nil
 }
 
-func (s *Store) Scripts(ctx context.Context, ownerName string, query string, viewerName string, offset, limit uint32) ([]*Script, error) {
+func (s *Store) Scripts(ctx context.Context, ownerName string, query string, viewerName string, offset, limit uint32, sortOrder scriptspb.ListRequest_SortOrder) ([]*Script, error) {
 	scripts := make([]*Script, 0)
 
-	rows, err := s.db.QueryContext(ctx, `
+	sortClause := sortOrderClauses[sortOrder]
+	if sortClause != "" {
+		sortClause += ","
+	}
+
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
 		select owner_name, script_name
 		from scripts, plainto_tsquery('english', $2) tsq
 		where ($1 = '' or owner_name = $1) and
 		      ($2 = '' or (to_tsvector('english', script_name || ' ' || description) @@ tsq)) and
 		      (owner_name = $3 or visibility = 2)
-		order by ts_rank_cd(to_tsvector('english', script_name || ' ' || description), tsq) desc, votes desc, owner_name asc, script_name asc
+		order by ts_rank_cd(to_tsvector('english', script_name || ' ' || description), tsq) desc, %s owner_name asc, script_name asc
 		offset $4 limit $5
-	`, ownerName, query, viewerName, offset, limit)
+	`, sortClause), ownerName, query, viewerName, offset, limit)
 	if err != nil {
 		return nil, err
 	}

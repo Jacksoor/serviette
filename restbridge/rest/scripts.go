@@ -116,12 +116,18 @@ func (r ScriptsResource) list(req *restful.Request, resp *restful.Response) {
 		}
 	}
 
+	sortOrder, err := strconv.Atoi(req.QueryParameter("order"))
+	if err != nil {
+		sortOrder = 0
+	}
+
 	listResp, err := r.scriptsClient.List(req.Request.Context(), &scriptspb.ListRequest{
 		OwnerName:  "",
 		Query:      req.QueryParameter("q"),
 		ViewerName: username,
 		Offset:     offset,
 		Limit:      limit,
+		SortOrder:  scriptspb.ListRequest_SortOrder(sortOrder),
 	})
 
 	if err != nil {

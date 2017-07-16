@@ -24,7 +24,7 @@ function get(path, cb) {
 }
 
 function load(i, limit) {
-    get('scripts?offset=' + i + '&limit=' + limit, function (resp) {
+    get('scripts?offset=' + i + '&limit=' + limit + '&order=1', function (resp) {
         if (resp.length === 0) {
             return;
         }
