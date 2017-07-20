@@ -150,7 +150,7 @@ func (s *Store) FindLink(ctx context.Context, tx *sql.Tx, guildID string, conten
 		select link_name, owner_name, script_name
 		from guild_links
 		where guild_id = $1 and
-		      $2 like replace(replace(replace(link_name, '^', '^^'), '%', '^%'), '_', '^_') || '%' escape '^' 
+		      $2 ~* ('^' || regexp_replace(link_name, '\W', '\\\&', 'g') || '(?!\w)')
 		order by length(link_name) desc
 		limit 1
 	`, guildID, content).Scan(&linkName, &link.OwnerName, &link.ScriptName); err != nil {
