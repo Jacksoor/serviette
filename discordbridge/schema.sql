@@ -1,6 +1,5 @@
 create table guild_vars (
     guild_id character varying primary key not null,
-    script_command_prefix character varying not null default '.',
     quiet boolean not null default false,
     admin_role_id character varying,
     announcement character varying not null,
@@ -19,6 +18,7 @@ create table guild_links (
 
 create index guild_links_guild_id_idx on guild_links (guild_id);
 create index guild_links_guild_id_script_idx on guild_links (guild_id, owner_name, script_name);
+create index guild_links_link_name_text_idx on guild_links (guild_id, link_name text_pattern_ops);
 
 create table user_channel_stats (
     user_id character varying not null,

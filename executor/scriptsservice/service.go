@@ -98,7 +98,7 @@ func (s *Service) Create(ctx context.Context, req *pb.CreateRequest) (*pb.Create
 	if err != nil {
 		switch err {
 		case scripts.ErrInvalidName:
-			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
+			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name, must only contain numbers and lowercase alphabetical characters")
 		case scripts.ErrAlreadyExists:
 			return nil, grpc.Errorf(codes.AlreadyExists, "script already exists")
 		}
@@ -157,7 +157,7 @@ func (s *Service) Delete(ctx context.Context, req *pb.DeleteRequest) (*pb.Delete
 	if err != nil {
 		switch err {
 		case scripts.ErrInvalidName:
-			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
+			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name, must only contain numbers and lowercase alphabetical characters")
 		case scripts.ErrNotFound:
 			return nil, grpc.Errorf(codes.NotFound, "script not found")
 		}
@@ -179,7 +179,7 @@ func (s *Service) Vote(ctx context.Context, req *pb.VoteRequest) (*pb.VoteRespon
 	if err != nil {
 		switch err {
 		case scripts.ErrInvalidName:
-			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
+			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name, must only contain numbers and lowercase alphabetical characters")
 		case scripts.ErrNotFound:
 			return nil, grpc.Errorf(codes.NotFound, "script not found")
 		}
@@ -255,7 +255,7 @@ func (s *Service) Execute(ctx context.Context, req *pb.ExecuteRequest) (*pb.Exec
 	if err != nil {
 		switch err {
 		case scripts.ErrInvalidName:
-			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
+			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name, must only contain numbers and lowercase alphabetical characters")
 		case scripts.ErrNotFound:
 			return nil, grpc.Errorf(codes.NotFound, "script not found")
 		}
@@ -471,7 +471,7 @@ func (s *Service) GetContent(ctx context.Context, req *pb.GetContentRequest) (*p
 	if err != nil {
 		switch err {
 		case scripts.ErrInvalidName:
-			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
+			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name, must only contain numbers and lowercase alphabetical characters")
 		case scripts.ErrNotFound:
 			return nil, grpc.Errorf(codes.NotFound, "script not found")
 		}
@@ -496,7 +496,7 @@ func (s *Service) GetMeta(ctx context.Context, req *pb.GetMetaRequest) (*pb.GetM
 	if err != nil {
 		switch err {
 		case scripts.ErrInvalidName:
-			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name")
+			return nil, grpc.Errorf(codes.InvalidArgument, "invalid script name, must only contain numbers and lowercase alphabetical characters")
 		case scripts.ErrNotFound:
 			return nil, grpc.Errorf(codes.NotFound, "script not found")
 		}

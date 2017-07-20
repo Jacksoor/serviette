@@ -11,7 +11,7 @@ import LoginForm from './LoginForm';
 function makeDefaultScript(ownerName, name) {
   return `#!/usr/bin/python3
 
-# To run this command, run \`.${ownerName}/${name}\` in a server with Kobun that you are the administrator of.
+# To run this command, run \`@Kobun run ${ownerName}/${name}\` in a server with Kobun that you are the administrator of.
 
 print("Hello world!")
 `;

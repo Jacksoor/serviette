@@ -30,7 +30,6 @@ func (s *Store) BeginTx(ctx context.Context) (*sql.Tx, error) {
 }
 
 type GuildVars struct {
-	ScriptCommandPrefix               string
 	Quiet                             bool
 	AdminRoleID                       *string
 	Announcement                      string
@@ -55,10 +54,10 @@ func (s *Store) GuildVars(ctx context.Context, tx *sql.Tx, guildID string) (*Gui
 	guildVars := &GuildVars{}
 
 	if err := tx.QueryRowContext(ctx, `
-		select script_command_prefix, quiet, admin_role_id, announcement, delete_errors_after_seconds, allow_unprivileged_unlinked_commands
+		select quiet, admin_role_id, announcement, delete_errors_after_seconds, allow_unprivileged_unlinked_commands
 		from guild_vars
 		where guild_id = $1
-	`, guildID).Scan(&guildVars.ScriptCommandPrefix, &guildVars.Quiet, &guildVars.AdminRoleID, &guildVars.Announcement, &deleteErrorsAfterSeconds, &guildVars.AllowUnprivilegedUnlinkedCommands); err != nil {
+	`, guildID).Scan(&guildVars.Quiet, &guildVars.AdminRoleID, &guildVars.Announcement, &deleteErrorsAfterSeconds, &guildVars.AllowUnprivilegedUnlinkedCommands); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
@@ -81,16 +80,15 @@ func (s *Store) SetGuildVars(ctx context.Context, tx *sql.Tx, guildID string, gu
 		`, guildID)
 	} else {
 		r, err = tx.ExecContext(ctx, `
-			insert into guild_vars (guild_id, script_command_prefix, quiet, admin_role_id, announcement, delete_errors_after_seconds, allow_unprivileged_unlinked_commands)
+			insert into guild_vars (guild_id, quiet, admin_role_id, announcement, delete_errors_after_seconds, allow_unprivileged_unlinked_commands)
 			values ($1, $2, $3, $4, $5, $6, $7)
 			on conflict (guild_id) do update
-			set script_command_prefix = excluded.script_command_prefix,
-			    quiet = excluded.quiet,
+			set quiet = excluded.quiet,
 			    admin_role_id = excluded.admin_role_id,
 			    announcement = excluded.announcement,
 			    delete_errors_after_seconds = excluded.delete_errors_after_seconds,
 			    allow_unprivileged_unlinked_commands = excluded.allow_unprivileged_unlinked_commands
-		`, guildID, guildVars.ScriptCommandPrefix, guildVars.Quiet, guildVars.AdminRoleID, guildVars.Announcement, int64(guildVars.DeleteErrorsAfter/time.Second), guildVars.AllowUnprivilegedUnlinkedCommands)
+		`, guildID, guildVars.Quiet, guildVars.AdminRoleID, guildVars.Announcement, int64(guildVars.DeleteErrorsAfter/time.Second), guildVars.AllowUnprivilegedUnlinkedCommands)
 	}
 
 	if err != nil {
@@ -142,6 +140,24 @@ func (s *Store) GuildLinks(ctx context.Context, tx *sql.Tx, guildID string) (map
 	}
 
 	return links, nil
+}
+
+func (s *Store) FindLink(ctx context.Context, tx *sql.Tx, guildID string, content string) (string, *Link, error) {
+	var linkName string
+	link := &Link{}
+
+	if err := tx.QueryRowContext(ctx, `
+		select link_name, owner_name, script_name
+		from guild_links
+		where guild_id = $1 and
+		      $2 like replace(replace(replace(link_name, '^', '^^'), '%', '^%'), '_', '^_') || '%' escape '^' 
+		order by length(link_name) desc
+		limit 1
+	`, guildID, content).Scan(&linkName, &link.OwnerName, &link.ScriptName); err != nil {
+		return "", nil, err
+	}
+
+	return linkName, link, nil
 }
 
 func (s *Store) GuildLink(ctx context.Context, tx *sql.Tx, guildID string, linkName string) (*Link, error) {

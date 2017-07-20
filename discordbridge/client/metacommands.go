@@ -130,7 +130,7 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 
 			formattedNames := make([]string, len(group))
 			for j, k := range group {
-				formattedNames[j] = guildVars.ScriptCommandPrefix + linkNames[k]
+				formattedNames[j] = linkNames[k]
 			}
 
 			meta := uniqueLinkMetas[i]
@@ -210,8 +210,8 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 						Value: `Remove a command name link.`,
 					},
 					&discordgo.MessageEmbedField{
-						Name:  fmt.Sprintf("%s prefix <prefix>", prefix),
-						Value: `Set the script command prefix for the server.`,
+						Name:  fmt.Sprintf("%s run <owner name>/<script name> [<input>]", prefix),
+						Value: `Run a script. If you are the owner of the script, you may run it even if it is unpublished.`,
 					},
 				},
 			},
@@ -241,12 +241,6 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 		}
 
 		commandName := parts[0]
-		if strings.ContainsAny(commandName, "/") {
-			return &commandError{
-				status: errorStatusUser,
-				note:   "Link name must not contain forward slashes",
-			}
-		}
 
 		qualifiedScriptName := parts[1]
 		firstSlash := strings.Index(qualifiedScriptName, "/")
@@ -348,6 +342,31 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 
 		return nil
 	}),
+	"run": adminOnly(func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
+		parts := strings.SplitN(rest, " ", 2)
+
+		if len(parts) < 1 {
+			return &commandError{
+				status: errorStatusUser,
+				note:   "Expecting `run <command name> [<input>]`",
+			}
+		}
+
+		var input string
+		if len(parts) == 2 {
+			input = parts[1]
+		}
+
+		scriptParts := strings.SplitN(parts[0], "/", 2)
+		if len(scriptParts) != 2 {
+			return &commandError{
+				status: errorStatusUser,
+				note:   "Invalid script name format",
+			}
+		}
+
+		return c.runScriptCommand(ctx, guildVars, m, guild, channel, member, parts[0], &varstore.Link{OwnerName: scriptParts[0], ScriptName: scriptParts[1]}, input)
+	}),
 	"unlink": adminOnly(func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
 		commandName := rest
 
@@ -395,42 +414,6 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 				Title:       fmt.Sprintf("`%s`", commandName),
 				Color:       0x009100,
 				Description: "Link removed.",
-			},
-		})
-
-		return nil
-	}),
-	"prefix": adminOnly(func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
-		prefix := rest
-
-		if prefix == "" {
-			return &commandError{
-				status: errorStatusUser,
-				note:   "Value required",
-			}
-		}
-
-		tx, err := c.vars.BeginTx(ctx)
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback()
-
-		newGuildVars := *guildVars
-		newGuildVars.ScriptCommandPrefix = prefix
-
-		if err := c.vars.SetGuildVars(ctx, tx, channel.GuildID, &newGuildVars); err != nil {
-			return err
-		}
-
-		tx.Commit()
-
-		c.session.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@%s>: ✅", m.Author.ID),
-			Embed: &discordgo.MessageEmbed{
-				Title:       "Prefix",
-				Color:       0x009100,
-				Description: fmt.Sprintf("`%s`", newGuildVars.ScriptCommandPrefix),
 			},
 		})
 

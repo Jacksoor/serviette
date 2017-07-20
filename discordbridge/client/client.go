@@ -268,8 +268,7 @@ func (c *Client) sendToChangelog(msg string) {
 }
 
 var privateGuildVars = &varstore.GuildVars{
-	ScriptCommandPrefix: "",
-	Quiet:               false,
+	Quiet: false,
 }
 
 type errorStatus int
@@ -438,20 +437,26 @@ func (c *Client) handleMessage(ctx context.Context, guildVars *varstore.GuildVar
 		}
 	}
 
-	if strings.HasPrefix(content, guildVars.ScriptCommandPrefix) {
-		rest := strings.TrimSpace(m.Content[len(guildVars.ScriptCommandPrefix):])
-		firstSpaceIndex := strings.Index(rest, " ")
+	var commandName string
+	var link *varstore.Link
 
-		var commandName string
-		if firstSpaceIndex == -1 {
-			commandName = rest
-			rest = ""
-		} else {
-			commandName = rest[:firstSpaceIndex]
-			rest = strings.TrimSpace(rest[firstSpaceIndex+1:])
+	if err := func() error {
+		tx, err := c.vars.BeginTx(ctx)
+		if err != nil {
+			return err
 		}
+		defer tx.Rollback()
 
-		return c.runScriptCommand(ctx, guildVars, m, guild, channel, member, commandName, rest)
+		commandName, link, err = c.vars.FindLink(ctx, tx, guild.ID, content)
+		return err
+	}(); err != nil {
+		glog.Errorf("Failed to look up command from database: %v", err)
+		return nil
+	}
+
+	if link != nil {
+		rest := strings.TrimSpace(m.Content[len(commandName):])
+		return c.runScriptCommand(ctx, guildVars, m, guild, channel, member, commandName, link, rest)
 	}
 
 	if err := c.stats.RecordUserChannelMessage(ctx, m.Author.ID, channel.ID, int64(len(m.Content))); err != nil {
@@ -475,43 +480,17 @@ func (s ByFieldName) Less(i, j int) bool {
 	return s[i].Name < s[j].Name
 }
 
-func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, commandName string, rest string) error {
-	linked := commandNameIsLinked(commandName)
-	if member != nil && !linked && !guildVars.AllowUnprivilegedUnlinkedCommands && !c.memberIsAdmin(guildVars, guild, member) {
-		return &commandError{
-			status: errorStatusNoise,
-			note:   "Only the server's Kobun administrators can run unlinked commands",
-		}
-	}
-
-	ownerName, scriptName, err := resolveScriptName(ctx, c, channel.GuildID, commandName)
-	if err != nil {
-		switch err {
-		case errNotFound:
-			return &commandError{
-				status: errorStatusNoise,
-				note:   fmt.Sprintf("Command `%s%s` not found", guildVars.ScriptCommandPrefix, commandName),
-			}
-		}
-		return err
-	}
-
+func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, commandName string, link *varstore.Link, rest string) error {
 	metaResp, err := c.scriptsClient.GetMeta(ctx, &scriptspb.GetMetaRequest{
-		OwnerName: ownerName,
-		Name:      scriptName,
+		OwnerName: link.OwnerName,
+		Name:      link.ScriptName,
 	})
 	if err != nil {
 		switch grpc.Code(err) {
 		case codes.NotFound, codes.InvalidArgument:
-			if linked {
-				return &commandError{
-					status: errorStatusScript,
-					note:   "Command link references non-existent script",
-				}
-			}
 			return &commandError{
-				status: errorStatusNoise,
-				note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
+				status: errorStatusScript,
+				note:   "References non-existent script",
 			}
 		case codes.Unavailable:
 			return &commandError{
@@ -524,20 +503,14 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 	}
 	if metaResp.Meta.Visibility == scriptspb.Visibility_UNPUBLISHED {
 		if _, err := c.accountsClient.CheckAccountIdentifier(ctx, &accountspb.CheckAccountIdentifierRequest{
-			Username:   ownerName,
+			Username:   link.OwnerName,
 			Identifier: fmt.Sprintf("discord/%s", m.Author.ID),
 		}); err != nil {
 			switch grpc.Code(err) {
 			case codes.NotFound:
-				if linked {
-					return &commandError{
-						status: errorStatusScript,
-						note:   "Command link references non-existent script",
-					}
-				}
 				return &commandError{
-					status: errorStatusNoise,
-					note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
+					status: errorStatusScript,
+					note:   "References non-existent script",
 				}
 			case codes.Unavailable:
 				return &commandError{
@@ -568,8 +541,8 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 
 	c.session.ChannelTyping(m.ChannelID)
 	resp, err := c.scriptsClient.Execute(ctx, &scriptspb.ExecuteRequest{
-		OwnerName: ownerName,
-		Name:      scriptName,
+		OwnerName: link.OwnerName,
+		Name:      link.ScriptName,
 		Stdin:     []byte(rest),
 		Context: &scriptspb.Context{
 			BridgeName:  "discord",
@@ -579,23 +552,15 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			ChannelId: m.ChannelID,
 			GroupId:   channel.GuildID,
 			NetworkId: "discord",
-
-			ScriptCommandPrefix: guildVars.ScriptCommandPrefix,
 		},
 		BridgeTarget: c.rpcTarget.String(),
 	})
 	if err != nil {
 		switch grpc.Code(err) {
 		case codes.NotFound, codes.InvalidArgument:
-			if linked {
-				return &commandError{
-					status: errorStatusScript,
-					note:   "Command link references non-existent script",
-				}
-			}
 			return &commandError{
-				status: errorStatusNoise,
-				note:   fmt.Sprintf("Command `%s%s/%s` not found", guildVars.ScriptCommandPrefix, ownerName, scriptName),
+				status: errorStatusScript,
+				note:   "References non-existent script",
 			}
 		case codes.Unavailable:
 			return &commandError{
