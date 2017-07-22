@@ -450,6 +450,10 @@ func (c *Client) handleMessage(ctx context.Context, guildVars *varstore.GuildVar
 		commandName, link, err = c.vars.FindLink(ctx, tx, guild.ID, content)
 		return err
 	}(); err != nil {
+		if err == varstore.ErrNotFound {
+			// Don't log this.
+			return nil
+		}
 		glog.Errorf("Failed to look up command from database: %v", err)
 		return nil
 	}

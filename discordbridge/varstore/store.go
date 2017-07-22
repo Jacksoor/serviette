@@ -154,6 +154,9 @@ func (s *Store) FindLink(ctx context.Context, tx *sql.Tx, guildID string, conten
 		order by length(link_name) desc
 		limit 1
 	`, guildID, content).Scan(&linkName, &link.OwnerName, &link.ScriptName); err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil, ErrNotFound
+		}
 		return "", nil, err
 	}
 
