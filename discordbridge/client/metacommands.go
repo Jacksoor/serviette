@@ -402,7 +402,9 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 				Name:      link.ScriptName,
 				Delta:     -1,
 			}); err != nil {
-				return err
+				if grpc.Code(err) != codes.NotFound {
+					return err
+				}
 			}
 		}
 
