@@ -129,6 +129,23 @@ func (a *Account) Authenticate(ctx context.Context, password string) error {
 	return nil
 }
 
+func (a *Account) SetPassword(ctx context.Context, password string) error {
+	pwhash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	if _, err := a.db.ExecContext(ctx, `
+		update accounts
+		set password_hash = $1
+		where name = $2
+	`, string(pwhash), a.Name); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *Store) destroyStorage(username string) error {
 	cmd := exec.Command(s.makestoragePath, "-name="+username, "-destroy")
 	cmd.Stdout = os.Stdout

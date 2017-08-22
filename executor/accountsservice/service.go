@@ -126,6 +126,24 @@ func (s *Service) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse,
 	}, nil
 }
 
+func (s *Service) SetPassword(ctx context.Context, req *pb.SetPasswordRequest) (*pb.SetPasswordResponse, error) {
+	account, err := s.accounts.Account(ctx, req.Username)
+	if err != nil {
+		if err == accounts.ErrNotFound {
+			return nil, grpc.Errorf(codes.NotFound, "account not found")
+		}
+		glog.Errorf("Failed to load account: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to load account")
+	}
+
+	if err := account.SetPassword(ctx, req.Password); err != nil {
+		glog.Errorf("Failed to set password: %v", err)
+		return nil, grpc.Errorf(codes.Internal, "failed to set password")
+	}
+
+	return &pb.SetPasswordResponse{}, nil
+}
+
 func (s *Service) CheckAccountIdentifier(ctx context.Context, req *pb.CheckAccountIdentifierRequest) (*pb.CheckAccountIdentifierResponse, error) {
 	if err := s.accounts.CheckAccountIdentifier(ctx, req.Username, req.Identifier); err != nil {
 		if err == accounts.ErrNotFound {

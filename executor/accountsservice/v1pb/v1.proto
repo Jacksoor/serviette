@@ -51,6 +51,14 @@ message GetResponse {
     Traits traits = 3;
 }
 
+message SetPasswordRequest {
+    string username = 1;
+    string password = 2;
+}
+
+message SetPasswordResponse {
+}
+
 message Traits {
     int64 time_limit_seconds = 1;
     int64 memory_limit = 2;
@@ -76,6 +84,7 @@ service Accounts {
     rpc List(ListRequest) returns (ListResponse) { }
     rpc ListByIdentifier(ListByIdentifierRequest) returns (ListByIdentifierResponse) { }
     rpc Get(GetRequest) returns (GetResponse) { }
+    rpc SetPassword(SetPasswordRequest) returns (SetPasswordResponse) { }
 
     rpc CheckAccountIdentifier(CheckAccountIdentifierRequest) returns (CheckAccountIdentifierResponse) { }
 }

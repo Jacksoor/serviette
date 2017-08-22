@@ -23,6 +23,10 @@ type Account struct {
 	Info *accountspb.GetResponse `json:"info,omitempty"`
 }
 
+type Password struct {
+	Password string `json:"password"`
+}
+
 type AccountsResource struct {
 	authenticator  *auth.Authenticator
 	accountsClient accountspb.AccountsClient
@@ -53,6 +57,11 @@ func (r AccountsResource) WebService() *restful.WebService {
 		Doc("Reads an account.").
 		Param(ws.PathParameter("accountName", "account name")).
 		Writes(Account{}))
+
+	ws.Route(ws.POST("/{accountName}/password").To(r.setPassword).
+		Doc("Sets an account's password.").
+		Param(ws.PathParameter("accountName", "account name")).
+		Reads(Password{}))
 
 	return ws
 }
@@ -138,4 +147,39 @@ func (r AccountsResource) read(req *restful.Request, resp *restful.Response) {
 		Name: accountName,
 		Info: accountResp,
 	})
+}
+
+func (r AccountsResource) setPassword(req *restful.Request, resp *restful.Response) {
+	username, err := r.authenticator.Authenticate(req, resp)
+	if err != nil {
+		glog.Errorf("Failed to authenticate: %v", err)
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	accountName := req.PathParameter("accountName")
+	if accountName != username {
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	password := new(Password)
+	if err := req.ReadEntity(&password); err != nil {
+		glog.Errorf("Failed to read entity: %v", err)
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	if _, err := r.accountsClient.SetPassword(req.Request.Context(), &accountspb.SetPasswordRequest{
+		Username: accountName,
+		Password: password.Password,
+	}); err != nil {
+		glog.Errorf("Failed to set password: %v", err)
+		resp.AddHeader("Content-Type", "text/plain")
+		resp.WriteErrorString(http.StatusInternalServerError, "internal server error")
+		return
+	}
 }
