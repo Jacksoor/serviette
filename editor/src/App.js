@@ -105,6 +105,14 @@ export default class App extends Component {
     this.setState({unsaved: true});
   }
 
+  onSetPassword(password) {
+    this.state.client.setPassword(password).then(() => {
+      alert('Password set successfully!');
+    }, e => {
+      alert(`Failed to set password: ${e}`);
+    });
+  }
+
   onSave(script) {
     this.state.client.putScript(script).then(() => {
       this.updateScriptsList().then(() => {
@@ -131,7 +139,7 @@ export default class App extends Component {
   render() {
     return (
       <div className="app">
-        <AppNavbar account={this.state.account} onLogout={this.logout.bind(this)} />
+        <AppNavbar account={this.state.account} onLogout={this.logout.bind(this)} onSetPassword={this.onSetPassword.bind(this)} />
 
         {this.state.account !== null ?
           <div className="outer">

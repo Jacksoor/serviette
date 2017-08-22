@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Button, Collapse, InputGroup, InputGroupAddon, InputGroupButton, Modal, ModalBody, ModalHeader, Nav, Navbar, NavbarBrand, NavbarToggler, NavItem } from 'reactstrap';
+import { Button, Collapse, Form, FormGroup, Input, InputGroup, InputGroupAddon, InputGroupButton, Modal, ModalBody, ModalHeader, Nav, Navbar, NavbarBrand, NavbarToggler, NavItem } from 'reactstrap';
 
 export default class AppNavbar extends Component {
   constructor(props) {
@@ -22,6 +22,22 @@ export default class AppNavbar extends Component {
     this.setState({
       isAccountModalOpen: !this.state.isAccountModalOpen
     })
+  }
+
+  onSetPassword(e) {
+    e.preventDefault();
+
+    var newPassword = e.target.elements.newPassword.value;
+    var confirmPassword = e.target.elements.confirmPassword.value;
+
+    if (newPassword !== confirmPassword) {
+      alert('Passwords are not the same!');
+      return;
+    }
+
+    this.props.onSetPassword(newPassword);
+    e.target.elements.newPassword.value = '';
+    e.target.elements.confirmPassword.value = '';
   }
 
   render() {
@@ -47,7 +63,18 @@ export default class AppNavbar extends Component {
         {account !== null ?
           <Modal isOpen={this.state.isAccountModalOpen} toggle={this.toggleAccountInfoModal.bind(this)}>
             <ModalHeader toggle={this.toggleAccountInfoModal.bind(this)}>Account Info</ModalHeader>
-            <ModalBody><pre>{JSON.stringify(this.props.account.info, null, 2)}</pre></ModalBody>
+            <ModalBody>
+              <pre>{JSON.stringify(this.props.account.info, null, 2)}</pre>
+              <Form onSubmit={this.onSetPassword.bind(this)}>
+                <FormGroup>
+                  <Input type="password" name="newPassword" placeholder="New Password" />
+                </FormGroup>
+                <FormGroup>
+                  <Input type="password" name="confirmPassword" placeholder="Confirm Password" />
+                </FormGroup>
+                <Button color="primary">Set Password</Button>
+              </Form>
+            </ModalBody>
           </Modal> :
           null
         }

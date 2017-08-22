@@ -91,6 +91,10 @@ export default class Client {
     return this._request('DELETE', 'scripts/' + this.username + '/' + name);
   }
 
+  setPassword(password) {
+    return this._request('PUT', 'accounts/' + this.username + '/password', {password: password});
+  }
+
   logout() {
     this.username = null;
     this.token = null;

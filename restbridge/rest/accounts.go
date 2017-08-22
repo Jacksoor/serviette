@@ -58,7 +58,7 @@ func (r AccountsResource) WebService() *restful.WebService {
 		Param(ws.PathParameter("accountName", "account name")).
 		Writes(Account{}))
 
-	ws.Route(ws.POST("/{accountName}/password").To(r.setPassword).
+	ws.Route(ws.PUT("/{accountName}/password").To(r.setPassword).
 		Doc("Sets an account's password.").
 		Param(ws.PathParameter("accountName", "account name")).
 		Reads(Password{}))
