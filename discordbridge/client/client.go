@@ -101,7 +101,7 @@ func (c *Client) ready(s *discordgo.Session, r *discordgo.Ready) {
 	}
 	glog.Infof("Discord ready; connected guilds: %+v", guildIDs)
 	s.UpdateStatus(0, c.opts.Status)
-	c.metaCommandRegexp = regexp.MustCompile(fmt.Sprintf(`^<@!?%s>(.*)$`, regexp.QuoteMeta(s.State.User.ID)))
+	c.metaCommandRegexp = regexp.MustCompile(fmt.Sprintf(`^<@!?%s>((?s).*)$`, regexp.QuoteMeta(s.State.User.ID)))
 
 	go func() {
 		ctx := context.Background()
@@ -362,78 +362,96 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 	}
 
 	if err := c.handleMessage(ctx, guildVars, m.Message, guild, channel, member, content); err != nil {
-		cErr, ok := err.(*commandError)
-		if !ok {
-			glog.Errorf("Error handling message: %v", err)
-			cErr = &commandError{
-				status: errorStatusInternal,
-				note:   "Internal error",
-			}
-		}
+		c.sendErrorMessage(err, guildVars, m.Message, channel)
+	}
+}
 
-		if cErr.status == errorStatusNoise && guildVars.Quiet {
-			return
-		}
-
-		messageSend := &discordgo.MessageSend{
-			Content: fmt.Sprintf("<@%s>: **%s %s**", m.Author.ID, errorSigils[cErr.status], cErr.note),
-		}
-
-		if cErr.details != "" {
-			messageSend.Embed = &discordgo.MessageEmbed{
-				Color:       0xb50000,
-				Description: cErr.details,
-			}
-		}
-
-		msg, err := s.ChannelMessageSendComplex(channel.ID, messageSend)
-		if err != nil {
-			glog.Errorf("Failed to send error message: %v", err)
-			return
-		}
-
-		if guildVars.DeleteErrorsAfter > 0 {
-			go func() {
-				<-time.After(guildVars.DeleteErrorsAfter)
-				if err := s.ChannelMessageDelete(channel.ID, msg.ID); err != nil {
-					glog.Error("Failed to delete error message: %v", err)
-				}
-			}()
+func (c *Client) sendErrorMessage(err error, guildVars *varstore.GuildVars, m *discordgo.Message, channel *discordgo.Channel) error {
+	cErr, ok := err.(*commandError)
+	if !ok {
+		glog.Errorf("Error handling message: %v", err)
+		cErr = &commandError{
+			status: errorStatusInternal,
+			note:   "Internal error",
 		}
 	}
+
+	if cErr.status == errorStatusNoise && guildVars.Quiet {
+		return nil
+	}
+
+	messageSend := &discordgo.MessageSend{
+		Content: fmt.Sprintf("<@%s>: **%s %s**", m.Author.ID, errorSigils[cErr.status], cErr.note),
+	}
+
+	if cErr.details != "" {
+		messageSend.Embed = &discordgo.MessageEmbed{
+			Color:       0xb50000,
+			Description: cErr.details,
+		}
+	}
+
+	msg, err := c.session.ChannelMessageSendComplex(channel.ID, messageSend)
+	if err != nil {
+		glog.Errorf("Failed to send error message: %v", err)
+		return err
+	}
+
+	if guildVars.DeleteErrorsAfter > 0 {
+		go func() {
+			<-time.After(guildVars.DeleteErrorsAfter)
+			if err := c.session.ChannelMessageDelete(channel.ID, msg.ID); err != nil {
+				glog.Error("Failed to delete error message: %v", err)
+			}
+		}()
+	}
+
+	return nil
 }
 
 func (c *Client) handleMessage(ctx context.Context, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, content string) error {
 	if member != nil {
 		if match := c.metaCommandRegexp.FindStringSubmatch(content); match != nil {
-			rest := strings.TrimSpace(match[1])
-			firstSpaceIndex := strings.Index(rest, " ")
+			lines := strings.Split(match[1], "\n")
 
-			var commandName string
-			if firstSpaceIndex == -1 {
-				commandName = rest
-				rest = ""
-			} else {
-				commandName = rest[:firstSpaceIndex]
-				rest = strings.TrimSpace(rest[firstSpaceIndex+1:])
-			}
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				firstSpaceIndex := strings.Index(line, " ")
 
-			var cmd metaCommand
-			var ok bool
-			if commandName == "" {
-				cmd, ok = metaCommands["help"]
-			} else {
-				cmd, ok = metaCommands[commandName]
-			}
+				var commandName string
+				var rest string
 
-			if !ok {
-				return &commandError{
-					status: errorStatusNoise,
-					note:   fmt.Sprintf("Meta command `%s` not found", commandName),
+				if firstSpaceIndex == -1 {
+					commandName = line
+					rest = ""
+				} else {
+					commandName = line[:firstSpaceIndex]
+					rest = strings.TrimSpace(line[firstSpaceIndex+1:])
+				}
+
+				var cmd metaCommand
+				var ok bool
+				if commandName == "" {
+					cmd, ok = metaCommands["help"]
+				} else {
+					cmd, ok = metaCommands[commandName]
+				}
+
+				if !ok {
+					c.sendErrorMessage(&commandError{
+						status: errorStatusUser,
+						note:   fmt.Sprintf("Meta command `%s` not found", commandName),
+					}, guildVars, m, channel)
+					continue
+				}
+
+				if err := cmd(ctx, c, guildVars, m, guild, channel, member, rest); err != nil {
+					c.sendErrorMessage(err, guildVars, m, channel)
+					continue
 				}
 			}
 
-			return cmd(ctx, c, guildVars, m, guild, channel, member, rest)
+			return nil
 		}
 	}
 
