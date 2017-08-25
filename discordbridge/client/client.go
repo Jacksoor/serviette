@@ -333,7 +333,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 			}
 			defer tx.Rollback()
 
-			guild, err = s.Guild(channel.GuildID)
+			guild, err = s.State.Guild(channel.GuildID)
 			if err != nil {
 				return err
 			}
