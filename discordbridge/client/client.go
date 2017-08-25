@@ -316,7 +316,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 
 	var guild *discordgo.Guild
 
-	channel, err := s.Channel(m.ChannelID)
+	channel, err := s.State.Channel(m.ChannelID)
 	if err != nil {
 		glog.Errorf("Failed to get channel: %v", err)
 		return
@@ -354,7 +354,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 
 	var member *discordgo.Member
 	if channel.GuildID != "" {
-		member, err = c.session.GuildMember(channel.GuildID, m.Author.ID)
+		member, err = c.session.State.Member(channel.GuildID, m.Author.ID)
 		if err != nil {
 			glog.Errorf("Failed to get member: %v", err)
 			return

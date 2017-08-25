@@ -26,10 +26,12 @@ func New(session *discordgo.Session, vars *varstore.Store) *Service {
 }
 
 func (s *Service) GetUserInfo(ctx context.Context, req *pb.GetUserInfoRequest) (*pb.GetUserInfoResponse, error) {
-	user, err := s.session.User(req.UserId)
+	presence, err := s.session.State.Presence(req.Context.GroupId, req.UserId)
 	if err != nil {
 		return nil, err
 	}
+
+	user := presence.User
 
 	return &pb.GetUserInfoResponse{
 		Name: fmt.Sprintf("%s#%s", user.Username, user.Discriminator),
@@ -39,7 +41,7 @@ func (s *Service) GetUserInfo(ctx context.Context, req *pb.GetUserInfoRequest) (
 func (s *Service) GetChannelInfo(ctx context.Context, req *pb.GetChannelInfoRequest) (*pb.GetChannelInfoResponse, error) {
 	// Short-circuit this if we're getting the current channel info.
 	if req.ChannelId != req.Context.ChannelId {
-		guild, err := s.session.Guild(req.Context.GroupId)
+		guild, err := s.session.State.Guild(req.Context.GroupId)
 		if err != nil {
 			return nil, err
 		}
@@ -57,7 +59,7 @@ func (s *Service) GetChannelInfo(ctx context.Context, req *pb.GetChannelInfoRequ
 		}
 	}
 
-	channel, err := s.session.Channel(req.ChannelId)
+	channel, err := s.session.State.Channel(req.ChannelId)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +76,7 @@ func (s *Service) GetChannelInfo(ctx context.Context, req *pb.GetChannelInfoRequ
 }
 
 func (s *Service) GetGroupInfo(ctx context.Context, req *pb.GetGroupInfoRequest) (*pb.GetGroupInfoResponse, error) {
-	guild, err := s.session.Guild(req.Context.GroupId)
+	guild, err := s.session.State.Guild(req.Context.GroupId)
 	if err != nil {
 		return nil, err
 	}
@@ -85,14 +87,15 @@ func (s *Service) GetGroupInfo(ctx context.Context, req *pb.GetGroupInfoRequest)
 }
 
 func (s *Service) GetGroupMemberInfo(ctx context.Context, req *pb.GetGroupMemberInfoRequest) (*pb.GetGroupMemberInfoResponse, error) {
-	user, err := s.session.User(req.UserId)
+	presence, err := s.session.State.Presence(req.Context.GroupId, req.UserId)
 	if err != nil {
 		return nil, err
 	}
 
+	user := presence.User
 	name := user.Username
 
-	member, err := s.session.GuildMember(req.Context.GroupId, req.UserId)
+	member, err := s.session.State.Member(req.Context.GroupId, req.UserId)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +113,7 @@ func (s *Service) GetGroupMemberInfo(ctx context.Context, req *pb.GetGroupMember
 func (s *Service) GetChannelMemberInfo(ctx context.Context, req *pb.GetChannelMemberInfoRequest) (*pb.GetChannelMemberInfoResponse, error) {
 	// Short-circuit this if we're getting the current channel info.
 	if req.ChannelId != req.Context.ChannelId {
-		guild, err := s.session.Guild(req.Context.GroupId)
+		guild, err := s.session.State.Guild(req.Context.GroupId)
 		if err != nil {
 			return nil, err
 		}
@@ -128,21 +131,22 @@ func (s *Service) GetChannelMemberInfo(ctx context.Context, req *pb.GetChannelMe
 		}
 	}
 
-	channel, err := s.session.Channel(req.ChannelId)
+	channel, err := s.session.State.Channel(req.ChannelId)
 	if err != nil {
 		return nil, err
 	}
 
-	user, err := s.session.User(req.UserId)
+	presence, err := s.session.State.Presence(req.Context.GroupId, req.UserId)
 	if err != nil {
 		return nil, err
 	}
 
+	user := presence.User
 	name := user.Username
 
 	var roles []string
 	if channel.GuildID != "" {
-		member, err := s.session.GuildMember(channel.GuildID, req.UserId)
+		member, err := s.session.State.Member(channel.GuildID, req.UserId)
 		if err != nil {
 			return nil, err
 		}
