@@ -26,12 +26,12 @@ func New(session *discordgo.Session, vars *varstore.Store) *Service {
 }
 
 func (s *Service) GetUserInfo(ctx context.Context, req *pb.GetUserInfoRequest) (*pb.GetUserInfoResponse, error) {
-	presence, err := s.session.State.Presence(req.Context.GroupId, req.UserId)
+	member, err := s.session.State.Member(req.Context.GroupId, req.UserId)
 	if err != nil {
 		return nil, err
 	}
 
-	user := presence.User
+	user := member.User
 
 	return &pb.GetUserInfoResponse{
 		Name: fmt.Sprintf("%s#%s", user.Username, user.Discriminator),
@@ -87,21 +87,14 @@ func (s *Service) GetGroupInfo(ctx context.Context, req *pb.GetGroupInfoRequest)
 }
 
 func (s *Service) GetGroupMemberInfo(ctx context.Context, req *pb.GetGroupMemberInfoRequest) (*pb.GetGroupMemberInfoResponse, error) {
-	presence, err := s.session.State.Presence(req.Context.GroupId, req.UserId)
-	if err != nil {
-		return nil, err
-	}
-
-	user := presence.User
-	name := user.Username
-
 	member, err := s.session.State.Member(req.Context.GroupId, req.UserId)
 	if err != nil {
 		return nil, err
 	}
 
+	name := member.Nick
 	if member.Nick != "" {
-		name = member.Nick
+		name = member.User.Username
 	}
 
 	return &pb.GetGroupMemberInfoResponse{
@@ -136,12 +129,12 @@ func (s *Service) GetChannelMemberInfo(ctx context.Context, req *pb.GetChannelMe
 		return nil, err
 	}
 
-	presence, err := s.session.State.Presence(req.Context.GroupId, req.UserId)
+	member, err := s.session.State.Member(req.Context.GroupId, req.UserId)
 	if err != nil {
 		return nil, err
 	}
 
-	user := presence.User
+	user := member.User
 	name := user.Username
 
 	var roles []string
