@@ -69,9 +69,15 @@ func (s *Service) GetChannelInfo(ctx context.Context, req *pb.GetChannelInfoRequ
 		name = fmt.Sprintf("#%s", channel.Name)
 	}
 
+	isNSFW := "no"
+	if channel.NSFW {
+		isNSFW = "yes"
+	}
+
 	return &pb.GetChannelInfoResponse{
 		Name:       name,
 		IsOneOnOne: channel.Type == discordgo.ChannelTypeDM,
+		Extra:      map[string]string{"nsfw": isNSFW},
 	}, nil
 }
 
