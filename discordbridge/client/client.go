@@ -323,7 +323,7 @@ func (c *Client) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate)
 	}
 
 	var guildVars *varstore.GuildVars
-	if channel.IsPrivate {
+	if channel.Type == discordgo.ChannelTypeDM {
 		guildVars = privateGuildVars
 	} else {
 		if err := func() error {

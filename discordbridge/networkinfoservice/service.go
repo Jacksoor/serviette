@@ -71,7 +71,7 @@ func (s *Service) GetChannelInfo(ctx context.Context, req *pb.GetChannelInfoRequ
 
 	return &pb.GetChannelInfoResponse{
 		Name:       name,
-		IsOneOnOne: channel.IsPrivate,
+		IsOneOnOne: channel.Type == discordgo.ChannelTypeDM,
 	}, nil
 }
 
