@@ -1,7 +1,6 @@
 create table guild_vars (
     guild_id character varying primary key not null,
     quiet boolean not null default false,
-    admin_role_id character varying,
     announcement character varying not null,
     delete_errors_after_seconds integer not null default 5,
     allow_unprivileged_unlinked_commands boolean not null default false

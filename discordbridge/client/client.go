@@ -121,38 +121,29 @@ func (c *Client) memberIsAdmin(guildVars *varstore.GuildVars, guild *discordgo.G
 		return false
 	}
 
-	if guildVars.AdminRoleID != nil {
-		// Check if they have the admin role ID (legacy).
-		for _, roleID := range member.Roles {
-			if roleID == *guildVars.AdminRoleID {
-				return true
-			}
-		}
-	} else {
-		// Check if they are the owner, look up role by name, or if they have Administrator.
-		if member.User.ID == guild.OwnerID {
-			return true
+	// Check if they are the owner, look up role by name, or if they have Administrator.
+	if member.User.ID == guild.OwnerID {
+		return true
+	}
+
+	adminRoleIDs := make([]string, 0)
+	for _, role := range guild.Roles {
+		if role.Permissions&discordgo.PermissionAdministrator != 0 {
+			adminRoleIDs = append(adminRoleIDs, role.ID)
+			continue
 		}
 
-		adminRoleIDs := make([]string, 0)
-		for _, role := range guild.Roles {
-			if role.Permissions&discordgo.PermissionAdministrator != 0 {
+		for _, defaultAdminRoleName := range defaultAdminRoleNames {
+			if strings.EqualFold(role.Name, defaultAdminRoleName) {
 				adminRoleIDs = append(adminRoleIDs, role.ID)
-				continue
-			}
-
-			for _, defaultAdminRoleName := range defaultAdminRoleNames {
-				if strings.EqualFold(role.Name, defaultAdminRoleName) {
-					adminRoleIDs = append(adminRoleIDs, role.ID)
-				}
 			}
 		}
+	}
 
-		for _, roleID := range member.Roles {
-			for _, adminRoleID := range adminRoleIDs {
-				if roleID == adminRoleID {
-					return true
-				}
+	for _, roleID := range member.Roles {
+		for _, adminRoleID := range adminRoleIDs {
+			if roleID == adminRoleID {
+				return true
 			}
 		}
 	}
