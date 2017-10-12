@@ -35,10 +35,12 @@ func (s *Service) GetUserInfo(req *struct {
 	}
 
 	resp.Body = &struct {
-		Name  string            `json:"name"`
-		Extra map[string]string `json:"extra"`
+		Name                string            `json:"name"`
+		CreatedAtUnixMillis int64             `json:"createdAtUnixMillis"`
+		Extra               map[string]string `json:"extra"`
 	}{
 		grpcResp.Name,
+		grpcResp.CreatedAtUnixMillis,
 		grpcResp.Extra,
 	}
 	return nil
@@ -56,11 +58,13 @@ func (s *Service) GetChannelInfo(req *struct {
 	}
 
 	resp.Body = &struct {
-		Name       string            `json:"name"`
-		IsOneOnOne bool              `json:"isOneOnOne"`
-		Extra      map[string]string `json:"extra"`
+		Name                string            `json:"name"`
+		CreatedAtUnixMillis int64             `json:"createdAtUnixMillis"`
+		IsOneOnOne          bool              `json:"isOneOnOne"`
+		Extra               map[string]string `json:"extra"`
 	}{
 		grpcResp.Name,
+		grpcResp.CreatedAtUnixMillis,
 		grpcResp.IsOneOnOne,
 		grpcResp.Extra,
 	}
@@ -76,10 +80,12 @@ func (s *Service) GetGroupInfo(req *struct{}, resp *srpc.Response) error {
 	}
 
 	resp.Body = &struct {
-		Name  string            `json:"name"`
-		Extra map[string]string `json:"extra"`
+		Name                string            `json:"name"`
+		CreatedAtUnixMillis int64             `json:"createdAtUnixMillis"`
+		Extra               map[string]string `json:"extra"`
 	}{
 		grpcResp.Name,
+		grpcResp.CreatedAtUnixMillis,
 		grpcResp.Extra,
 	}
 	return nil
@@ -99,12 +105,14 @@ func (s *Service) GetChannelMemberInfo(req *struct {
 	}
 
 	resp.Body = &struct {
-		Name  string            `json:"name"`
-		Roles []string          `json:"roles"`
-		Extra map[string]string `json:"extra"`
+		Name               string            `json:"name"`
+		Roles              []string          `json:"roles"`
+		JoinedAtUnixMillis int64             `json:"joinedAtUnixMillis"`
+		Extra              map[string]string `json:"extra"`
 	}{
 		grpcResp.Name,
 		grpcResp.Role,
+		grpcResp.JoinedAtUnixMillis,
 		grpcResp.Extra,
 	}
 	return nil
@@ -123,12 +131,14 @@ func (s *Service) GetGroupMemberInfo(req *struct {
 	}
 
 	resp.Body = &struct {
-		Name  string            `json:"name"`
-		Roles []string          `json:"roles"`
-		Extra map[string]string `json:"extra"`
+		Name               string            `json:"name"`
+		Roles              []string          `json:"roles"`
+		JoinedAtUnixMillis int64             `json:"joinedAtUnixMillis"`
+		Extra              map[string]string `json:"extra"`
 	}{
 		grpcResp.Name,
 		grpcResp.Role,
+		grpcResp.JoinedAtUnixMillis,
 		grpcResp.Extra,
 	}
 	return nil

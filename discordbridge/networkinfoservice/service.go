@@ -3,6 +3,8 @@ package networkinfoservice
 import (
 	"errors"
 	"fmt"
+	"strconv"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -33,8 +35,14 @@ func (s *Service) GetUserInfo(ctx context.Context, req *pb.GetUserInfoRequest) (
 
 	user := member.User
 
+	id, err := strconv.ParseUint(req.UserId, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
 	return &pb.GetUserInfoResponse{
-		Name: fmt.Sprintf("%s#%s", user.Username, user.Discriminator),
+		Name:                fmt.Sprintf("%s#%s", user.Username, user.Discriminator),
+		CreatedAtUnixMillis: int64(id>>22 + 1420070400000),
 	}, nil
 }
 
@@ -74,10 +82,16 @@ func (s *Service) GetChannelInfo(ctx context.Context, req *pb.GetChannelInfoRequ
 		isNSFW = "yes"
 	}
 
+	id, err := strconv.ParseUint(req.ChannelId, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
 	return &pb.GetChannelInfoResponse{
-		Name:       name,
-		IsOneOnOne: channel.Type == discordgo.ChannelTypeDM,
-		Extra:      map[string]string{"nsfw": isNSFW},
+		Name:                name,
+		CreatedAtUnixMillis: int64(id>>22 + 1420070400000),
+		IsOneOnOne:          channel.Type == discordgo.ChannelTypeDM,
+		Extra:               map[string]string{"nsfw": isNSFW},
 	}, nil
 }
 
@@ -87,8 +101,14 @@ func (s *Service) GetGroupInfo(ctx context.Context, req *pb.GetGroupInfoRequest)
 		return nil, err
 	}
 
+	id, err := strconv.ParseUint(req.Context.GroupId, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
 	return &pb.GetGroupInfoResponse{
-		Name: guild.Name,
+		Name:                guild.Name,
+		CreatedAtUnixMillis: int64(id>>22 + 1420070400000),
 	}, nil
 }
 
@@ -103,9 +123,15 @@ func (s *Service) GetGroupMemberInfo(ctx context.Context, req *pb.GetGroupMember
 		name = member.User.Username
 	}
 
+	t, err := discordgo.Timestamp(member.JoinedAt).Parse()
+	if err != nil {
+		return nil, err
+	}
+
 	return &pb.GetGroupMemberInfoResponse{
-		Name: name,
-		Role: member.Roles,
+		Name:               name,
+		Role:               member.Roles,
+		JoinedAtUnixMillis: t.UnixNano() / (int64(time.Millisecond) / int64(time.Nanosecond)),
 	}, nil
 }
 
@@ -157,8 +183,14 @@ func (s *Service) GetChannelMemberInfo(ctx context.Context, req *pb.GetChannelMe
 		roles = member.Roles
 	}
 
+	t, err := discordgo.Timestamp(member.JoinedAt).Parse()
+	if err != nil {
+		return nil, err
+	}
+
 	return &pb.GetChannelMemberInfoResponse{
-		Name: name,
-		Role: roles,
+		Name:               name,
+		Role:               roles,
+		JoinedAtUnixMillis: t.UnixNano() / (int64(time.Millisecond) / int64(time.Nanosecond)),
 	}, nil
 }

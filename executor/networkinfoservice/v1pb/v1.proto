@@ -14,6 +14,7 @@ message GetUserInfoRequest {
 
 message GetUserInfoResponse {
     string name = 1;
+    int64 created_at_unix_millis = 2;
 
     map<string, string> extra = 1000;
 }
@@ -26,7 +27,8 @@ message GetChannelInfoRequest {
 
 message GetChannelInfoResponse {
     string name = 1;
-    bool is_one_on_one = 2;
+    int64 created_at_unix_millis = 2;
+    bool is_one_on_one = 3;
 
     map<string, string> extra = 1000;
 }
@@ -37,6 +39,7 @@ message GetGroupInfoRequest {
 
 message GetGroupInfoResponse {
     string name = 1;
+    int64 created_at_unix_millis = 2;
 
     map<string, string> extra = 1000;
 }
@@ -51,6 +54,7 @@ message GetChannelMemberInfoRequest {
 message GetChannelMemberInfoResponse {
     string name = 1;
     repeated string role = 2;
+    int64 joined_at_unix_millis = 3;
 
     map<string, string> extra = 1000;
 }
@@ -64,6 +68,7 @@ message GetGroupMemberInfoRequest {
 message GetGroupMemberInfoResponse {
     string name = 1;
     repeated string role = 2;
+    int64 joined_at_unix_millis = 3;
 
     map<string, string> extra = 1000;
 }
