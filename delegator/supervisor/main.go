@@ -332,6 +332,42 @@ func main() {
 				Flags:       unix.MS_NOSUID | unix.MS_NOEXEC | unix.MS_NODEV,
 			},
 			{
+				Device:      "bind",
+				Source:      "/var/lib/lxcfs/proc/cpuinfo",
+				Destination: "/proc/cpuinfo",
+				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_RDONLY,
+			},
+			{
+				Device:      "bind",
+				Source:      "/var/lib/lxcfs/proc/diskstats",
+				Destination: "/proc/diskstats",
+				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_RDONLY,
+			},
+			{
+				Device:      "bind",
+				Source:      "/var/lib/lxcfs/proc/meminfo",
+				Destination: "/proc/meminfo",
+				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_RDONLY,
+			},
+			{
+				Device:      "bind",
+				Source:      "/var/lib/lxcfs/proc/stat",
+				Destination: "/proc/stat",
+				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_RDONLY,
+			},
+			{
+				Device:      "bind",
+				Source:      "/var/lib/lxcfs/proc/swaps",
+				Destination: "/proc/swaps",
+				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_RDONLY,
+			},
+			{
+				Device:      "bind",
+				Source:      "/var/lib/lxcfs/proc/uptime",
+				Destination: "/proc/uptime",
+				Flags:       unix.MS_NOSUID | unix.MS_NODEV | unix.MS_BIND | unix.MS_RDONLY,
+			},
+			{
 				Device:      "tmpfs",
 				Source:      "tmpfs",
 				Destination: "/dev",
