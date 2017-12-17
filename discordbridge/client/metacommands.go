@@ -342,7 +342,14 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 
 		return nil
 	}),
-	"run": adminOnly(func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
+	"run": func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
+                if !guildVars.AllowUnprivilegedUnlinkedCommands && !c.memberIsAdmin(guildVars, guild, member) {
+                        return &commandError{
+                                status: errorStatusUnauthorized,
+                                note:   "Not authorized",
+                        }
+                }
+
 		parts := strings.SplitN(rest, " ", 2)
 
 		if len(parts) < 1 {
@@ -366,7 +373,7 @@ var metaCommands map[string]metaCommand = map[string]metaCommand{
 		}
 
 		return c.runScriptCommand(ctx, guildVars, m, guild, channel, member, parts[0], &varstore.Link{OwnerName: scriptParts[0], ScriptName: scriptParts[1]}, input)
-	}),
+	},
 	"unlink": adminOnly(func(ctx context.Context, c *Client, guildVars *varstore.GuildVars, m *discordgo.Message, guild *discordgo.Guild, channel *discordgo.Channel, member *discordgo.Member, rest string) error {
 		commandName := rest
 
