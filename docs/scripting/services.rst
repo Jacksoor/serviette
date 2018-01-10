@@ -70,7 +70,7 @@ The output service allows scripts to set out-of-band metadata on the output of s
 
 .. py:function:: Output.SetFormat(format: string)
 
-   Sets the output format of the script. The default is ``text``, which will be interpreted as simple text output. Other formats are dependent on the chat service the script is being executed on.
+   Sets the :ref:`output format <output-formats>` of the script. The default is ``text``, which will be interpreted as simple text output. Other formats are dependent on the chat service the script is being executed on.
 
    :param format: The output format to use.
 
@@ -79,6 +79,70 @@ The output service allows scripts to set out-of-band metadata on the output of s
    Sets the output of the script to be sent to a private message.
 
    :param private: Whether or not the output should be sent via a private message.
+
+.. py:function:: Output.SetExpires(expires: boolean)
+
+   Sets whether or not the message should expire.
+
+   :param expire: Whether or not the message should expire.
+
+.. _output-formats:
+
+Formats
+~~~~~~~
+
+``text``
+++++++++
+
+Plain text format.
+
+.. _rich:
+
+``rich``
+++++++++
+
+Rich content format. Must be in the JSON with the following format:
+
+.. code:: javascript
+
+    {
+        "fallback": "...",       // (required) fallback plain text for non-rich content bridges
+        "color": 0,              // (optional) color as an 24-bit integer in RGB order
+        "author": "...",         // (optional) author of the content
+        "authorLink": "...",     // (optional) link to the author
+        "authorIconURL: "...",   // (optional) URL to an icon representing the author
+        "title": "...",          // (optional) title of the content
+        "titleLink": "...",      // (optional) link for the title
+        "text: "... ",           // (optional) description of the content
+        "fields": [              // (optional) list of fields describing the content
+            {
+                "name": "...",   // (required) name of the field
+                "value": "...",  // (required) content of the field
+                "inline": false, // (optional) attempt to save save by packing fields horizontally when possible
+            },
+            ...
+        ],
+        "imageURL": "...",       // (optional) URL to an image representing the content
+        "thumbnailURL": "...",   // (optional) URL to a thumbnail representing the content
+        "footer": "...",         // (optional) text to place in the footer
+        "footerIconURL": "...",  // (optional) icon to show next to the footer
+        "timestamp": 0           // (optional) UNIX timestamp of when the content was produced
+    }
+
+Deputy
+------
+
+The deputy service allows Kobun to perform certain restricted administrative tasks on behalf of the command issuer.
+
+These commands are those that the command issuer would have been able to take themselves.
+
+Please refer to the documentation for your :ref:`bridge <bridge>` to determine how to grant the correct permissions for these features.
+
+.. warning:: Please make sure you understand the security implications of granting Kobun administrative permissions! The developers of Kobun are not liable for any damages or losses incurred by enabling these features!
+
+.. py:function:: Deputy.DeleteInputMessage()
+
+   Deletes the input message used to trigger the command, if supported.
 
 Messaging
 ---------

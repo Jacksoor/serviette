@@ -28,8 +28,17 @@ Output Formats
 
 The Discord bridge supports the following output formats:
 
- * ``text``: Specifies a Discord message in plain text. The output will be placed in an embed, and the text message content will contain success and billing information. The embed will be green on success and red on failure.
+ * ``text``: Specifies a Discord message in plain text. The output will be placed in an embed, and the text message content will contain success information. The embed will be green on success and red on failure.
+
+ * ``rich``: Specifies a Discord message in :ref:`rich <rich>` format.
 
  * ``discord.embed``: Specifies a `Discord embed <https://discordapp.com/developers/docs/resources/channel#embed-object>`_. The output will be unmarshaled from JSON as an embed and sent.
 
  * ``discord.embed_multipart``: Specifies a multipart `Discord embed <https://discordapp.com/developers/docs/resources/channel#embed-object>`_ to send. The output will be parsed as a multipart MIME message. The first part of the multipart request will be interpreted as the embed and unmarshaled from JSON. The remaining parts will be considered file attachments.
+
+Deputy Permissions
+~~~~~~~~~~~~~~~~~~
+
+The following deputy commands require these permissions to be granted:
+
+ * ``DeleteInputMessage``: Manage Messages
