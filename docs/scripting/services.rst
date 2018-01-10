@@ -118,7 +118,7 @@ Rich content format. Must be in the JSON with the following format:
             {
                 "name": "...",   // (required) name of the field
                 "value": "...",  // (required) content of the field
-                "inline": false, // (optional) attempt to save save by packing fields horizontally when possible
+                "inline": false  // (optional) attempt to save space by packing fields horizontally when possible
             },
             ...
         ],
