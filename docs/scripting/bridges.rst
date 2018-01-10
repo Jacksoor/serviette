@@ -41,6 +41,8 @@ The Discord bridge supports the following output formats:
 Deputy Permissions
 ~~~~~~~~~~~~~~~~~~
 
-The following deputy commands require these permissions to be granted:
+.. warning:: Please make sure you understand the security implications of granting Kobun administrative permissions! The developers of Kobun are not liable for any damages or losses incurred by enabling these features!
+
+The following :ref:`deputy <deputy>` commands require these permissions to be granted:
 
  * ``DeleteInputMessage``: Manage Messages

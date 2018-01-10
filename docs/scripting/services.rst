@@ -129,6 +129,8 @@ Rich content format. Must be in the JSON with the following format:
         "timestamp": 0           // (optional) UNIX timestamp of when the content was produced
     }
 
+.. _deputy:
+
 Deputy
 ------
 
