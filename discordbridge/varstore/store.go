@@ -32,7 +32,7 @@ func (s *Store) BeginTx(ctx context.Context) (*sql.Tx, error) {
 type GuildVars struct {
 	Quiet                             bool
 	Announcement                      string
-	DeleteErrorsAfter                 time.Duration
+	MessageExpiry                     time.Duration
 	AllowUnprivilegedUnlinkedCommands bool
 }
 
@@ -48,22 +48,22 @@ func (s *Store) CreateGuildVars(ctx context.Context, tx *sql.Tx, guildID string)
 }
 
 func (s *Store) GuildVars(ctx context.Context, tx *sql.Tx, guildID string) (*GuildVars, error) {
-	var deleteErrorsAfterSeconds int64
+	var messageExpirySeconds int64
 
 	guildVars := &GuildVars{}
 
 	if err := tx.QueryRowContext(ctx, `
-		select quiet, announcement, delete_errors_after_seconds, allow_unprivileged_unlinked_commands
+		select quiet, announcement, message_expiry_seconds, allow_unprivileged_unlinked_commands
 		from guild_vars
 		where guild_id = $1
-	`, guildID).Scan(&guildVars.Quiet, &guildVars.Announcement, &deleteErrorsAfterSeconds, &guildVars.AllowUnprivilegedUnlinkedCommands); err != nil {
+	`, guildID).Scan(&guildVars.Quiet, &guildVars.Announcement, &messageExpirySeconds, &guildVars.AllowUnprivilegedUnlinkedCommands); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
 
-	guildVars.DeleteErrorsAfter = time.Duration(deleteErrorsAfterSeconds) * time.Second
+	guildVars.MessageExpiry = time.Duration(messageExpirySeconds) * time.Second
 
 	return guildVars, nil
 }
@@ -79,14 +79,14 @@ func (s *Store) SetGuildVars(ctx context.Context, tx *sql.Tx, guildID string, gu
 		`, guildID)
 	} else {
 		r, err = tx.ExecContext(ctx, `
-			insert into guild_vars (guild_id, quiet, announcement, delete_errors_after_seconds, allow_unprivileged_unlinked_commands)
+			insert into guild_vars (guild_id, quiet, announcement, message_expiry_seconds, allow_unprivileged_unlinked_commands)
 			values ($1, $2, $3, $4, $5, $6)
 			on conflict (guild_id) do update
 			set quiet = excluded.quiet,
 			    announcement = excluded.announcement,
-			    delete_errors_after_seconds = excluded.delete_errors_after_seconds,
+			    message_expiry_seconds = excluded.message_expiry_seconds,
 			    allow_unprivileged_unlinked_commands = excluded.allow_unprivileged_unlinked_commands
-		`, guildID, guildVars.Quiet, guildVars.Announcement, int64(guildVars.DeleteErrorsAfter/time.Second), guildVars.AllowUnprivilegedUnlinkedCommands)
+		`, guildID, guildVars.Quiet, guildVars.Announcement, int64(guildVars.MessageExpiry/time.Second), guildVars.AllowUnprivilegedUnlinkedCommands)
 	}
 
 	if err != nil {

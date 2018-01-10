@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+import "executor/scriptsservice/v1pb/v1.proto";
+
+package kobun4.executor.admin.v1;
+
+option go_package = "v1pb";
+
+message DeleteMessageRequest {
+    kobun4.executor.scripts.v1.Context context = 1;
+
+    string channel_id = 2;
+    string message_id = 3;
+}
+
+message DeleteMessageResponse {
+}
+
+service Admin {
+    rpc DeleteMessage(DeleteMessageRequest) returns (DeleteMessageResponse) { }
+}

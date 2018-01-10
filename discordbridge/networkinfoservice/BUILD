@@ -5,7 +5,6 @@ go_library(
     srcs = ["service.go"],
     visibility = ["//visibility:public"],
     deps = [
-        "//discordbridge/varstore:go_default_library",
         "//executor/networkinfoservice/v1pb:go_default_library",
         "@com_github_bwmarrin_discordgo//:go_default_library",
         "@org_golang_x_net//context:go_default_library",

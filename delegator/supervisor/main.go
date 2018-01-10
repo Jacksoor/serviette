@@ -29,11 +29,13 @@ import (
 
 	"github.com/porpoises/kobun4/delegator/supervisor/seccomp"
 
+	adminpb "github.com/porpoises/kobun4/executor/adminservice/v1pb"
 	messagingpb "github.com/porpoises/kobun4/executor/messagingservice/v1pb"
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
 	statspb "github.com/porpoises/kobun4/executor/statsservice/v1pb"
 
 	srpc "github.com/porpoises/kobun4/delegator/supervisor/rpc"
+	"github.com/porpoises/kobun4/delegator/supervisor/rpc/deputyservice"
 	"github.com/porpoises/kobun4/delegator/supervisor/rpc/messagingservice"
 	"github.com/porpoises/kobun4/delegator/supervisor/rpc/networkinfoservice"
 	"github.com/porpoises/kobun4/delegator/supervisor/rpc/outputservice"
@@ -59,6 +61,10 @@ type serviceParams struct {
 }
 
 var serviceFactories map[string]serviceFactory = map[string]serviceFactory{
+	"Deputy": func(ctx context.Context, account *accountspb.Traits, params serviceParams) (interface{}, error) {
+		return deputyservice.New(ctx, params.req.Context, adminpb.NewAdminClient(params.bridgeConn)), nil
+	},
+
 	"Messaging": func(ctx context.Context, account *accountspb.Traits, params serviceParams) (interface{}, error) {
 		return messagingservice.New(ctx, account, messagingpb.NewMessagingClient(params.bridgeConn)), nil
 	},

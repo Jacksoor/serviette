@@ -46,3 +46,10 @@ func (s *Service) SetPrivate(req *struct {
 	s.outputParams.Private = req.Private
 	return nil
 }
+
+func (s *Service) SetExpires(req *struct {
+	Expires bool `json:"expires"`
+}, resp *srpc.Response) error {
+	s.outputParams.Expires = req.Expires
+	return nil
+}

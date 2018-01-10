@@ -2,7 +2,7 @@ create table guild_vars (
     guild_id character varying primary key not null,
     quiet boolean not null default false,
     announcement character varying not null,
-    delete_errors_after_seconds integer not null default 5,
+    message_expiry_seconds integer not null default 10,
     allow_unprivileged_unlinked_commands boolean not null default false
 );
 

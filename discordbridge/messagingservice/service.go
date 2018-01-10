@@ -8,20 +8,17 @@ import (
 	"github.com/bwmarrin/discordgo"
 
 	"github.com/porpoises/kobun4/discordbridge/client"
-	"github.com/porpoises/kobun4/discordbridge/varstore"
 
 	pb "github.com/porpoises/kobun4/executor/messagingservice/v1pb"
 )
 
 type Service struct {
 	session *discordgo.Session
-	vars    *varstore.Store
 }
 
-func New(session *discordgo.Session, vars *varstore.Store) *Service {
+func New(session *discordgo.Session) *Service {
 	return &Service{
 		session: session,
-		vars:    vars,
 	}
 }
 

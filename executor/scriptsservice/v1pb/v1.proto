@@ -25,6 +25,9 @@ message Context {
     string group_id = 13;
     string network_id = 14;
 
+    // Input info.
+    string input_message_id = 21;
+
     // Flavor.
     string script_command_prefix = 31;
 
@@ -92,6 +95,7 @@ message ExecuteRequest {
 message OutputParams {
     string format = 1;
     bool private = 2;
+    bool expires = 3;
 }
 
 message ExecuteResponse {

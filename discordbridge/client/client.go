@@ -209,6 +209,13 @@ func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
 
 				c.sendToChangelog(fmt.Sprintf("Added to guild **%s** (%s).", m.Guild.Name, m.Guild.ID))
 
+				privateChannel, err := c.session.UserChannelCreate(m.Guild.OwnerID)
+				if err != nil {
+					glog.Errorf("Failed to create user channel to owner: %v", err)
+					return nil
+				}
+
+				c.session.ChannelMessageSend(privateChannel.ID, fmt.Sprintf("Hi! You (or someone else authorized to do so) added Kobun to your server, **%s**! For support, we recommend you join our support server: https://discord.gg/MNqc3f8", m.Guild.Name))
 				return nil
 			}
 			return err
@@ -388,9 +395,9 @@ func (c *Client) sendErrorMessage(err error, guildVars *varstore.GuildVars, m *d
 		return err
 	}
 
-	if guildVars.DeleteErrorsAfter > 0 {
+	if guildVars.MessageExpiry > 0 {
 		go func() {
-			<-time.After(guildVars.DeleteErrorsAfter)
+			<-time.After(guildVars.MessageExpiry)
 			if err := c.session.ChannelMessageDelete(channel.ID, msg.ID); err != nil {
 				glog.Error("Failed to delete error message: %v", err)
 			}
@@ -563,6 +570,8 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			ChannelId: m.ChannelID,
 			GroupId:   channel.GuildID,
 			NetworkId: "discord",
+
+			InputMessageId: m.ID,
 		},
 		BridgeTarget: c.rpcTarget.String(),
 	})
@@ -634,11 +643,11 @@ func (c *Client) runScriptCommand(ctx context.Context, guildVars *varstore.Guild
 			return err
 		}
 
-		if !execOK && guildVars.DeleteErrorsAfter > 0 {
+		if (!execOK || resp.Result.OutputParams.Expires) && guildVars.MessageExpiry > 0 {
 			go func() {
-				<-time.After(guildVars.DeleteErrorsAfter)
+				<-time.After(guildVars.MessageExpiry)
 				if err := c.session.ChannelMessageDelete(channel.ID, msg.ID); err != nil {
-					glog.Errorf("Failed to delete error message: %v", err)
+					glog.Errorf("Failed to delete message: %v", err)
 				}
 			}()
 		}
