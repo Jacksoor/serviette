@@ -2,7 +2,10 @@ load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
     name = "go_default_library",
-    srcs = ["main.go"],
+    srcs = [
+        "main.go",
+        "seccomp.go",
+    ],
     visibility = ["//visibility:private"],
     deps = [
         "//delegator/supervisor/rpc:go_default_library",
@@ -12,7 +15,6 @@ go_library(
         "//delegator/supervisor/rpc/outputservice:go_default_library",
         "//delegator/supervisor/rpc/statsservice:go_default_library",
         "//delegator/supervisor/rpc/supervisorservice:go_default_library",
-        "//delegator/supervisor/seccomp:go_default_library",
         "//executor/accountsservice/v1pb:go_default_library",
         "//executor/adminservice/v1pb:go_default_library",
         "//executor/messagingservice/v1pb:go_default_library",

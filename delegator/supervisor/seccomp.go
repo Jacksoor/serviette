@@ -1,4 +1,4 @@
-package seccomp
+package main
 
 import (
 	"syscall"
@@ -6,7 +6,7 @@ import (
 	"github.com/opencontainers/runc/libcontainer/configs"
 )
 
-var Config = &configs.Seccomp{
+var seccompConfig = &configs.Seccomp{
 	DefaultAction: configs.Errno,
 	Syscalls: []*configs.Syscall{
 		{

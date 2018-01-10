@@ -27,8 +27,6 @@ import (
 	"github.com/opencontainers/runc/libcontainer/configs"
 	_ "github.com/opencontainers/runc/libcontainer/nsenter"
 
-	"github.com/porpoises/kobun4/delegator/supervisor/seccomp"
-
 	adminpb "github.com/porpoises/kobun4/executor/adminservice/v1pb"
 	messagingpb "github.com/porpoises/kobun4/executor/messagingservice/v1pb"
 	networkinfopb "github.com/porpoises/kobun4/executor/networkinfoservice/v1pb"
@@ -418,7 +416,7 @@ func main() {
 				Size:        1,
 			},
 		},
-		Seccomp: seccomp.Config,
+		Seccomp: seccompConfig,
 	}
 
 	if !traits.AllowNetworkAccess {
