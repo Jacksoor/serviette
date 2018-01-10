@@ -91,19 +91,19 @@ The output service allows scripts to set out-of-band metadata on the output of s
 Formats
 ~~~~~~~
 
-``text``
-++++++++
+text
+++++
 
 Plain text format.
 
 .. _rich:
 
-``rich``
-++++++++
+rich
+++++
 
 Rich content format. Must be in the JSON with the following format:
 
-.. code:: javascript
+.. code:: js
 
     {
         "fallback": "...",       // (required) fallback plain text for non-rich content bridges
@@ -136,7 +136,7 @@ The deputy service allows Kobun to perform certain restricted administrative tas
 
 These commands are those that the command issuer would have been able to take themselves.
 
-Please refer to the documentation for your :ref:`bridge <bridge>` to determine how to grant the correct permissions for these features.
+Please refer to the documentation for your :ref:`bridge <bridges>` to determine how to grant the correct permissions for these features.
 
 .. warning:: Please make sure you understand the security implications of granting Kobun administrative permissions! The developers of Kobun are not liable for any damages or losses incurred by enabling these features!
 
