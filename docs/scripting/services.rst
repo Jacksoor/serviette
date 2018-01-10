@@ -103,7 +103,7 @@ rich
 
 Rich content format. Must be in the JSON with the following format:
 
-.. code:: js
+.. code-block:: javascript
 
     {
         "fallback": "...",       // (required) fallback plain text for non-rich content bridges
