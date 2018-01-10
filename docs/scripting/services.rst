@@ -110,7 +110,7 @@ Rich content format. Must be in the JSON with the following format:
         "color": 0,              // (optional) color as an 24-bit integer in RGB order
         "author": "...",         // (optional) author of the content
         "authorLink": "...",     // (optional) link to the author
-        "authorIconURL: "...",   // (optional) URL to an icon representing the author
+        "authorIconURL": "...",  // (optional) URL to an icon representing the author
         "title": "...",          // (optional) title of the content
         "titleLink": "...",      // (optional) link for the title
         "text: "... ",           // (optional) description of the content
