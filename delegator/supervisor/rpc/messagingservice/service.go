@@ -40,7 +40,7 @@ func (s *Service) MessageChannel(req *struct {
 	Content string `json:"content"`
 	Format  string `json:"format"`
 }, resp *srpc.Response) error {
-	if int64(s.count) > s.traits.MaxMessagesPerInvocation {
+	if int64(s.count) >= s.traits.MaxMessagesPerInvocation {
 		return fmt.Errorf("exceeded max messages per invocation")
 	}
 
@@ -71,7 +71,7 @@ func (s *Service) MessageUser(req *struct {
 	Content string `json:"content"`
 	Format  string `json:"format"`
 }, resp *srpc.Response) error {
-	if int64(s.count) > s.traits.MaxMessagesPerInvocation {
+	if int64(s.count) >= s.traits.MaxMessagesPerInvocation {
 		return fmt.Errorf("exceeded max messages per invocation")
 	}
 
