@@ -8,7 +8,8 @@ create table accounts (
     cpu_shares integer not null default 100,
     allow_network_access boolean not null default false,
     allowed_output_formats character varying[] not null default array['text', 'rich'],
-    allowed_services character varying[] not null default array['Deputy', 'NetworkInfo']
+    allowed_services character varying[] not null default array['Deputy', 'NetworkInfo'],
+    max_messages_per_invocation integer not null default 10
 );
 
 create table scripts (

@@ -15,6 +15,7 @@ type Service struct {
 	ctx       context.Context
 	traits    *accountspb.Traits
 	messaging messagingpb.MessagingClient
+	count     int
 }
 
 func isOutputFormatAllowed(traits *accountspb.Traits, format string) bool {
@@ -39,6 +40,10 @@ func (s *Service) MessageChannel(req *struct {
 	Content string `json:"content"`
 	Format  string `json:"format"`
 }, resp *srpc.Response) error {
+	if int64(s.count) > s.traits.MaxMessagesPerInvocation {
+		return fmt.Errorf("exceeded max messages per invocation")
+	}
+
 	format := req.Format
 	if format == "" {
 		format = "text"
@@ -56,6 +61,8 @@ func (s *Service) MessageChannel(req *struct {
 	}); err != nil {
 		return err
 	}
+
+	s.count++
 	return nil
 }
 
@@ -64,6 +71,10 @@ func (s *Service) MessageUser(req *struct {
 	Content string `json:"content"`
 	Format  string `json:"format"`
 }, resp *srpc.Response) error {
+	if int64(s.count) > s.traits.MaxMessagesPerInvocation {
+		return fmt.Errorf("exceeded max messages per invocation")
+	}
+
 	format := req.Format
 	if format == "" {
 		format = "text"
@@ -81,5 +92,7 @@ func (s *Service) MessageUser(req *struct {
 	}); err != nil {
 		return err
 	}
+
+	s.count++
 	return nil
 }

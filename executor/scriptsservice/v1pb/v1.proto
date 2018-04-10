@@ -28,9 +28,6 @@ message Context {
     // Input info.
     string input_message_id = 21;
 
-    // Flavor.
-    string script_command_prefix = 31;
-
     map<string, string> extra = 1000;
 }
 

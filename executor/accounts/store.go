@@ -71,7 +71,8 @@ func (a *Account) Traits(ctx context.Context) (*accountspb.Traits, error) {
 		       blkio_weight,
 		       cpu_shares,
 		       allowed_services,
-		       allowed_output_formats
+		       allowed_output_formats,
+		       max_messages_per_invocation
 		from accounts
 		where name = $1
 	`, a.Name).Scan(
@@ -83,6 +84,7 @@ func (a *Account) Traits(ctx context.Context) (*accountspb.Traits, error) {
 		&traits.CpuShares,
 		pq.Array(&traits.AllowedService),
 		pq.Array(&traits.AllowedOutputFormat),
+		&traits.MaxMessagesPerInvocation,
 	); err != nil {
 		return nil, err
 	}

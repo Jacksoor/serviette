@@ -66,6 +66,7 @@ message Traits {
     bool allow_network_access = 4;
     int64 blkio_weight = 5;
     int64 cpu_shares = 6;
+    int64 max_messages_per_invocation = 7;
 
     repeated string allowed_output_format = 10;
     repeated string allowed_service = 20;
