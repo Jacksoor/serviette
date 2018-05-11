@@ -55,11 +55,10 @@ The network information service provides scripts with the ability to interact wi
    :param userId: The user ID of the member to look up.
    :return: Information about the channel member. ``name`` may contain their channel-specific username – if channel-specific usernames do not exist, their regular username will be returned. ``extra`` contains additional network-specific information.
 
-.. py:function:: NetworkInfo.GetGroupMemberInfo(groupId: string, userId: string) -> {name: string, roles: string[], extra: object}
+.. py:function:: NetworkInfo.GetGroupMemberInfo(userId: string) -> {name: string, roles: string[], extra: object}
 
-   Looks up a group member's information by a group ID and their user ID.
+   Looks up a group member's information by their user ID.
 
-   :param groupId: The ID of the group the user is a member of.
    :param userId: The user ID of the member to look up.
    :return: Information about the group member. ``name`` may contain their group-specific username – if group-specific usernames do not exist, their regular username will be returned. ``extra`` contains additional network-specific information.
 

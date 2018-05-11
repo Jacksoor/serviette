@@ -115,19 +115,23 @@ func (s *Service) GetGroupMemberInfo(ctx context.Context, req *pb.GetGroupMember
 	}
 
 	name := member.Nick
-	if member.Nick != "" {
+	if member.Nick == "" {
 		name = member.User.Username
 	}
 
-	t, err := discordgo.Timestamp(member.JoinedAt).Parse()
-	if err != nil {
-		return nil, err
+	var ts int64
+	if member.JoinedAt != "" {
+		t, err := discordgo.Timestamp(member.JoinedAt).Parse()
+		if err != nil {
+			return nil, err
+		}
+		ts = t.UnixNano() / (int64(time.Millisecond) / int64(time.Nanosecond))
 	}
 
 	return &pb.GetGroupMemberInfoResponse{
 		Name:               name,
 		Role:               member.Roles,
-		JoinedAtUnixMillis: t.UnixNano() / (int64(time.Millisecond) / int64(time.Nanosecond)),
+		JoinedAtUnixMillis: ts,
 	}, nil
 }
 
