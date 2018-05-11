@@ -10,7 +10,7 @@ The kobun4 scripting environment provides both ephemeral and persistent storage.
 
 ``/mnt/private`` is the persistent storage location on a per-account basis. It is limited in size and is guaranteed to be persistent from one script execution to the next.
 
-Persistent storage can be accessed via WebDAV at the URL https://storage.kobun.life.
+Persistent storage can be accessed via WebDAV at the URL https://storage.kobun.company.
 
 .. _ephemeralstorage:
 

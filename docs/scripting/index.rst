@@ -3,7 +3,7 @@
 Scripting Documentation
 =======================
 
-kobun4's commands (generally prefixed with ``.``) are all scriptable via the web UI at https://kobun.life/editor.
+kobun4's commands (generally prefixed with ``.``) are all scriptable via the web UI at https://kobun.company/editor.
 
 Scripts can be written via the web interface and are run in a :ref:`sandbox <sandbox>`, which has certain limitations you should be aware of. They can be written in any executable format, and will be directly ``exec``\ed by the executor in the sandbox (a ``#!`` on the first line is required for specifying the script interpreter).
 
