@@ -40,11 +40,10 @@ The network information service provides scripts with the ability to interact wi
    :param id: The ID to look up.
    :return: Information about the channel. ``isOneOnOne`` is true if and only if the channel is a private channel with the bot. ``extra`` contains additional network-specific information.
 
-.. py:function:: NetworkInfo.GetGroupInfo(id: string) -> {name: string, extra: object}
+.. py:function:: NetworkInfo.GetGroupInfo() -> {name: string, extra: object}
 
-   Looks up a group's information by its group ID.
+   Looks up the current group's information.
 
-   :param id: The ID to look up.
    :return: Information about the group. ``extra`` contains additional network-specific information.
 
 .. py:function:: NetworkInfo.GetChannelMemberInfo(channelId: string, userId: string) -> {name: string, roles: string[], extra: object}
