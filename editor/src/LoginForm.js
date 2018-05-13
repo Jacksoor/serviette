@@ -87,6 +87,7 @@ export default class LoginForm extends Component {
         <form onSubmit={this.onSubmit.bind(this)}>
           <fieldset disabled={this.state.disabled}>
             <h2 className="text-muted">Please log in</h2>
+            {/Trident\/|MSIE /.test(window.navigator.userAgent) ? <Alert color="danger">The editor is known to be broken on all versions of Internet Explorer. Use at your own risk!</Alert> : null}
             {this.state.lastError ? <Alert color="danger">{this.state.lastError.toString()}</Alert> : null}
             <Input name="username" className="username" type="text" placeholder="Username" maxLength="20" />
             <Input name="password" className="password" type="password" placeholder="Password" />
