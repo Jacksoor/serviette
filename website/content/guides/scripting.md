@@ -15,7 +15,7 @@ Now you're ready to get started.
 ## Creating your first script
 Creating your first script is as easy as picking a name in **lowercase** for your script and clicking <button type="button" class="btn btn-primary">Create</button>. If you script was successfully created you should see the editor change to the default script as seen here:
 
-![enter image description here](/images/guide_default_script.png)
+![Default script](/images/guide_default_script.png)
 
 You can now already run this script if you copy the command shown in line 3. It will always have the format `@Kobun run` followed by your `username` and `/scriptname`. Run that command in a Discord server that you are the administrator of and somewhere Kobun can read and write messages. You should now see Kobun respond like this:
 
