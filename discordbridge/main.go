@@ -63,6 +63,7 @@ var (
 	maxBudgetPerUser    = flag.Duration("max_budget_per_user", 5*time.Second, "Max execution budget per user")
 	minCostPerUser      = flag.Duration("min_cost_per_user", 1*time.Second, "Minimum cost per user")
 	payoutPeriodPerUser = flag.Duration("payout_period_per_user", 5, "How much time to wait before paying 1 unit of time back")
+	budgetCleanupPeriod = flag.Duration("budget_cleanup_period", 10*time.Minute, "How often to clean up budget entries")
 )
 
 func main() {
@@ -108,7 +109,7 @@ func main() {
 	os.Chmod(*bindSocket, 0777)
 	glog.Infof("Listening on: %s", lis.Addr())
 
-	budgeter := budget.New(db, *maxBudgetPerUser, *payoutPeriodPerUser)
+	budgeter := budget.New(db, *maxBudgetPerUser, *payoutPeriodPerUser, *budgetCleanupPeriod)
 
 	options := &client.Options{
 		Status:                 *status,

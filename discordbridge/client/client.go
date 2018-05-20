@@ -208,14 +208,6 @@ func (c *Client) guildCreate(s *discordgo.Session, m *discordgo.GuildCreate) {
 				tx.Commit()
 
 				c.sendToChangelog(fmt.Sprintf("Added to guild **%s** (%s).", m.Guild.Name, m.Guild.ID))
-
-				privateChannel, err := c.session.UserChannelCreate(m.Guild.OwnerID)
-				if err != nil {
-					glog.Errorf("Failed to create user channel to owner: %v", err)
-					return nil
-				}
-
-				c.session.ChannelMessageSend(privateChannel.ID, fmt.Sprintf("Hi! You (or someone else authorized to do so) added Kobun to your server, **%s**! For support, we recommend you join our support server: https://discord.gg/MNqc3f8", m.Guild.Name))
 				return nil
 			}
 			return err
@@ -453,32 +445,34 @@ func (c *Client) handleMessage(ctx context.Context, guildVars *varstore.GuildVar
 		}
 	}
 
-	var commandName string
-	var link *varstore.Link
+	if guild != nil {
+		var commandName string
+		var link *varstore.Link
 
-	if err := func() error {
-		tx, err := c.vars.BeginTx(ctx)
-		if err != nil {
+		if err := func() error {
+			tx, err := c.vars.BeginTx(ctx)
+			if err != nil {
+				return err
+			}
+			defer tx.Rollback()
+
+			commandName, link, err = c.vars.FindLink(ctx, tx, guild.ID, content)
 			return err
+		}(); err != nil {
+			if err != varstore.ErrNotFound {
+				glog.Errorf("Failed to look up command from database: %v", err)
+				return nil
+			}
 		}
-		defer tx.Rollback()
 
-		commandName, link, err = c.vars.FindLink(ctx, tx, guild.ID, content)
-		return err
-	}(); err != nil {
-		if err != varstore.ErrNotFound {
-			glog.Errorf("Failed to look up command from database: %v", err)
-			return nil
+		if link != nil {
+			rest := strings.TrimSpace(m.Content[len(commandName):])
+			return c.runScriptCommand(ctx, guildVars, m, guild, channel, member, commandName, link, rest)
 		}
-	}
 
-	if link != nil {
-		rest := strings.TrimSpace(m.Content[len(commandName):])
-		return c.runScriptCommand(ctx, guildVars, m, guild, channel, member, commandName, link, rest)
-	}
-
-	if err := c.stats.RecordUserChannelMessage(ctx, m.Author.ID, channel.ID, int64(len(m.Content))); err != nil {
-		glog.Errorf("Failed to record stats: %v", err)
+		if err := c.stats.RecordUserChannelMessage(ctx, m.Author.ID, channel.ID, int64(len(m.Content))); err != nil {
+			glog.Errorf("Failed to record stats: %v", err)
+		}
 	}
 
 	return nil
