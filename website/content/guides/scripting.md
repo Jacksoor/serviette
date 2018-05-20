@@ -4,8 +4,6 @@ title = "Scripting Guide"
 description = "Want to write your own Kobun commands? Here's a quick rundown."
 +++
 
-# Python Scripting Guide
-
 The easiest way to get started using Kobun, is through the online [editor](/editor). You'll need to login with your Discord account if you use the editor for the first time and register an username, make sure that it's all **lowercase** or else it won't work.
 
 After registration you should see a screen similar to this:
@@ -16,7 +14,7 @@ Now you're ready to get started.
 
 ## Creating your first script
 
-Creating your first script is as easy as picking a name in **lowercase** for your script and clicking <button type="button" class="btn btn-primary">Create</button>. If you script was successfully created, you should see the editor change to the default script as seen here:
+Creating your first script is as easy as picking a name in **lowercase** for your script and clicking <button type="button" class="btn btn-primary active">Create</button>. If you script was successfully created, you should see the editor change to the default script as seen here:
 
 ![Default script](/images/guide_default_script.png)
 
@@ -26,9 +24,9 @@ You can now already run this script if you copy the command shown in line 3. It 
 
 *If Kobun doesn't respond, he might not be able to read or write messages, in this case you should check the Discord channel permissions or give Kobun administrative rights.*
 
-As you can see from the response, Kobun will show anything that you've written to `stdout` via functions like `print`, inside an Discord embed along with your mention and showing you if the script ran successfully.
+As you can see from the response, Kobun will show anything that you've written to `stdout`, via functions like `print`, inside an Discord embed along with your mention and showing you if the script ran successfully.
 
-Now try to change that response to anything you like and see if Kobun responds differently, don't forget to **save your script** before calling it again using the <button type="button" class="btn btn-primary">Save</button> button in the top right corner.
+Now try to change that response to anything you like and see if Kobun responds differently, don't forget to **save your script** before calling it again using the <button type="button" class="btn btn-primary active">Save</button> button in the top right corner.
 
 ## Linking scripts
 
@@ -64,7 +62,7 @@ You always need to separate your chosen command and input with *space*, this spa
 
 Kobun provides each user with a limited amount of private storage located at `/mnt/private`, where you can store anything you'd like.
 
-To access this storage outside of your scripts you need to set a password first, by clicking <button type="button" class="btn btn-secondary">Account Info</button> next to your user name in the [editor](/editor) and scroll down to the password fields. After you've set your password you can log onto `https://storage.kobun.company` via any WebDAV client like [WinSCP](https://winscp.net/) using your user name and password.
+To access this storage outside of your scripts you need to set a password first, by clicking <button type="button" class="btn btn-secondary active" style="background-color: #fff;">Account Info</button> next to your user name in the [editor](/editor) and scroll down to the password fields. After you've set your password you can log onto `https://storage.kobun.company` via any WebDAV client like [WinSCP](https://winscp.net/) using your user name and chosen password.
 
 A good way to store data is inside a sqlite3 database as shown in [rfw/quote](https://kobun.company/scripts/view.html?rfw/quote) or [jacob/pixiepoints](https://kobun.life/scripts/view.html?jacob/pixiepoints).
 
