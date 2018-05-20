@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/golang/glog"
 	"golang.org/x/net/context"
 )
 
@@ -14,13 +15,26 @@ type Budgeter struct {
 	payoutPeriod time.Duration
 }
 
-func New(db *sql.DB, maxBudget time.Duration, payoutPeriod time.Duration) *Budgeter {
-	return &Budgeter{
+func New(db *sql.DB, maxBudget time.Duration, payoutPeriod time.Duration, cleanupPeriod time.Duration) *Budgeter {
+	b := &Budgeter{
 		db: db,
 
 		maxBudget:    maxBudget,
 		payoutPeriod: payoutPeriod,
 	}
+
+	go func() {
+		for range time.Tick(cleanupPeriod) {
+			deletedRows, err := b.cleanup(context.Background())
+			if err != nil {
+				glog.Errorf("Failed to clean up budget rows: %v", err)
+			} else {
+				glog.Infof("Cleaned up %d budget rows.", deletedRows)
+			}
+		}
+	}()
+
+	return b
 }
 
 func (b *Budgeter) Remaining(ctx context.Context, userID string) (int64, error) {
@@ -50,4 +64,16 @@ func (b *Budgeter) Charge(ctx context.Context, userID string, cost time.Duration
 		return err
 	}
 	return nil
+}
+
+func (b *Budgeter) cleanup(ctx context.Context) (int64, error) {
+	res, err := b.db.ExecContext(ctx, `
+	    delete from execution_budgets
+	    where least(remaining_budget + extract(epoch from ($2 - last_update_time)) * $4 / $3, $1) >= $1
+	`, int64(b.maxBudget), time.Now(), int64(b.payoutPeriod), int64(time.Second))
+	if err != nil {
+		return 0, err
+	}
+
+	return res.RowsAffected()
 }
